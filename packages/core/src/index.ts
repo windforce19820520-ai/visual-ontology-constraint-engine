@@ -6,6 +6,7 @@ import type {
   ScenarioPackManifest, ScenarioPackRegistry, ScenarioPackRequest, ScenarioPackResolution,
   ScenarioPackSelection,
 } from '@voce/contracts'
+import { valid as semverValid, validRange as semverValidRange, satisfies as semverSatisfies } from 'semver'
 
 export type { JsonValue } from '@voce/contracts'
 
@@ -29,95 +30,31 @@ function bytesHash(bytes: Uint8Array): string {
 }
 
 function isExactSemVer(value: string): boolean {
-  return NORMAL_SEMVER.test(value)
-}
-
-type Version = { major: number; minor: number; patch: number }
-
-function parseVersion(value: string): Version | undefined {
-  const match = value.match(NORMAL_SEMVER)
-  return match ? { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]) } : undefined
-}
-
-function compareVersions(left: Version, right: Version): number {
-  return left.major - right.major || left.minor - right.minor || left.patch - right.patch
-}
-
-function upperBoundForCaret(version: Version): Version {
-  if (version.major > 0) return { major: version.major + 1, minor: 0, patch: 0 }
-  if (version.minor > 0) return { major: 0, minor: version.minor + 1, patch: 0 }
-  return { major: 0, minor: 0, patch: version.patch + 1 }
-}
-
-function upperBoundForTilde(version: Version): Version {
-  return { major: version.major, minor: version.minor + 1, patch: 0 }
-}
-
-function rangeAlternativeMatches(range: string, version: Version): boolean {
-  const trimmed = range.trim()
-  if (trimmed === '' || trimmed === '*' || trimmed.toLowerCase() === 'x') return true
-  const tokens = trimmed.replace(/,/g, ' ').split(/\s+/).filter(Boolean)
-  for (const token of tokens) {
-    if (token === '*' || token.toLowerCase() === 'x') continue
-    const operator = token.match(/^(\^|~|>=|<=|>|<|=)?(.*)$/)
-    if (!operator || !operator[2]) return false
-    const prefix = operator[1] ?? '='
-    const rawVersion = operator[2]
-    if (rawVersion.includes('-') || rawVersion.includes('+')) return false
-    const wildcard = rawVersion.match(/^(0|[1-9][0-9]*|x|X)(?:\.(0|[1-9][0-9]*|x|X))?(?:\.(0|[1-9][0-9]*|x|X))?$/)
-    if ((prefix === '=' || prefix === '') && wildcard && (wildcard[2] === undefined || wildcard[2].toLowerCase() === 'x' || wildcard[3] === undefined || wildcard[3].toLowerCase() === 'x')) {
-      const major = wildcard[1].toLowerCase() === 'x' ? undefined : Number(wildcard[1])
-      const minor = wildcard[2] === undefined || wildcard[2].toLowerCase() === 'x' ? undefined : Number(wildcard[2])
-      if (major === undefined) continue
-      if (version.major !== major) return false
-      if (minor !== undefined && version.minor !== minor) return false
-      continue
-    }
-    const parsed = parseVersion(rawVersion)
-    if (!parsed) return false
-    const comparison = compareVersions(version, parsed)
-    if (prefix === '^' && (comparison < 0 || compareVersions(version, upperBoundForCaret(parsed)) >= 0)) return false
-    if (prefix === '~' && (comparison < 0 || compareVersions(version, upperBoundForTilde(parsed)) >= 0)) return false
-    if (prefix === '>=' && comparison < 0) return false
-    if (prefix === '<=' && comparison > 0) return false
-    if (prefix === '>' && comparison <= 0) return false
-    if (prefix === '<' && comparison >= 0) return false
-    if ((prefix === '=' || prefix === '') && comparison !== 0) return false
-  }
-  return true
-}
-
-function isValidSemVerRange(range: string): boolean {
-  if (range.trim() === '' || range.trim() === '*' || range.trim().toLowerCase() === 'x') return true
-  return range.split('||').every((alternative) => {
-    const tokens = alternative.trim().replace(/,/g, ' ').split(/\s+/).filter(Boolean)
-    return tokens.length > 0 && tokens.every((token) => {
-      const raw = token.replace(/^(\^|~|>=|<=|>|<|=)/, '')
-      if (raw === '*' || raw.toLowerCase() === 'x') return true
-      if (/^(?:\d+|x|X)(?:\.(?:\d+|x|X))?(?:\.(?:\d+|x|X))?$/.test(raw)) {
-        const parts = raw.split('.')
-        return parts.every((part) => part.toLowerCase() === 'x' || /^(0|[1-9][0-9]*)$/.test(part))
-      }
-      return isExactSemVer(raw)
-    })
-  })
+  if (!NORMAL_SEMVER.test(value)) return false
+  try { return semverValid(value) === value } catch { return false }
 }
 
 function rangeMatches(range: string, version: string): boolean {
-  const parsed = parseVersion(version)
-  return parsed !== undefined && range.split('||').some((alternative) => rangeAlternativeMatches(alternative, parsed))
+  try { return semverSatisfies(version, range) } catch { return false }
 }
 
 function safePath(path: string): boolean {
   return path.length > 0 && !path.includes('\\') && !path.startsWith('/') && !path.includes(':') && !path.split('/').some((part) => part === '' || part === '.' || part === '..')
 }
 
-function record(value: unknown, label: string): asserts value is JsonObject {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label}: expected object`)
-}
-
 function json(value: unknown): JsonValue {
   return value as JsonValue
+}
+
+function cloneData<T>(value: T): T {
+  if (value instanceof Uint8Array) return new Uint8Array(value) as T
+  if (Array.isArray(value)) return value.map((item) => cloneData(item)) as T
+  if (value && typeof value === 'object') {
+    const result: Record<string, unknown> = {}
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) result[key] = cloneData(item)
+    return result as T
+  }
+  return value
 }
 
 export function canonicalize(value: JsonValue): string {
@@ -141,15 +78,17 @@ export function hashWithoutSelf<T extends Record<string, unknown>>(value: T, fie
 }
 
 function validateManifestBase(value: unknown): asserts value is ScenarioPackManifest {
-  record(value, 'ScenarioPackManifest')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('PACK_MANIFEST_INVALID')
+  const object = value as Record<string, unknown>
   for (const field of ['schemaVersion', 'packId', 'version', 'kind', 'declarations', 'permissions', 'distributionInventory']) {
-    if (!(field in value)) throw new Error(`ScenarioPackManifest.${field}: required`)
+    if (!(field in object)) throw new Error(`ScenarioPackManifest.${field}: required`)
   }
-  if (value.schemaVersion !== 'voce.scenario-pack/v1alpha1') throw new Error('PACK_SCHEMA_UNSUPPORTED')
-  if (typeof value.packId !== 'string' || !value.packId || typeof value.version !== 'string' || !value.version) throw new Error('PACK_MANIFEST_INVALID')
-  if (value.kind !== 'root' && value.kind !== 'extension') throw new Error('PACK_KIND_INVALID')
-  const declarations = value.declarations as JsonObject
-  const permissions = value.permissions as JsonObject
+  if (object.schemaVersion !== 'voce.scenario-pack/v1alpha1') throw new Error('PACK_SCHEMA_UNSUPPORTED')
+  if (typeof object.packId !== 'string' || !object.packId || typeof object.version !== 'string' || !object.version) throw new Error('PACK_MANIFEST_INVALID')
+  if (object.kind !== 'root' && object.kind !== 'extension') throw new Error('PACK_KIND_INVALID')
+  const declarations = object.declarations as JsonObject
+  const permissions = object.permissions as JsonObject
+  if (!declarations || typeof declarations !== 'object' || Array.isArray(declarations) || !permissions || typeof permissions !== 'object' || Array.isArray(permissions)) throw new Error('PACK_MANIFEST_INVALID')
   for (const key of ['containsExecutableScenarioCode', 'distributionLifecycleScripts', 'containsExecutableFiles', 'fixturesRequireNetwork', 'fixturesRequireRealProvider']) {
     if (declarations[key] !== false) throw new Error('PACK_DECLARATION_INVALID')
   }
@@ -164,6 +103,18 @@ export function validateManifest(value: unknown): void {
 
 function validateManifestStrict(manifest: ScenarioPackManifest): void {
   validateManifestBase(manifest)
+  const requiredArrays = ['supportedInteractionModes', 'inputExpectations', 'outputExpectations', 'dependencies', 'conflicts', 'fixtures', 'migrations', 'capabilityRequirements'] as const
+  for (const field of requiredArrays) if (!Array.isArray((manifest as unknown as Record<string, unknown>)[field])) throw new Error('PACK_MANIFEST_INVALID')
+  for (const field of ['provenance', 'contractRanges', 'ui', 'composition', 'contributions'] as const) {
+    const value = (manifest as unknown as Record<string, unknown>)[field]
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('PACK_MANIFEST_INVALID')
+  }
+  if (!Array.isArray(manifest.distributionInventory)) throw new Error('PACK_MANIFEST_INVALID')
+  if (!Array.isArray(manifest.composition.before) || !Array.isArray(manifest.composition.after) || manifest.composition.before.some((id) => typeof id !== 'string') || manifest.composition.after.some((id) => typeof id !== 'string')) throw new Error('PACK_MANIFEST_INVALID')
+  for (const category of ['ontologyVocabulary', 'rulePacks', 'interpretationScopes', 'promptSections', 'reviewTemplates', 'defaults', 'overridePoints'] as const) {
+    if (!Array.isArray(manifest.contributions[category])) throw new Error('PACK_MANIFEST_INVALID')
+  }
+  if (manifest.kind === 'extension' && (!manifest.extensionOf || typeof manifest.extensionOf.rootPackId !== 'string' || typeof manifest.extensionOf.rootVersionRange !== 'string')) throw new Error('PACK_MANIFEST_INVALID')
   if (!isExactSemVer(manifest.version)) throw new Error('PACK_VERSION_UNSATISFIABLE')
   if (manifest.kind === 'root' ? manifest.extensionOf !== undefined : !manifest.extensionOf) throw new Error('PACK_MANIFEST_INVALID')
   if (manifest.extensionOf && !isExactSemVer(manifest.extensionOf.rootVersionRange)) throw new Error('PACK_VERSION_UNSATISFIABLE')
@@ -171,11 +122,18 @@ function validateManifestStrict(manifest: ScenarioPackManifest): void {
   const permissions = manifest.permissions
   if (declarations.containsExecutableScenarioCode || declarations.distributionLifecycleScripts || declarations.containsExecutableFiles || declarations.fixturesRequireNetwork || declarations.fixturesRequireRealProvider || declarations.collectsTelemetry) throw new Error('PACK_DECLARATION_INVALID')
   if (permissions.network || permissions.remoteCalls || permissions.secrets || permissions.filesystemWrite || permissions.mutateConfirmedFacts || permissions.authorizeCalls || permissions.overrideHostPolicy || permissions.selectProvider || permissions.changeBudgets) throw new Error('PACK_PERMISSION_FORBIDDEN')
-  for (const dependency of manifest.dependencies) if (dependency.role !== 'extension' || !isExactSemVer(dependency.versionRange)) throw new Error('PACK_DEPENDENCY_UNSATISFIABLE')
-  for (const conflict of manifest.conflicts) if (!isValidSemVerRange(conflict.versionRange)) throw new Error('PACK_VERSION_UNSATISFIABLE')
+  for (const dependency of manifest.dependencies) {
+    if (!dependency || typeof dependency.packId !== 'string' || typeof dependency.versionRange !== 'string' || typeof dependency.role !== 'string' || typeof dependency.reasonCode !== 'string') throw new Error('PACK_MANIFEST_INVALID')
+    if (dependency.role !== 'extension' || !isExactSemVer(dependency.versionRange)) throw new Error('PACK_DEPENDENCY_UNSATISFIABLE')
+  }
+  for (const conflict of manifest.conflicts) {
+    if (!conflict || typeof conflict.packId !== 'string' || typeof conflict.versionRange !== 'string' || typeof conflict.reasonCode !== 'string') throw new Error('PACK_MANIFEST_INVALID')
+    try { if (semverValidRange(conflict.versionRange) === null) throw new Error('PACK_VERSION_UNSATISFIABLE') } catch { throw new Error('PACK_VERSION_UNSATISFIABLE') }
+  }
   const paths = new Set<string>()
   const foldedPaths = new Set<string>()
   for (const file of manifest.distributionInventory) {
+    if (!file || typeof file.path !== 'string' || typeof file.contentDigest !== 'string' || typeof file.role !== 'string') throw new Error('PACK_MANIFEST_INVALID')
     if (!safePath(file.path) || !DIGEST.test(file.contentDigest) || paths.has(file.path) || foldedPaths.has(file.path.toLowerCase())) throw new Error('PACK_MANIFEST_INVALID')
     paths.add(file.path)
     foldedPaths.add(file.path.toLowerCase())
@@ -184,6 +142,7 @@ function validateManifestStrict(manifest: ScenarioPackManifest): void {
   for (const category of ['ontologyVocabulary', 'rulePacks', 'interpretationScopes', 'promptSections', 'reviewTemplates', 'defaults', 'overridePoints'] as const) {
     const ids = new Set<string>()
     for (const descriptor of manifest.contributions[category]) {
+      if (!descriptor || typeof descriptor.id !== 'string' || typeof descriptor.schemaVersion !== 'string' || typeof descriptor.contentDigest !== 'string') throw new Error('PACK_CONTRIBUTION_INVALID')
       if (ids.has(descriptor.id) || !DIGEST.test(descriptor.contentDigest)) throw new Error('PACK_CONTRIBUTION_INVALID')
       ids.add(descriptor.id)
     }
@@ -197,7 +156,9 @@ function contributionDigest(value: JsonObject): string {
 }
 
 function descriptorFor(definition: ScenarioPack, files: Array<{ path: string; bytes: Uint8Array }>): ScenarioPackDescriptor {
+  if (!definition || typeof definition !== 'object' || Array.isArray(definition) || !definition.manifest) throw new Error('PACK_MANIFEST_INVALID')
   validateManifestStrict(definition.manifest)
+  if (!definition.contributions || typeof definition.contributions !== 'object' || Array.isArray(definition.contributions)) throw new Error('PACK_CONTRIBUTION_INVALID')
   const inventory = new Map(definition.manifest.distributionInventory.map((file) => [file.path, file]))
   const seen = new Set<string>()
   for (const file of files) {
@@ -208,9 +169,15 @@ function descriptorFor(definition: ScenarioPack, files: Array<{ path: string; by
   if (seen.size !== inventory.size) throw new Error('PACK_MANIFEST_INVALID')
   for (const category of ['ontologyVocabulary', 'rulePacks', 'interpretationScopes', 'promptSections', 'reviewTemplates', 'defaults', 'overridePoints'] as const) {
     const indexed = new Map(definition.manifest.contributions[category].map((descriptor) => [descriptor.id, descriptor.contentDigest]))
-    for (const raw of definition.contributions[category] as unknown[]) {
+    const bodyIds = new Set<string>()
+    const bodies = definition.contributions[category]
+    if (!Array.isArray(bodies) || bodies.length !== indexed.size) throw new Error('PACK_CONTRIBUTION_INVALID')
+    for (const raw of bodies as unknown[]) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('PACK_CONTRIBUTION_INVALID')
       const contribution = raw as unknown as JsonObject
       const id = typeof contribution.contributionId === 'string' ? contribution.contributionId : String(contribution.id)
+      if (typeof contribution.id !== 'string' || typeof contribution.contentDigest !== 'string' || bodyIds.has(id) || !indexed.has(id)) throw new Error('PACK_CONTRIBUTION_INVALID')
+      bodyIds.add(id)
       if (indexed.get(id) !== contribution.contentDigest || contributionDigest(contribution) !== contribution.contentDigest) throw new Error('PACK_DIGEST_MISMATCH')
     }
   }
@@ -243,16 +210,23 @@ function catalogBase(catalog: ScenarioPackCatalogSnapshot) {
 }
 
 function validateCatalog(catalog: ScenarioPackCatalogSnapshot, descriptors: ReadonlyMap<string, ScenarioPackDescriptor>): ReturnType<typeof conflict> | undefined {
+  if (!catalog || typeof catalog !== 'object' || !Array.isArray(catalog.entries) || !Array.isArray(catalog.availabilityPolicies)) return conflict('PACK_MANIFEST_INVALID', [], 'Catalog snapshot shape is invalid.', 'Use a Registry-produced catalog snapshot.')
+  if (catalog.entries.some((entry) => !entry || typeof entry !== 'object' || !entry.manifest || typeof entry.manifest !== 'object') || catalog.availabilityPolicies.some((policy) => !policy || typeof policy !== 'object' || typeof policy.policyHash !== 'string')) return conflict('PACK_MANIFEST_INVALID', [], 'Catalog snapshot entry shape is invalid.', 'Use a Registry-produced catalog snapshot.')
   if (catalog.contractVersion !== CONTRACT_VERSION || catalog.resolverVersion !== RESOLVER_VERSION) return conflict('PACK_COMPATIBILITY_MISMATCH', [], 'Catalog contract or resolver version is not supported.', 'Use a snapshot produced by this M2 Registry.')
   if (!DIGEST.test(catalog.catalogHash) || sha256(json(catalogBase(catalog))) !== catalog.catalogHash) return conflict('PACK_DIGEST_MISMATCH', [], 'Catalog hash does not match its canonical snapshot payload.', 'Refresh the explicit local catalog snapshot.')
   const seen = new Set<string>()
   for (const entry of catalog.entries) {
+    if (!entry || typeof entry !== 'object' || !entry.manifest) return conflict('PACK_MANIFEST_INVALID', [], 'Catalog entry shape is invalid.', 'Refresh the catalog from the Registry.')
+    try { validateManifestStrict(entry.manifest) } catch (error) {
+      const code = error instanceof Error && error.message.startsWith('PACK_') ? error.message : 'PACK_MANIFEST_INVALID'
+      return conflict(code, [typeof entry.manifest.packId === 'string' ? entry.manifest.packId : ''], 'Catalog entry manifest is invalid.', 'Refresh the catalog from the Registry.')
+    }
     const key = keyOf(entry.manifest.packId, entry.manifest.version)
     if (seen.has(key)) return conflict('PACK_DUPLICATE_ID_VERSION', [entry.manifest.packId], 'Catalog contains a duplicate pack identity.', 'Remove the duplicate entry.')
     seen.add(key)
     const local = descriptors.get(key)
     if (!local) return conflict('PACK_NOT_FOUND', [entry.manifest.packId], 'Catalog contains a pack not registered in this Registry.', 'Use this Registry snapshot without external entries.')
-    if (local.manifestHash !== entry.manifestHash || local.packageDigest !== entry.packageDigest || local.distributionDigest !== entry.distributionDigest) return conflict('PACK_DIGEST_MISMATCH', [entry.manifest.packId], 'Catalog descriptor digests do not match the registered local package.', 'Refresh the catalog from the Registry.')
+    if (sha256(json(entry.manifest)) !== entry.manifestHash || local.manifestHash !== entry.manifestHash || canonicalize(json(local.manifest)) !== canonicalize(json(entry.manifest)) || local.packageDigest !== entry.packageDigest || local.distributionDigest !== entry.distributionDigest) return conflict('PACK_DIGEST_MISMATCH', [entry.manifest.packId], 'Catalog descriptor manifest or digests do not match the registered local package.', 'Refresh the catalog from the Registry.')
   }
   return undefined
 }
@@ -270,8 +244,7 @@ function setJsonPointer(source: JsonObject, pointer: string, value: JsonValue): 
   const segments = pointerSegments(pointer)
   if (!segments) return undefined
   if (segments.length === 0) {
-    record(value, 'configuration')
-    return value
+    return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as JsonObject : undefined
   }
   const result = JSON.parse(JSON.stringify(source)) as JsonObject
   let cursor: JsonObject = result
@@ -293,7 +266,7 @@ function schemaAccepts(point: OverridePoint, value: JsonValue): boolean {
   if (schemaId === 'boolean') return typeof value === 'boolean'
   if (schemaId === 'object') return value !== null && typeof value === 'object' && !Array.isArray(value)
   if (schemaId === 'array') return Array.isArray(value)
-  return true
+  return false
 }
 
 function contributionId(value: unknown): string {
@@ -405,6 +378,7 @@ export function resolveScenario(selection: ScenarioPackSelection, catalog: Scena
   }
   for (const entry of selected) {
     const from = keyOf(entry.manifest.packId, entry.manifest.version)
+    if (entry.manifest.composition.before.includes(entry.manifest.packId) || entry.manifest.composition.after.includes(entry.manifest.packId)) conflicts.push(conflict('PACK_ORDER_CYCLE', [entry.manifest.packId], 'A pack declares itself before or after itself.', 'Remove the self-reference.'))
     for (const dependency of entry.manifest.dependencies) {
       const target = keyOf(dependency.packId, dependency.versionRange)
       dependencyEdges.push([target, from])
@@ -419,6 +393,7 @@ export function resolveScenario(selection: ScenarioPackSelection, catalog: Scena
       if (target) addEdge(target, from, 'PACK_MANIFEST_AFTER')
     }
   }
+  if (conflicts.length) return { status: 'blocked', report: failureReport(selected, dependencyTrace, compositionTrace, overrideTraces, conflicts, warnings) }
   for (const entry of selected.filter((item) => item.manifest.kind === 'extension')) addEdge(keyOf(root.manifest.packId, root.manifest.version), keyOf(entry.manifest.packId, entry.manifest.version), 'ROOT_BEFORE_EXTENSION')
   const dependencyRemaining = new Set(nodes)
   while (dependencyRemaining.size) {
@@ -538,23 +513,25 @@ export class MemoryScenarioPackRegistry implements ScenarioPackRegistry {
 
   register(source: LocalScenarioPackSource): ScenarioPackDescriptor {
     if (source.kind !== 'memory') throw new Error('PACK_SOURCE_UNSUPPORTED')
-    const descriptor = descriptorFor(source.definition, source.logicalFiles)
+    const definition = cloneData(source.definition)
+    const files = cloneData(source.logicalFiles)
+    const descriptor = descriptorFor(definition, files)
     const key = keyOf(descriptor.manifest.packId, descriptor.manifest.version)
     const prior = this.descriptors.get(key)
     if (prior && prior.packageDigest !== descriptor.packageDigest) throw new Error('PACK_DUPLICATE_ID_VERSION')
-    this.descriptors.set(key, descriptor)
-    this.packs.set(key, source.definition)
+    this.descriptors.set(key, cloneData(descriptor))
+    this.packs.set(key, definition)
     this.revision += 1
-    return descriptor
+    return cloneData(descriptor)
   }
 
   list(): ScenarioPackDescriptor[] {
-    return sortedDescriptors([...this.descriptors.values()])
+    return cloneData(sortedDescriptors([...this.descriptors.values()]))
   }
 
   snapshot(): ScenarioPackCatalogSnapshot {
     const base = { contractVersion: CONTRACT_VERSION as 'voce.scenario-pack/v1alpha1', resolverVersion: RESOLVER_VERSION, registryRevision: this.revision, entries: this.list(), availabilityPolicies: this.policies }
-    return { ...base, catalogHash: sha256(json(base)) }
+    return cloneData({ ...base, catalogHash: sha256(json(base)) })
   }
 
   resolve(selection: ScenarioPackSelection, catalog = this.snapshot()): ScenarioPackResolution {

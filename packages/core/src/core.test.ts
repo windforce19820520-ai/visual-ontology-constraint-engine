@@ -176,3 +176,77 @@ test('Core has no scenario-name branches', async () => {
   const source = await readFile(new URL('../src/index.ts', import.meta.url), 'utf8')
   assert.doesNotMatch(source, /virtual[-_ ]try[-_ ]on|cosplay|product[-_ ]shot/i)
 })
+
+test('Registry defensively copies registered packs and returned descriptors/snapshots', () => {
+  const original = makePack(manifest('first.party.root'), { defaults: [contribution('default.one', { value: 'stable' })] })
+  const registry = createScenarioPackRegistry()
+  registry.register(source(original))
+  const before = registry.snapshot()
+  original.manifest.packId = 'changed.after.register'
+  ;(original.contributions.defaults[0] as JsonObject).value = 'changed.after.register'
+  const returned = registry.list()[0]
+  returned.manifest.packId = 'changed.returned'
+  returned.manifest.license = 'changed.returned'
+  const snapshot = registry.snapshot()
+  snapshot.entries[0].manifest.packId = 'changed.snapshot'
+  snapshot.entries[0].packageDigest = 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  const result = registry.resolve(selection())
+  assert.equal(result.status, 'resolved')
+  assert.equal(registry.snapshot().catalogHash, before.catalogHash)
+  const repeated = registry.resolve(selection()); assert.equal(repeated.status, 'resolved'); if (repeated.status === 'resolved' && result.status === 'resolved') assert.equal(result.lock.lockHash, repeated.lock.lockHash)
+})
+
+test('Catalog entry manifest tampering is rejected even after recomputing catalogHash', () => {
+  const registry = createScenarioPackRegistry()
+  registry.register(source(makePack(manifest('first.party.root'))))
+  const snapshot = registry.snapshot()
+  const tampered = { ...snapshot, entries: [{ ...snapshot.entries[0], manifest: { ...snapshot.entries[0].manifest, license: 'tampered' } }] }
+  const result = registry.resolve(selection(), { ...tampered, catalogHash: catalogHash(tampered) })
+  assert.equal(result.status, 'blocked')
+  assert.equal(result.report.conflicts[0].code, 'PACK_DIGEST_MISMATCH')
+})
+
+test('Every M2 contribution index entry has exactly one matching body', () => {
+  const root = manifest('first.party.root')
+  const body = contribution('one', { value: 'body' })
+  const missing = makePack(root); missing.manifest.contributions.defaults = [{ id: String(body.id), schemaVersion: String(body.schemaVersion), contentDigest: String(body.contentDigest) }]
+  const duplicate = makePack({ ...root, contributions: { ...emptyIndex, defaults: [{ id: String(body.id), schemaVersion: String(body.schemaVersion), contentDigest: String(body.contentDigest) }] } }, { defaults: [body, body] })
+  const extra = makePack(root); extra.contributions.defaults = [body] as never
+  assert.throws(() => createScenarioPackRegistry().register(source(missing)), /PACK_CONTRIBUTION_INVALID/)
+  assert.throws(() => createScenarioPackRegistry().register(source(duplicate)), /PACK_CONTRIBUTION_INVALID/)
+  assert.throws(() => createScenarioPackRegistry().register(source(extra)), /PACK_CONTRIBUTION_INVALID/)
+})
+
+test('Malformed runtime manifests fail with stable contract errors', () => {
+  const registry = createScenarioPackRegistry()
+  const malformed = { schemaVersion: 'voce.scenario-pack/v1alpha1', packId: 'bad', version: '1.0.0', kind: 'root', declarations: { containsExecutableScenarioCode: false, distributionLifecycleScripts: false, containsExecutableFiles: false, fixturesRequireNetwork: false, fixturesRequireRealProvider: false }, permissions: { network: false, remoteCalls: false, secrets: false, filesystemWrite: false, mutateConfirmedFacts: false, authorizeCalls: false, overrideHostPolicy: false, selectProvider: false, changeBudgets: false }, distributionInventory: [], composition: {} }
+  assert.throws(() => registry.register(source(malformed as never)), /PACK_MANIFEST_INVALID/)
+  assert.throws(() => registry.register(source({ manifest: { ...malformed, dependencies: {} } } as never)), /PACK_MANIFEST_INVALID/)
+})
+
+test('SemVer conflict ranges support hyphen and explicit prerelease syntax without numeric truncation', () => {
+  const registry = createScenarioPackRegistry()
+  registry.register(source(makePack(manifest('first.party.root'))))
+  const hyphen = makePack({ ...manifest('ext.hyphen', 'extension'), conflicts: [{ packId: 'ext.other', versionRange: '1.2.0 - 1.2.4', reasonCode: 'fixture' }] })
+  const other = makePack({ ...manifest('ext.other', 'extension'), version: '1.2.3' })
+  registry.register(source(hyphen)); registry.register(source(other))
+  let result = registry.resolve(selection('first.party.root', [{ packId: 'ext.hyphen', versionRange: '1.0.0' }, { packId: 'ext.other', versionRange: '1.2.3' }]))
+  assert.equal(result.status, 'blocked'); assert.equal(result.report.conflicts[0].code, 'PACK_CONFLICT')
+  const prerelease = makePack({ ...manifest('ext.prerelease', 'extension'), conflicts: [{ packId: 'ext.other', versionRange: '>=1.2.3-beta.1 <1.2.3', reasonCode: 'fixture' }] })
+  registry.register(source(prerelease)); result = registry.resolve(selection('first.party.root', [{ packId: 'ext.prerelease', versionRange: '1.0.0' }, { packId: 'ext.other', versionRange: '1.2.3' }]))
+  assert.equal(result.status, 'resolved')
+  assert.throws(() => registry.register(source(makePack({ ...manifest('ext.huge', 'extension'), version: '999999999999999999999.0.0' }))), /PACK_VERSION_UNSATISFIABLE/)
+})
+
+test('Unknown override schema IDs are conservatively blocked', () => {
+  const point = contribution('unknown-schema', { targetKind: 'configuration', targetPath: '/theme', allowDisable: false, maximumImportance: 'preferred', valueSchema: { schemaId: 'not-proven', contractId: 'voce.test', version: '1.0.0' } })
+  const registry = createScenarioPackRegistry(); registry.register(source(makePack(manifest('first.party.root'), { overridePoints: [point] })))
+  const result = registry.resolve({ ...selection(), hostPolicyOverlay: overlay([override('unknown-schema-override', { kind: 'set_configuration', packId: 'first.party.root', overridePointId: 'unknown-schema', value: 'dark' })]) })
+  assert.equal(result.status, 'blocked'); assert.equal(result.report.conflicts[0].code, 'PACK_OVERRIDE_INVALID')
+})
+
+test('Composition self-reference is a blocking order cycle', () => {
+  const registry = createScenarioPackRegistry(); registry.register(source(makePack({ ...manifest('first.party.root'), composition: { before: ['first.party.root'], after: [] } })))
+  const result = registry.resolve(selection())
+  assert.equal(result.status, 'blocked'); assert.equal(result.report.conflicts[0].code, 'PACK_ORDER_CYCLE')
+})
