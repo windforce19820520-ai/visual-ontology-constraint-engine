@@ -535,7 +535,7 @@ export class MemoryScenarioPackRegistry implements ScenarioPackRegistry {
   }
 
   resolve(selection: ScenarioPackSelection, catalog = this.snapshot()): ScenarioPackResolution {
-    return resolveScenario(selection, catalog, this.packs, this.descriptors)
+    return cloneData(resolveScenario(selection, catalog, this.packs, this.descriptors))
   }
 }
 

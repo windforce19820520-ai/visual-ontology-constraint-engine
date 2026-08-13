@@ -196,6 +196,23 @@ test('Registry defensively copies registered packs and returned descriptors/snap
   const repeated = registry.resolve(selection()); assert.equal(repeated.status, 'resolved'); if (repeated.status === 'resolved' && result.status === 'resolved') assert.equal(result.lock.lockHash, repeated.lock.lockHash)
 })
 
+test('resolve defensively copies nested contributions and configurations', () => {
+  const root = makePack(manifest('first.party.root'), { defaults: [contribution('default.nested', { value: { nested: { stable: true } } })] })
+  const registry = createScenarioPackRegistry(); registry.register(source(root))
+  const first = registry.resolve(selection('first.party.root', [], { nested: { theme: 'stable' } }))
+  assert.equal(first.status, 'resolved')
+  if (first.status !== 'resolved') return
+  const baselineHash = first.effectiveScenario.effectiveScenarioHash
+  ;(first.effectiveScenario.defaults[0].value as JsonObject).nested = { stable: false }
+  first.effectiveScenario.configurations['first.party.root'].nested = { theme: 'mutated' }
+  const second = registry.resolve(selection('first.party.root', [], { nested: { theme: 'stable' } }))
+  assert.equal(second.status, 'resolved')
+  if (second.status !== 'resolved') return
+  assert.equal(second.effectiveScenario.effectiveScenarioHash, baselineHash)
+  assert.deepEqual(second.effectiveScenario.configurations['first.party.root'], { nested: { theme: 'stable' } })
+  assert.deepEqual(second.effectiveScenario.defaults[0].value, { nested: { stable: true } })
+})
+
 test('Catalog entry manifest tampering is rejected even after recomputing catalogHash', () => {
   const registry = createScenarioPackRegistry()
   registry.register(source(makePack(manifest('first.party.root'))))
