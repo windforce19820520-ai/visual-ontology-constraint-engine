@@ -12,9 +12,10 @@ This roadmap is directional. A milestone is complete only when its contracts, te
 ## Phase 1 — Ontology and evidence
 
 - versioned sparse visual ontology and JSON Schemas;
-- Observation, SourceBinding, provenance, confidence, and unresolved-fact contracts;
+- Observation, `EvidenceRegion`, `ObservationDecision`, SourceBinding, provenance, confidence, and unresolved-fact contracts;
 - manual and fixture Reference Interpreters;
 - deterministic Evidence and Source Resolver;
+- immutable `CompilationContext`, `ArtifactHandle`, and canonical-signature contracts;
 - virtual try-on, cosplay, and product-shot input fixtures.
 
 ## Phase 2 — Constraints and planning
@@ -23,17 +24,19 @@ This roadmap is directional. A milestone is complete only when its contracts, te
 - hard, required, and preferred constraint resolution;
 - dependency- and priority-aware reference optimizer;
 - provider capability profiles;
-- output-contract and pipeline planning;
+- output-contract and pipeline planning with a canonical plan hash;
+- per-adapter/step budgets, data-transfer declarations, and finally/compensation cleanup;
+- `RemoteCallAuthorization` and plan-bound `ExecutionAuthorization` contracts;
 - explain and diff commands.
 
 ## Phase 3 — Prompt and execution
 
 - provider-neutral Prompt IR;
 - deterministic prompt compiler;
-- auditable LLM Prompt Optimizer interface;
-- Prompt Guard and hard-constraint coverage;
+- constrained `PromptCandidateIR` and auditable LLM Prompt Optimizer interface;
+- Prompt Guard for mechanically provable structural coverage, with deterministic fallback for unverifiable text;
 - offline Mock provider;
-- bounded async execution and safe receipts.
+- bounded durable async execution, append-only events, safe receipts, cancellation, submission reconciliation, and cleanup compensation.
 
 ## Phase 4 — Adapters and evaluation
 
@@ -41,16 +44,18 @@ This roadmap is directional. A milestone is complete only when its contracts, te
 - Seedream reference adapter;
 - veImageX background-removal adapter;
 - structural image validation;
-- semantic review protocol;
+- separately authorized semantic review protocol and human-acceptance artifacts;
 - replay, compare, and local HTML reports.
 
 ## Phase 5 — v0.1.0
 
-- CLI and local Trace Studio;
+- CLI and read-only local/static HTML trace report;
 - redistributable benchmark cases;
 - clean-room onboarding verification;
 - npm packages and signed GitHub release;
-- no production-readiness claim until the published acceptance suite passes.
+- complete offline Mock vertical cases as release gates;
+- optional credentialed real-adapter smoke evidence outside CI and outside the default release gate;
+- no production-readiness claim for v0.1.
 
 ## Out of scope for v0.1
 
@@ -58,5 +63,6 @@ This roadmap is directional. A milestone is complete only when its contracts, te
 - account, payment, catalog, entitlement, or publishing systems;
 - physical fit or size prediction;
 - production multi-tenant queues;
+- interactive Trace Studio;
 - video generation;
 - automated semantic claims without published evidence.
