@@ -9,9 +9,9 @@
   },
   "scripts": {
     "repository-validate": "node scripts/validate-repository.mjs",
-    "validate": "npm run repository-validate && npm run typecheck && npm test",
+    "validate": "node scripts/validate-repository.mjs && tsc -b && node --test packages/*/dist/**/*.test.js",
     "typecheck": "tsc -b",
-    "test": "npm run build && node --test packages/core/dist/core.test.js",
+    "test": "tsc -b && node --test packages/*/dist/**/*.test.js",
     "build": "tsc -b"
   },
   "workspaces": ["packages/*"],

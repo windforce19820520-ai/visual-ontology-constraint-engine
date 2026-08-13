@@ -1,28 +1,178 @@
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createScenarioPackRegistry, sha256, validateManifest } from './index.js'
-import type { JsonObject, ScenarioPack, ScenarioPackManifest } from '@voce/contracts'
+import { createScenarioPackRegistry, canonicalize, hashWithoutSelf, sha256, validateManifest } from './index.js'
+import type { HostOverride, HostPolicyOverlay, JsonObject, ScenarioPack, ScenarioPackManifest } from '@voce/contracts'
 
-const emptyIndex = {ontologyVocabulary:[],rulePacks:[],interpretationScopes:[],promptSections:[],reviewTemplates:[],defaults:[],overridePoints:[]}
-function manifest(packId:string, kind:'root'|'extension'='root', extra:Partial<ScenarioPackManifest>={}):ScenarioPackManifest {
-  return {schemaVersion:'voce.scenario-pack/v1alpha1',packId,version:'1.0.0',kind,supportedInteractionModes:['text_only'],inputExpectations:[],outputExpectations:[],...(kind==='extension'?{extensionOf:{rootPackId:'first.party.root',rootVersionRange:'1.0.0'}}:{}),license:'Apache-2.0',provenance:{publisher:packId},coreRange:'*',contractRanges:{},ui:{defaultLocale:'en',locales:{en:{displayName:packId,description:'fixture',messages:{}}},disclosures:[],accessibility:{textAlternativesRequired:false,keyboardOperableReferenceUI:true,doesNotRelyOnColorAlone:true}},dependencies:[],conflicts:[],composition:{before:[],after:[]},contributions:emptyIndex,fixtures:[],migrations:[],capabilityRequirements:[],declarations:{containsExecutableScenarioCode:false,distributionLifecycleScripts:false,containsExecutableFiles:false,fixturesRequireNetwork:false,fixturesRequireRealProvider:false,collectsTelemetry:false,mayHandlePersonImages:false,rightsDisclosureRequired:false},permissions:{network:false,remoteCalls:false,secrets:false,filesystemWrite:false,mutateConfirmedFacts:false,authorizeCalls:false,overrideHostPolicy:false,selectProvider:false,changeBudgets:false},distributionInventory:[],...extra}
+const categories = ['ontologyVocabulary', 'rulePacks', 'interpretationScopes', 'promptSections', 'reviewTemplates', 'defaults', 'overridePoints'] as const
+const emptyIndex = { ontologyVocabulary: [], rulePacks: [], interpretationScopes: [], promptSections: [], reviewTemplates: [], defaults: [], overridePoints: [] }
+
+function manifest(packId: string, kind: 'root' | 'extension' = 'root', extra: Partial<ScenarioPackManifest> = {}): ScenarioPackManifest {
+  return {
+    schemaVersion: 'voce.scenario-pack/v1alpha1', packId, version: '1.0.0', kind,
+    supportedInteractionModes: ['text_only'], inputExpectations: [], outputExpectations: [],
+    ...(kind === 'extension' ? { extensionOf: { rootPackId: 'first.party.root', rootVersionRange: '1.0.0' } } : {}),
+    license: 'Apache-2.0', provenance: { publisher: packId }, coreRange: '*', contractRanges: {},
+    ui: { defaultLocale: 'en', locales: { en: { displayName: packId, description: 'fixture', messages: {} } }, disclosures: [], accessibility: { textAlternativesRequired: false, keyboardOperableReferenceUI: true, doesNotRelyOnColorAlone: true } },
+    dependencies: [], conflicts: [], composition: { before: [], after: [] }, contributions: emptyIndex,
+    fixtures: [], migrations: [], capabilityRequirements: [],
+    declarations: { containsExecutableScenarioCode: false, distributionLifecycleScripts: false, containsExecutableFiles: false, fixturesRequireNetwork: false, fixturesRequireRealProvider: false, collectsTelemetry: false, mayHandlePersonImages: false, rightsDisclosureRequired: false },
+    permissions: { network: false, remoteCalls: false, secrets: false, filesystemWrite: false, mutateConfirmedFacts: false, authorizeCalls: false, overrideHostPolicy: false, selectProvider: false, changeBudgets: false },
+    distributionInventory: [], ...extra,
+  }
 }
-function pack(m:ScenarioPackManifest, overrides:JsonObject[]=[]):ScenarioPack {
-  const points=overrides as any
-  return {manifest:m,contributions:{ontologyVocabulary:[],rulePacks:[],interpretationScopes:[],promptSections:[],reviewTemplates:[],defaults:[],overridePoints:points,fixtureSuites:[]},migrations:[]}
+
+function contribution(id: string, extra: JsonObject = {}): JsonObject {
+  const payload = { id, schemaVersion: 'voce.fixture/v1alpha1', ...extra }
+  return { ...payload, contentDigest: sha256(payload) }
 }
-function source(definition:ScenarioPack){return {kind:'memory' as const,definition,logicalFiles:[]}}
 
-test('M1 manifest safety and canonical hashes remain available',()=>{validateManifest({schemaVersion:'voce.scenario-pack/v1alpha1',packId:'fixture.root',version:'0.1.0',kind:'root',declarations:{containsExecutableScenarioCode:false,distributionLifecycleScripts:false,containsExecutableFiles:false,fixturesRequireNetwork:false,fixturesRequireRealProvider:false},permissions:{network:false,remoteCalls:false,secrets:false,filesystemWrite:false,mutateConfirmedFacts:false,authorizeCalls:false,overrideHostPolicy:false,selectProvider:false,changeBudgets:false},distributionInventory:[]});assert.throws(()=>validateManifest({schemaVersion:'voce.scenario-pack/v1alpha1',packId:'x',version:'1.0.0',kind:'root',declarations:{containsExecutableScenarioCode:false,distributionLifecycleScripts:false,containsExecutableFiles:true,fixturesRequireNetwork:false,fixturesRequireRealProvider:false},permissions:{},distributionInventory:[]}),/PACK_DECLARATION_INVALID/)})
+function makePack(manifestValue: ScenarioPackManifest, values: Partial<Record<typeof categories[number], JsonObject[]>> = {}): ScenarioPack {
+  const contributions = { ...emptyIndex }
+  for (const category of categories) {
+    const value = values[category] ?? []
+    contributions[category] = value.map((item) => ({ id: String(item.id), schemaVersion: String(item.schemaVersion), contentDigest: String(item.contentDigest) })) as never
+  }
+  return {
+    manifest: { ...manifestValue, contributions },
+    contributions: {
+      ontologyVocabulary: (values.ontologyVocabulary ?? []) as never,
+      rulePacks: (values.rulePacks ?? []) as never,
+      interpretationScopes: (values.interpretationScopes ?? []) as never,
+      promptSections: (values.promptSections ?? []) as never,
+      reviewTemplates: (values.reviewTemplates ?? []) as never,
+      defaults: (values.defaults ?? []) as never,
+      overridePoints: (values.overridePoints ?? []) as never,
+      fixtureSuites: [],
+    },
+    migrations: [],
+  }
+}
 
-test('root-only and first-party/third-party fixtures use the same registry entrypoint',()=>{const registry=createScenarioPackRegistry();registry.register(source(pack(manifest('first.party.root'))));registry.register(source(pack(manifest('community.root'))));const first=registry.resolve({root:{packId:'first.party.root',versionRange:'1.0.0'},extensions:[]});const third=registry.resolve({root:{packId:'community.root',versionRange:'1.0.0'},extensions:[]});assert.equal(first.status,'resolved');assert.equal(third.status,'resolved');assert.equal(first.effectiveScenario.rootPackId,'first.party.root');assert.equal(third.effectiveScenario.rootPackId,'community.root')})
+function source(definition: ScenarioPack) { return { kind: 'memory' as const, definition, logicalFiles: [] } }
+function selection(root = 'first.party.root', extensions: Array<{ packId: string; versionRange: string }> = [], configuration: JsonObject = {}) { return { root: { packId: root, versionRange: '1.0.0', configuration }, extensions } }
+function override(id: string, operation: HostOverride['operation'], reasonCode = 'fixture'): HostOverride {
+  const payload = { id, operation, reasonCode }
+  return { ...payload, contentHash: sha256(payload) }
+}
+function overlay(overrides: HostOverride[], id = 'overlay'): HostPolicyOverlay {
+  const value = { id, caseId: 'case-1', caseRevision: 1, overrides: [...overrides].sort((left, right) => left.contentHash < right.contentHash ? -1 : left.contentHash > right.contentHash ? 1 : left.id < right.id ? -1 : left.id > right.id ? 1 : 0), authority: 'host_policy' as const, reasonCode: 'fixture' }
+  return { ...value, overlayHash: sha256(value as never) }
+}
 
-test('dependency and before/after edges produce stable order and hashes',()=>{const registry=createScenarioPackRegistry();const root=pack(manifest('first.party.root'));const a=pack({...manifest('ext.a','extension'),composition:{before:['ext.b'],after:[]}});const b=pack({...manifest('ext.b','extension'),dependencies:[{packId:'ext.a',versionRange:'1.0.0',role:'extension',reasonCode:'fixture'}]});registry.register(source(b));registry.register(source(root));registry.register(source(a));const selection={root:{packId:'first.party.root',versionRange:'1.0.0'},extensions:[{packId:'ext.b',versionRange:'1.0.0'}]};const one=registry.resolve(selection),two=registry.resolve(selection);assert.equal(one.status,'resolved');assert.equal(two.status,'resolved');assert.deepEqual(one.lock.compositionOrder,['first.party.root@1.0.0','ext.a@1.0.0','ext.b@1.0.0']);assert.deepEqual(one.lock,two.lock);assert.deepEqual(one.effectiveScenario,two.effectiveScenario);assert.deepEqual(one.report,two.report)})
+function catalogHash(catalog: { contractVersion: string; resolverVersion: string; registryRevision: number; entries: unknown[]; availabilityPolicies: unknown[] }): string {
+  const { catalogHash: _ignored, ...base } = catalog as typeof catalog & { catalogHash?: string }
+  return sha256(base as never)
+}
 
-test('catalog insertion order does not change semantic result',()=>{const a=pack(manifest('first.party.root')),b=pack({...manifest('ext.b','extension'),composition:{before:[],after:[]}});const r1=createScenarioPackRegistry(),r2=createScenarioPackRegistry();r1.register(source(a));r1.register(source(b));r2.register(source(b));r2.register(source(a));const s={root:{packId:'first.party.root',versionRange:'1.0.0'},extensions:[{packId:'ext.b',versionRange:'1.0.0'}]};const x=r1.resolve(s),y=r2.resolve(s);assert.equal(x.status,'resolved');assert.equal(y.status,'resolved');assert.equal(x.lock.lockHash,y.lock.lockHash);assert.equal(x.effectiveScenario.effectiveScenarioHash,y.effectiveScenario.effectiveScenarioHash)})
+test('M1 canonicalization and manifest safety remain available', () => {
+  assert.equal(canonicalize({ b: 2, a: 1 }), canonicalize({ a: 1, b: 2 }))
+  assert.equal(hashWithoutSelf({ value: 1, hash: 'old' }, 'hash'), hashWithoutSelf({ value: 1, hash: 'new' }, 'hash'))
+  validateManifest({ schemaVersion: 'voce.scenario-pack/v1alpha1', packId: 'fixture.root', version: '0.1.0', kind: 'root', declarations: { containsExecutableScenarioCode: false, distributionLifecycleScripts: false, containsExecutableFiles: false, fixturesRequireNetwork: false, fixturesRequireRealProvider: false }, permissions: { network: false, remoteCalls: false, secrets: false, filesystemWrite: false, mutateConfirmedFacts: false, authorizeCalls: false, overrideHostPolicy: false, selectProvider: false, changeBudgets: false }, distributionInventory: [] })
+  assert.throws(() => validateManifest({ schemaVersion: 'voce.scenario-pack/v1alpha1', packId: 'x', version: '1.0.0', kind: 'root', declarations: { containsExecutableScenarioCode: false, distributionLifecycleScripts: false, containsExecutableFiles: true, fixturesRequireNetwork: false, fixturesRequireRealProvider: false }, permissions: {}, distributionInventory: [] }), /PACK_DECLARATION_INVALID/)
+})
 
-test('missing dependency, incompatible extension, explicit conflict, and cycles block',()=>{const r=createScenarioPackRegistry();const root=pack(manifest('first.party.root'));r.register(source(root));const missing=pack({...manifest('ext.missing','extension'),dependencies:[{packId:'absent',versionRange:'1.0.0',role:'extension',reasonCode:'fixture'}]});r.register(source(missing));let result=r.resolve({root:{packId:'first.party.root',versionRange:'1.0.0'},extensions:[{packId:'ext.missing',versionRange:'1.0.0'}]});assert.equal(result.status,'blocked');assert.ok(result.report.conflicts.some(c=>c.code==='PACK_DEPENDENCY_MISSING'));const wrong=pack({...manifest('ext.wrong','extension'),extensionOf:{rootPackId:'other.root',rootVersionRange:'1.0.0'}});r.register(source(wrong));result=r.resolve({root:{packId:'first.party.root',versionRange:'1.0.0'},extensions:[{packId:'ext.wrong',versionRange:'1.0.0'}]});assert.equal(result.status,'blocked');assert.ok(result.report.conflicts.some(c=>c.code==='PACK_COMPATIBILITY_MISMATCH'));const c1=pack({...manifest('ext.c1','extension'),composition:{before:['ext.c2'],after:[]}}),c2=pack({...manifest('ext.c2','extension'),composition:{before:['ext.c1'],after:[]}});r.register(source(c1));r.register(source(c2));result=r.resolve({root:{packId:'first.party.root',versionRange:'1.0.0'},extensions:[{packId:'ext.c1',versionRange:'1.0.0'},{packId:'ext.c2',versionRange:'1.0.0'}]});assert.equal(result.status,'blocked');assert.ok(result.report.conflicts.some(c=>c.code==='PACK_ORDER_CYCLE'))})
+test('first-party and third-party fixtures use one Registry/Resolver entrypoint', () => {
+  const registry = createScenarioPackRegistry()
+  registry.register(source(makePack(manifest('first.party.root'))))
+  registry.register(source(makePack(manifest('community.root'))))
+  const first = registry.resolve(selection())
+  const third = registry.resolve(selection('community.root'))
+  assert.equal(first.status, 'resolved'); assert.equal(third.status, 'resolved')
+  assert.equal(first.effectiveScenario.rootPackId, 'first.party.root'); assert.equal(third.effectiveScenario.rootPackId, 'community.root')
+})
 
- test('declared HostOverride is accepted and undeclared override is blocked',()=>{const pointBase={id:'theme',targetKind:'configuration',targetPath:'theme',allowDisable:false,maximumImportance:'preferred'};const point={...pointBase,contentDigest:sha256(pointBase)};const m=manifest('first.party.root','root',{contributions:{...emptyIndex,overridePoints:[{id:'theme',schemaVersion:'voce.override-point/v1alpha1',contentDigest:point.contentDigest}]}});const r=createScenarioPackRegistry();r.register(source(pack(m,[point as any])));const overlay={id:'overlay',caseId:'case-1',caseRevision:1,authority:'host_policy' as const,reasonCode:'fixture',overrides:[{id:'o1',operation:{kind:'set_configuration' as const,packId:'first.party.root',overridePointId:'theme',value:'dark'},reasonCode:'fixture',contentHash:'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}],overlayHash:'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'};let result=r.resolve({root:{packId:'first.party.root',versionRange:'1.0.0'},extensions:[],hostPolicyOverlay:overlay});assert.equal(result.status,'resolved');assert.equal(result.effectiveScenario.appliedOverrides.length,1);result=r.resolve({root:{packId:'first.party.root',versionRange:'1.0.0'},extensions:[],hostPolicyOverlay:{...overlay,overrides:[{...overlay.overrides[0],operation:{...overlay.overrides[0].operation,overridePointId:'missing'}}]}});assert.equal(result.status,'blocked');assert.equal(result.report.conflicts[0].code,'PACK_OVERRIDE_POINT_NOT_FOUND')})
+test('dependency and before/after edges produce stable order and hashes', () => {
+  const registry = createScenarioPackRegistry()
+  const root = makePack(manifest('first.party.root'))
+  const a = makePack({ ...manifest('ext.a', 'extension'), composition: { before: ['ext.b'], after: [] } })
+  const b = makePack({ ...manifest('ext.b', 'extension'), dependencies: [{ packId: 'ext.a', versionRange: '1.0.0', role: 'extension', reasonCode: 'fixture' }] })
+  registry.register(source(b)); registry.register(source(root)); registry.register(source(a))
+  const one = registry.resolve(selection('first.party.root', [{ packId: 'ext.b', versionRange: '1.0.0' }]))
+  const two = registry.resolve(selection('first.party.root', [{ packId: 'ext.b', versionRange: '1.0.0' }]))
+  assert.equal(one.status, 'resolved'); assert.equal(two.status, 'resolved')
+  assert.deepEqual(one.lock.compositionOrder, ['first.party.root@1.0.0', 'ext.a@1.0.0', 'ext.b@1.0.0'])
+  assert.deepEqual(one.lock, two.lock); assert.deepEqual(one.effectiveScenario, two.effectiveScenario); assert.deepEqual(one.report, two.report)
+})
 
-test('duplicate packId/version with a different digest is rejected',()=>{const r=createScenarioPackRegistry();r.register(source(pack(manifest('same'))));assert.throws(()=>r.register(source(pack({...manifest('same'),provenance:{publisher:'different'}}))),/PACK_DUPLICATE_ID_VERSION/)})
+test('catalog insertion order does not change semantic result', () => {
+  const root = makePack(manifest('first.party.root')); const extension = makePack(manifest('ext.b', 'extension'))
+  const first = createScenarioPackRegistry(); first.register(source(root)); first.register(source(extension))
+  const second = createScenarioPackRegistry(); second.register(source(extension)); second.register(source(root))
+  const firstResult = first.resolve(selection('first.party.root', [{ packId: 'ext.b', versionRange: '1.0.0' }]))
+  const secondResult = second.resolve(selection('first.party.root', [{ packId: 'ext.b', versionRange: '1.0.0' }]))
+  assert.equal(firstResult.status, 'resolved'); assert.equal(secondResult.status, 'resolved')
+  assert.equal(first.snapshot().catalogHash, second.snapshot().catalogHash); assert.equal(firstResult.lock.lockHash, secondResult.lock.lockHash)
+})
+
+test('missing dependency and explicit SemVer conflict block', () => {
+  const registry = createScenarioPackRegistry(); registry.register(source(makePack(manifest('first.party.root'))))
+  const missing = makePack({ ...manifest('ext.missing', 'extension'), dependencies: [{ packId: 'absent', versionRange: '1.0.0', role: 'extension', reasonCode: 'fixture' }] })
+  registry.register(source(missing)); let result = registry.resolve(selection('first.party.root', [{ packId: 'ext.missing', versionRange: '1.0.0' }]))
+  assert.equal(result.status, 'blocked'); assert.ok(result.report.conflicts.some((item) => item.code === 'PACK_DEPENDENCY_MISSING'))
+  const conflicted = makePack({ ...manifest('ext.conflict', 'extension'), conflicts: [{ packId: 'ext.other', versionRange: '^1.0.0', reasonCode: 'fixture' }] })
+  const other = makePack(manifest('ext.other', 'extension')); registry.register(source(conflicted)); registry.register(source(other))
+  result = registry.resolve(selection('first.party.root', [{ packId: 'ext.conflict', versionRange: '1.0.0' }, { packId: 'ext.other', versionRange: '1.0.0' }]))
+  assert.equal(result.status, 'blocked'); assert.ok(result.report.conflicts.some((item) => item.code === 'PACK_CONFLICT'))
+})
+
+test('dependency cycle is reported separately from composition cycle', () => {
+  const registry = createScenarioPackRegistry(); registry.register(source(makePack(manifest('first.party.root'))))
+  const a = makePack({ ...manifest('dep.a', 'extension'), dependencies: [{ packId: 'dep.b', versionRange: '1.0.0', role: 'extension', reasonCode: 'fixture' }] })
+  const b = makePack({ ...manifest('dep.b', 'extension'), dependencies: [{ packId: 'dep.a', versionRange: '1.0.0', role: 'extension', reasonCode: 'fixture' }] })
+  registry.register(source(a)); registry.register(source(b)); let result = registry.resolve(selection('first.party.root', [{ packId: 'dep.a', versionRange: '1.0.0' }]))
+  assert.equal(result.status, 'blocked'); assert.equal(result.report.conflicts[0].code, 'PACK_DEPENDENCY_UNSATISFIABLE')
+  const composition = createScenarioPackRegistry(); composition.register(source(makePack(manifest('first.party.root')))); composition.register(source(makePack({ ...manifest('comp.a', 'extension'), composition: { before: ['comp.b'], after: [] } }))); composition.register(source(makePack({ ...manifest('comp.b', 'extension'), composition: { before: ['comp.a'], after: [] } })))
+  result = composition.resolve(selection('first.party.root', [{ packId: 'comp.a', versionRange: '1.0.0' }, { packId: 'comp.b', versionRange: '1.0.0' }]))
+  assert.equal(result.status, 'blocked'); assert.equal(result.report.conflicts[0].code, 'PACK_ORDER_CYCLE')
+})
+
+test('valid overrides change configuration, defaults, and activation', () => {
+  const configPoint = contribution('config.theme', { targetKind: 'configuration', targetPath: '/theme', allowDisable: false, maximumImportance: 'preferred' })
+  const defaultPoint = contribution('default.theme.point', { targetKind: 'declared_default', targetPath: 'default.theme', allowDisable: false, maximumImportance: 'preferred' })
+  const activationPoint = contribution('prompt.one.point', { targetKind: 'contribution_activation', targetPath: 'prompt.one', allowDisable: true, maximumImportance: 'preferred' })
+  const defaults = contribution('default.theme', { targetPath: 'default.theme', value: 'light' })
+  const prompt = contribution('prompt.one', { text: 'fixture prompt' })
+  const root = makePack(manifest('first.party.root'), { defaults: [defaults], promptSections: [prompt], overridePoints: [configPoint, defaultPoint, activationPoint] })
+  const registry = createScenarioPackRegistry(); registry.register(source(root))
+  const overrides = [override('config-override', { kind: 'set_configuration', packId: 'first.party.root', overridePointId: 'config.theme', value: 'dark' }), override('default-override', { kind: 'set_declared_default', packId: 'first.party.root', overridePointId: 'default.theme.point', value: 'dark' }), override('activation-override', { kind: 'set_contribution_activation', packId: 'first.party.root', overridePointId: 'prompt.one.point', active: false })]
+  const result = registry.resolve({ ...selection('first.party.root', [], { theme: 'light' }), hostPolicyOverlay: overlay(overrides) })
+  assert.equal(result.status, 'resolved'); assert.equal(result.effectiveScenario.configurations['first.party.root'].theme, 'dark'); assert.equal(result.effectiveScenario.defaults[0].value, 'dark'); assert.equal(result.effectiveScenario.promptSections.length, 0); assert.equal(result.lock.entries[0].configurationHash, sha256({ theme: 'dark' })); assert.equal(result.effectiveScenario.appliedOverrides.length, 3)
+})
+
+test('overlay and override hash tampering blocks with PACK_OVERRIDE_INVALID', () => {
+  const point = contribution('theme', { targetKind: 'configuration', targetPath: '/theme', allowDisable: false, maximumImportance: 'preferred' })
+  const registry = createScenarioPackRegistry(); registry.register(source(makePack(manifest('first.party.root'), { overridePoints: [point] })))
+  const valid = overlay([override('o1', { kind: 'set_configuration', packId: 'first.party.root', overridePointId: 'theme', value: 'dark' })])
+  let tampered = { ...valid, overlayHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }
+  let result = registry.resolve({ ...selection(), hostPolicyOverlay: tampered }); assert.equal(result.status, 'blocked'); assert.equal(result.report.conflicts[0].code, 'PACK_OVERRIDE_INVALID')
+  tampered = { ...valid, overrides: [{ ...valid.overrides[0], contentHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }] }
+  result = registry.resolve({ ...selection(), hostPolicyOverlay: tampered }); assert.equal(result.status, 'blocked'); assert.equal(result.report.conflicts[0].code, 'PACK_OVERRIDE_INVALID')
+})
+
+test('override order is stable and conflicting effective targets do not last-win', () => {
+  const point = contribution('theme', { targetKind: 'configuration', targetPath: '/theme', allowDisable: false, maximumImportance: 'preferred' })
+  const registry = createScenarioPackRegistry(); registry.register(source(makePack(manifest('first.party.root'), { overridePoints: [point] })))
+  const first = override('o1', { kind: 'set_configuration', packId: 'first.party.root', overridePointId: 'theme', value: 'dark' })
+  const second = override('o2', { kind: 'set_configuration', packId: 'first.party.root', overridePointId: 'theme', value: 'light' })
+  const left = registry.resolve({ ...selection(), hostPolicyOverlay: overlay([first, second]) }); const right = registry.resolve({ ...selection(), hostPolicyOverlay: overlay([second, first]) })
+  assert.equal(left.status, 'blocked'); assert.equal(right.status, 'blocked'); assert.equal(left.report.reportHash, right.report.reportHash)
+  const duplicate = registry.resolve({ ...selection(), hostPolicyOverlay: overlay([first, first]) }); assert.equal(duplicate.status, 'resolved'); assert.equal(duplicate.effectiveScenario.appliedOverrides.length, 1)
+})
+
+test('forged catalog hash, descriptor digest, and external entry are blocked', () => {
+  const registry = createScenarioPackRegistry(); registry.register(source(makePack(manifest('first.party.root')))); const snapshot = registry.snapshot()
+  let result = registry.resolve(selection(), { ...snapshot, catalogHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }); assert.equal(result.status, 'blocked'); assert.equal(result.report.conflicts[0].code, 'PACK_DIGEST_MISMATCH')
+  const forgedEntry = { ...snapshot.entries[0], packageDigest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }; const forged = { ...snapshot, entries: [forgedEntry] }; result = registry.resolve(selection(), { ...forged, catalogHash: catalogHash(forged) }); assert.equal(result.status, 'blocked'); assert.equal(result.report.conflicts[0].code, 'PACK_DIGEST_MISMATCH')
+  const external = createScenarioPackRegistry(); external.register(source(makePack(manifest('outside.root')))); const externalSnapshot = external.snapshot(); const combined = { ...snapshot, entries: [...snapshot.entries, ...externalSnapshot.entries] }; result = registry.resolve(selection(), { ...combined, catalogHash: catalogHash(combined) }); assert.equal(result.status, 'blocked'); assert.equal(result.report.conflicts[0].code, 'PACK_NOT_FOUND')
+})
+
+test('leading-zero SemVer and unequal duplicate contributions are rejected', () => {
+  const registry = createScenarioPackRegistry(); assert.throws(() => registry.register(source(makePack({ ...manifest('bad.version'), version: '01.0.0' }))), /PACK_VERSION_UNSATISFIABLE/)
+  const first = contribution('same', { value: 'first' }); const second = contribution('same', { value: 'second' }); const root = makePack(manifest('first.party.root'), { defaults: [first] }); const extension = makePack(manifest('ext.same', 'extension'), { defaults: [second] }); registry.register(source(root)); registry.register(source(extension)); const result = registry.resolve(selection('first.party.root', [{ packId: 'ext.same', versionRange: '1.0.0' }])); assert.equal(result.status, 'blocked'); assert.equal(result.report.conflicts[0].code, 'PACK_RULE_CONFLICT')
+})
+
+test('Core has no scenario-name branches', async () => {
+  const source = await readFile(new URL('../src/index.ts', import.meta.url), 'utf8')
+  assert.doesNotMatch(source, /virtual[-_ ]try[-_ ]on|cosplay|product[-_ ]shot/i)
+})
