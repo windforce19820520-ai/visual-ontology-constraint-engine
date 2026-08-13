@@ -48,7 +48,7 @@ The conceptual or adapter-level result of analyzing a reference asset, usually c
 
 ### `EvidenceRegion`
 
-A discriminated union indicating where image evidence for an `Observation` was found. The initial variants are `rectangle` with normalized coordinates, `polygon` with normalized points, and `mask` with an `ArtifactHandle` plus coordinate-space metadata. Each variant carries an explicit `kind`; consumers must not infer the shape from optional fields.
+A discriminated union indicating where image evidence for an `Observation` was found. The initial variants are `rectangle` with normalized coordinates, `polygon` with normalized points, and `mask` with an `ArtifactHandle`. Rectangle and polygon coordinates use the coordinate space defined by their typed fields; a mask's coordinate space is defined by the referenced artifact contract. Each variant carries an explicit `kind`; consumers must not infer the shape from optional fields.
 
 An `EvidenceRegion` supports explanation and review; it does not prove that the observation is correct. Absence of a region means location evidence is unavailable, not that the claim applies to the entire image.
 
@@ -94,6 +94,166 @@ A sparse, task-specific set of accepted facts that are relevant to compilation a
 
 Missing fields remain absent or explicitly unknown. The system must not fill the ontology for completeness.
 
+## Scenario packaging and composition
+
+### `ScenarioPack`
+
+A distributable, versioned declarative-data package that turns public VOCE contracts into one reusable scenario experience by composing declarative rule contributions, scenario defaults, typed `OverridePoint` records, `UIMetadata`, a `FixtureSuite`, compatibility declarations, migrations, documentation, and license and provenance information.
+
+A `ScenarioPack` is not a provider adapter, hosted application, account or catalog model, execution plan, remote-call authorization, or JavaScript entrypoint. Core reads its manifest and content-addressed, JSON-serializable contributions. Commercial virtual try-on, cosplay, and product shot are initial example packs that use the same public Core interfaces; Core does not branch on their scenario IDs.
+
+### `ScenarioPackManifest`
+
+The static, machine-readable declaration of a `ScenarioPack`. It includes a stable `packId`, version, Core and contract compatibility ranges, dependencies and extension relationships, contribution IDs, override points, `UIMetadata`, fixtures, migrations, capability requirements, auditable package declarations, a complete distribution inventory, license, integrity, and `PackageProvenance`.
+
+A manifest describes package behavior and compatibility. Installing or reading it does not activate the pack, execute a ScenarioPack entrypoint, authorize a remote call, or authorize cost. It is neither a sandbox nor a security proof for separately registered code-backed plugins.
+
+### `ScenarioPackTemplate`
+
+A versioned scaffold that creates the minimum valid directory, manifest, example declarative `RulePack` contribution, locale-aware UI metadata, redistributable fixtures, `ScenarioMigrationDeclaration` structure, documentation, and offline validation commands for a new `ScenarioPack`.
+
+Template output is a starting point, not evidence that the resulting pack is complete, secure, compatible, or production-ready.
+
+### `RulePack`
+
+A conceptual semantic rules module. The candidate v0.1 data contract used inside a `ScenarioPack` is `DeclarativeRulePackContribution` and becomes compatibility-stable only with a released schema and compatibility fixtures; executable implementations use the separate experimental `RulePackPlugin` boundary.
+
+A `ScenarioPack` may compose multiple declarative rule contributions. `RulePack` and `ScenarioPack` are separate concepts and must not be used as synonyms.
+
+### `DeclarativeRulePackContribution`
+
+A versioned, content-addressed, deterministic, side-effect-free rules document that may contribute constraints, explanations, degradations, and review requirements. It performs no network call, reads no secret, incurs no fee, and makes no acceptance or authorization decision.
+
+### `RulePackPlugin`
+
+An experimental code-backed rules extension registered through the trusted-local-plugin path, never through ScenarioPack contribution data. It executes with Host-process privileges in v0.1 and is not covered by the ScenarioPack data-only security boundary.
+
+### `ScenarioPackSelection`
+
+The immutable requested input to scenario resolution: exactly one root `ScenarioPack`, zero or more explicitly selected extension packs, and an optional case-revision-bound `HostPolicyOverlay`. Required dependency extensions may be added only through deterministic resolution and remain disclosed in its trace.
+
+Installation does not create a selection, and a selection does not activate a pack or authorize any remote or paid step.
+
+### `ScenarioPackCatalogSnapshot`
+
+An immutable snapshot of explicitly registered local ScenarioPack descriptors, Host availability policies, Registry revision, ScenarioPack contract version, and resolver version. Its `catalogHash` covers the sorted semantic descriptor and policy projections and is an input to resolution and the resulting Lock; acquisition locators are excluded, and later Registry changes cannot alter an existing snapshot.
+
+### `ScenarioComposition`
+
+The resolved package and contribution graph produced from a `ScenarioPackSelection`: one root `ScenarioPack`, explicitly selected or dependency-required extensions, their declarative rule and other contributions, and the typed host overlay. Two unrelated root scenario packs are not merged implicitly.
+
+Composition uses declared relationships and compatibility rules, not load order or silent last-wins behavior.
+
+### `ScenarioCompositionLock`
+
+The immutable resolved record of a `ScenarioComposition`. It pins exact package versions; manifest, package, configuration, dependency, and contribution digests; Catalog, resolver, contract, and canonicalization versions; deterministic composition order; the Host-policy-overlay hash; compatibility results; `compositionHash`; and `lockHash`.
+
+A lock makes composition auditable and replayable. It does not activate the pack or authorize execution, and it must not be rewritten when a package is upgraded or uninstalled.
+
+### `EffectiveScenario`
+
+The immutable, content-addressed semantic scenario definition produced from a valid `ScenarioCompositionLock` after its accepted `HostPolicyOverlay` and `HostOverride` records are applied. It contains resolved ontology vocabulary, declarative rules, interpretation scopes, prompt sections, review templates, defaults, capability requirements, auditable declarations, composition order, applied override IDs, and `effectiveScenarioHash` for new case compilation. `UIMetadata` remains presentation metadata outside this semantic structure.
+
+VOCE Core consumes this public structure and its hash rather than dispatching on a built-in scenario ID. Any accepted composition or override change produces a new `EffectiveScenario` and invalidates contexts or authorizations bound to the old hash where applicable.
+
+### `HostOverride`
+
+One immutable, typed host-supplied operation inside a case-revision-bound `HostPolicyOverlay`. It may set declared pack configuration, set an explicitly overrideable declared default, or change activation of an explicitly overrideable `preferred` contribution, and only through an `OverridePoint` declared by the pack.
+
+A `HostOverride` may not mutate an installed package, redefine vocabulary, weaken Core invariants, silently downgrade `hard` or `required` constraints, rewrite accepted evidence or decisions, bypass authorization, or introduce an undisclosed remote destination. Accepted and denied requests retain provenance in `PackResolutionReport`.
+
+### `HostPolicyOverlay`
+
+The immutable container that binds zero or more typed `HostOverride` records, authority, and reason to one case revision and includes them in deterministic resolution hashes. It is host-owned and is not a package contribution.
+
+The overlay cannot weaken Host policy or create network, Provider, cost, evidence, decision, or execution authority. Reusing its content for another revision requires a new explicitly bound record.
+
+### `OverridePoint`
+
+A manifest declaration of one place the host may override: pack configuration, a declared default, or activation of a declared contribution. It includes a stable ID, target kind and path, optional value schema, whether disabling is allowed, and a maximum importance of `preferred`.
+
+Anything not declared as an `OverridePoint` is not host-overridable. A typed override does not itself authorize a network call or waive a constraint.
+
+### `ScenarioPackConflict`
+
+A manifest-declared incompatibility with another package ID and version range, plus a stable reason code. It is an input to deterministic resolution rather than a load-order hint.
+
+### `ScenarioResolutionConflict`
+
+A structured conflict emitted during deterministic resolution for dependency, compatibility, digest, ordering, contribution, migration, or typed host-override failure. It records stable reason information, involved package versions and digests, affected paths or contributions, severity, and candidate resolutions.
+
+A blocking `ScenarioResolutionConflict` prevents activation. It is not resolved by package load order, silent omission, or implicit weakening.
+
+### `PackResolutionReport`
+
+The deterministic result of resolving a `ScenarioPackSelection` and its optional `HostPolicyOverlay`. It identifies selected packages, dependency and composition traces, applied or rejected overrides, warnings, the minimal explainable `ScenarioResolutionConflict` set, actionable resolutions, the resulting lock or blocked status, and provenance for every effective contribution.
+
+The report is an explanation artifact. It is not a migration, activation, authorization, or execution receipt.
+
+### `FixtureSuite`
+
+A versioned set of synthetic, original, public-domain, or explicitly redistributable cases and expected deterministic artifacts used to validate a pack offline. It covers successful, conflict, unknown, override, dependency, budget, migration, and applicable no-person behavior.
+
+Standard fixtures use no credential, private asset, network access, or paid provider. They compare structured contracts, explanations, plans, signatures, and Mock receipts rather than treating generated pixels as golden output.
+
+### `UIMetadata`
+
+Locale-aware presentation metadata containing `displayName`, `description`, optional `instructions`, and a message-key map; stable disclosures with severity and resolvable message keys; and accessibility declarations for required text alternatives, keyboard-operable reference selection, and information that does not rely on color alone.
+
+`UIMetadata` has no semantic or authorization authority. Its `defaultLocale` must exist, required disclosure keys must resolve and be acknowledged before activation, and the accessibility declaration defines host-renderer requirements rather than certifying the host application.
+
+### `PackActivation`
+
+The explicit host record that binds one case revision to exact selection, Catalog/Registry revision, `ScenarioCompositionLock`, `EffectiveScenario`, and resolution-report hashes after required offline gates and disclosures pass. Installation, registration, resolution, and inspection precede activation but do not imply it.
+
+Activation grants no remote-call or execution authority. Existing contexts, authorizations, and runs remain pinned to their recorded package versions and digests.
+
+### `PackDeactivation`
+
+The immutable Host availability-policy record that prevents a pack or exact version from receiving new case-scoped activations at an exact Registry revision without deleting local bytes or historical records. It is separate from `PackActivation`, does not cancel in-progress work, and does not erase package provenance.
+
+Deactivation is normally required before uninstall. Reverse dependencies and active use may still block uninstall.
+
+### `PackUninstallCheck`
+
+The immutable preflight result for removing locally available ScenarioPack data from an exact Registry revision. It records blocking reasons, active activations and availability policies, selections, reverse dependencies, compilation sessions, execution runs, pending migrations, replay requirements, and whether uninstall is currently blocked. A check grants no permission to delete data.
+
+### `PackUninstallReceipt`
+
+The immutable result of an atomic Registry removal based on a matching allowed check. It records Registry revisions, removed local package bytes, descriptor/provenance tombstone hashes, preserved historical records, unavailable replay Lock hashes, and a receipt hash. Uninstall never deletes user assets, historical evidence, decisions, runs, or receipts and never substitutes another package version.
+
+### `ScenarioMigrationDeclaration`
+
+A content-addressed declarative migration record supplied by a pack. It identifies a stable migration ID, source version range, target version, allowed configuration or contribution-ID operations, and a content digest; it is data, not an executable lifecycle hook.
+
+A declaration performs no network or provider call and never rewrites historical observations, decisions, compilation contexts, execution runs, events, or receipts.
+
+### `MigrationPlan`
+
+The deterministic, previewable, network-free plan built for an exact source `ScenarioCompositionLock` and target `ScenarioPackSelection` from applicable `ScenarioMigrationDeclaration` records. It pins the source case revision/editable-state hash and target case revision, Catalog, Lock, EffectiveScenario, and resolution-report hashes, contains ordered operations, unresolved items, and a `planHash`; destructive or ambiguous operations require an auditable confirmation hash.
+
+The dry-run already resolves and pins the target selection, Catalog, lock, and `EffectiveScenario`. Applying a safe plan validates those pins plus the source editable-state hash, then creates only the next editable case revision and `MigrationReceipt`. A missing required declaration or unsafe unresolved item blocks candidate activation rather than guessing a conversion.
+
+### `MigrationReceipt`
+
+The immutable record of one attempted `MigrationPlan`, including its plan hash, source and target lock and effective-scenario hashes, new case revision, applied operation hashes, unresolved items, and receipt hash. It contains no secret or private artifact content and is not an execution authorization.
+
+### `ScenarioPackPublishAudit`
+
+The immutable result of an ordinary clean-package audit, including complete distribution, semantic package, and manifest hashes, validator and template versions, fixture-suite digests, check results with safe evidence hashes, and an `auditHash`.
+
+A passing audit proves only conformance to the ScenarioPack contract and declared offline fixtures. It does not install, register, activate, authorize, certify security, prove model quality, or establish production readiness.
+
+### `PackageProvenance`
+
+Machine-readable authored supply-chain origin for a published pack: publisher and optional source repository, revision, and source digest. The Host-owned `PackageAcquisition` separately records source kind, locator, complete distribution digest, and that lifecycle scripts were not executed; `ScenarioPackDescriptor` records the computed semantic package digest.
+
+`PackageProvenance` supports integrity and trust decisions but is not an endorsement, security proof, rights guarantee, or production-readiness claim.
+
+### `PackageAcquisition`
+
+The Host-owned record of where ScenarioPack bytes were obtained, the digest of the complete distribution archive, and confirmation that package lifecycle scripts were not executed. It is not authored provenance and does not grant trust or activation.
+
 ## Compilation and planning
 
 ### `ConstraintIR`
@@ -136,9 +296,9 @@ A bounded integration that translates a validated plan step into a particular ex
 
 ### `RemoteCallAuthorization`
 
-An explicit, bounded authorization for a remote call made while a `CompilationSession` is interpreting or optimizing. It binds the current `contextHash`, call purpose, adapter and model versions, permitted `ArtifactHandle` and scope identifiers, remote destination and region, maximum calls, bytes, latency, and cost, expiry, and an idempotency key.
+An explicit, bounded authorization for one remote or potentially fee-bearing step, whether it occurs during compilation or inside an approved `PipelinePlan`. It binds the current `contextHash`, call purpose, adapter and model versions, permitted `ArtifactHandle` and scope identifiers, remote destination and region, maximum calls, retries, bytes, latency, and cost, expiry, and an idempotency key.
 
-It authorizes only the declared remote compilation step. It does not authorize generation or execution of a `PipelinePlan`. Changing any bound value requires a new authorization.
+It authorizes only the named step and cannot authorize a different step or an entire plan. Generation or other plan execution additionally requires the exact `ExecutionAuthorization`; changing any bound value requires a new authorization.
 
 ### `ExecutionAuthorization`
 
@@ -200,7 +360,7 @@ One attempt to execute a confirmed `PipelinePlan` under an exact `ExecutionAutho
 
 An opaque, host-owned, content-addressed reference to an input, intermediate, output, mask, or report. It exposes safe metadata such as content hash, media type, byte size, logical role, resolver identifier, availability state, retention class or expiry, and redaction policy, but not image bytes, Base64 data, credentials, or expiring URLs.
 
-The host owns storage, access control, retention, and deletion. Availability is checked at use time. If an artifact has expired or been deleted, its handle becomes `unavailable`; artifact replay must return that explicit state and must not silently re-download, regenerate, or issue a paid call.
+The host owns storage, access control, retention, and deletion. Availability is checked at use time. If an artifact has expired or been deleted, its handle records `expired` or `deleted`, and artifact replay returns `ARTIFACT_UNAVAILABLE`; it must not silently re-download, regenerate, or issue a paid call.
 
 ### `StepEvent`
 

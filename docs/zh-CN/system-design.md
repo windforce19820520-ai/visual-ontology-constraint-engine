@@ -1,7 +1,7 @@
 # 系统设计
 
 [返回英文版](../system-design.md)
-[项目术语表](glossary.md)
+[项目术语表](glossary.md) · [ScenarioPack 合同](scenario-pack-contract.md)
 
 **状态：** v0.1 提案
 
@@ -38,7 +38,7 @@ VOCE 将自然语言意图、参考图、可信元数据和领域规则转换成
 - 在执行前，根据 Provider 能力、数据可达性、成本、超时和输出契约进行规划。
 - 通过变更集和硬约束覆盖情况，让提示词优化过程可检查。
 - 支持离线 manual、fixture、compile、explain、Mock、replay 和 comparison 工作流。
-- 为解释器、规则包、优化器、Provider、后处理器、验证器、审核器和资产发布提供扩展端口。
+- 为 ScenarioPack、解释器、规则包、优化器、Provider、后处理器、验证器、审核器和资产发布提供扩展端口。
 
 ### 2.2 v0.1 的非目标
 
@@ -73,12 +73,16 @@ VOCE 将自然语言意图、参考图、可信元数据和领域规则转换成
 15. Case revision、编译签名、计划哈希、Adapter、目的地、输入哈希或预算发生变化时，对应授权失效。
 16. 确定性提示词约束门禁只证明类型化的结构不变量；无法验证的语言绝不会被视为已证明安全。
 17. 人工验收独立于技术执行和概率性语义审核。
+18. Core 永远不会导入 ScenarioPack 或依据 Scenario ID 分支；第一方和第三方 ScenarioPack 使用相同的 Registry 与组合路径。
+19. 安装、发现、解析和 PackActivation 均不授权资产访问、远程调用、Provider 选择、数据传输或费用。
 
 ## 4. 系统上下文与信任边界
 
 ```mermaid
 flowchart LR
     UI["宿主应用"] --> CORE["VOCE Core"]
+    UI --> SCENARIOS["显式 ScenarioPack Registry 与 Activation"]
+    SCENARIOS --> CORE
     CORE --> STORE["宿主提供的资产与任务存储"]
     CORE --> PLUGINS["受信任的本地插件"]
     PLUGINS --> ANALYZER["可选的远程解释器"]
@@ -92,7 +96,7 @@ flowchart LR
 
 宿主应用负责身份验证、用户同意、资产权利、持久化、保留、删除、审核策略、凭据、成本授权和用户界面。VOCE 负责公共语义合同、确定性编译、计划验证、安全执行边界和可移植的评测产物。
 
-v0.1 插件是在宿主进程中运行的受信任本地代码。插件 Manifest 会披露网络访问、可能产生的费用、数据目的地、输入/输出 Schema、兼容性和脱敏行为。进程隔离和公共插件市场将延后实现。
+v0.1 可执行插件是在宿主进程中运行的受信任本地代码。插件 Manifest 会披露网络访问、可能产生的费用、数据目的地、输入/输出 Schema、兼容性和脱敏行为。声明式 ScenarioPack 数据通过独立的纯数据 Registry 注册，不属于可执行插件代码；由宿主单独选择的 `RulePackPlugin` 或自定义 Loader 会跨越受信任插件边界，而且绝不是 ScenarioPack 依赖。进程隔离和公共插件市场将延后实现。
 
 ## 5. 核心术语
 
@@ -100,6 +104,10 @@ v0.1 插件是在宿主进程中运行的受信任本地代码。插件 Manifest
 | --- | --- |
 | `CaseSpec` | 一个设计会话中经过标准化的用户请求、资产、模式、策略和期望输出 |
 | `CompilationContext` | 用于编译和签署 Case revision 的不可变版本、能力快照、允许的 Adapter、目的地和预算 |
+| `ScenarioPack` | 对场景词汇、RulePack、Scope、Prompt Section、Review Template、Default 和 Fixture 的声明式版本化组合 |
+| `ScenarioPackSelection` | 一个 Case revision 中恰好一个 Root、显式 Extension 和可选的类型化 HostPolicyOverlay |
+| `ScenarioCompositionLock` | 为确定性编译选定的精确版本、Digest、依赖解析、顺序和 Override Hash |
+| `EffectiveScenario` | 根据 ScenarioCompositionLock 产生的完整已组合贡献集合 |
 | `ChangeIntent` | 对结果提出的变更要求：preserve、replace、adjust、create 或 remove |
 | `RequestedScopePlan` | 解释器在当前任务中获准且必须分析的本体范围 |
 | `Observation` | 模型、元数据或用户针对某项资产提出的观察项候选主张，包含溯源信息和不确定性 |
@@ -128,6 +136,7 @@ interface CaseSpec {
   id: string
   revision: number
   mode: 'manual' | 'assisted' | 'auto'
+  scenario: ScenarioPackSelection
   userIntent: string
   assets: ReferenceAsset[]
   trustedMetadata: TrustedMetadata[]
@@ -167,12 +176,20 @@ interface DataTransferDeclaration {
 }
 
 interface CompilationContext {
+  caseSpecId: string
+  caseSpecRevision: number
+  caseSpecHash: string
+  artifactHashes: string[]
+  decisionHashes: string[]
   ontologySchema: VersionPin
-  rulePacks: VersionPin[]
+  scenarioCompositionLockHash: string
+  effectiveScenarioHash: string
+  rulePackPlugins: VersionPin[]
   hostPolicy: VersionPin
   adapters: VersionPin[]
   capabilityProfiles: VersionPin[]
   selectedGenerationProfileId: string
+  optimizer: VersionPin
   optimizerMode: 'strict' | 'balanced' | 'creative'
   budgets: AdapterBudget[]
   dataTransfers: DataTransferDeclaration[]
@@ -180,7 +197,7 @@ interface CompilationContext {
 }
 ```
 
-该上下文会固定所有可能改变确定性结果的规则、策略、Adapter、优化器和能力输入。安装另一个插件或刷新能力 Profile，绝不会静默改变已有上下文。
+该上下文会固定精确的 Scenario 组合，以及所有可能改变确定性结果的规则、策略、Adapter、优化器和能力输入。安装另一个 Pack 或插件、改变 PackActivation 或刷新 Capability Profile，绝不会静默改变已有上下文。
 
 `contextHash` 根据其他 Context 字段计算，绝不包含自身。确定性签名使用 `CaseSpec`、已确认决策和所引用 `CompilationContext` 的规范化语义投影。时间戳、Run ID、可用性探测、回执字段以及其他易变值不会进入签名。
 
@@ -245,8 +262,12 @@ interface ArtifactHandle {
   contentHash: string
   mediaType: string
   byteLength?: number
+  role: string
+  resolverId: string
   availability: 'available' | 'deleted' | 'expired' | 'unknown'
+  retentionClass: string
   retentionExpiresAt?: string
+  redactionPolicy: string
 }
 
 type EvidenceRegion =
@@ -278,9 +299,12 @@ interface Observation {
 }
 
 interface ObservationDecision {
+  decisionId: string
+  decisionHash: string
   observationId: string
   observationHash: string
-  status: 'confirmed' | 'rejected'
+  contextHash: string
+  status: 'proposed' | 'confirmed' | 'rejected'
   authority: 'user' | 'host_policy' | 'trusted_metadata' | 'auto_policy'
   decidedBy: string
   policyVersion?: string
@@ -297,13 +321,14 @@ interface ObservationDecision {
 
 高置信度观察项不会自动成为硬约束。用户的硬性要求也不能证明图片观察项一定正确。
 
-`Observation` 是不可变的候选证据。它的 `contentHash` 根据规范化 Observation Payload 计算，并排除 Decision。Analyzer 不能将自己的输出标为 confirmed。确认或拒绝通过与精确 `observationHash` 绑定的 `ObservationDecision` 记录，并包含权限主体、原因以及适用时的策略版本。候选发生变化会产生新 Hash，并使旧 Decision 失效。
+`Observation` 是不可变的候选证据。它的 `contentHash` 根据规范化 Observation Payload 计算，并排除 Decision。Analyzer 不能将自己的输出标为 confirmed。接受状态通过与精确 `observationHash` 和 `contextHash` 绑定的 `ObservationDecision` 记录，并包含权限主体、原因以及适用时的策略版本。`decisionHash` 覆盖 Decision 的全部其他字段并排除自身。候选或 Context 发生变化会使旧 Decision 失效。
 
 ### 6.7 SourceBinding 与 BindingDecision
 
 ```ts
 interface SourceBinding {
   id: string
+  contentHash: string
   targetPath: string
   observationIds: string[]
   relation: 'preserve' | 'reproduce' | 'inspire' | 'exclude'
@@ -311,7 +336,11 @@ interface SourceBinding {
 }
 
 interface BindingDecision {
+  decisionId: string
+  decisionHash: string
   bindingId: string
+  bindingHash: string
+  contextHash: string
   status: 'proposed' | 'confirmed' | 'rejected'
   authority: 'user' | 'host_policy' | 'trusted_metadata' | 'auto_policy'
   decidedBy: string
@@ -323,7 +352,7 @@ interface BindingDecision {
 
 `replace` 是变更操作；`reproduce` 是来源关系。一个请求可以替换原夹克，并从 `ref-02` 复现替换用的夹克。
 
-只有 confirmed 的 `BindingDecision` 才能允许绑定进入 `OntologyInstance`。确认 Observation 表示接受候选主张；另行确认 Binding 则决定该证据是否可以提供给目标。
+只有 confirmed 的 `BindingDecision` 才能允许绑定进入 `OntologyInstance`。`bindingHash` 覆盖不可变 `SourceBinding`；`decisionHash` 覆盖 Decision 全部其他字段并排除自身。Binding 或 Context 变化会让旧 Decision 失效。确认 Observation 表示接受候选主张；另行确认 Binding 则决定该证据是否可以提供给目标。
 
 ### 6.8 稀疏 OntologyInstance
 
@@ -398,6 +427,10 @@ interface RemoteCallAuthorization {
     | 'semantic_review'
     | 'asset_publication'
   inputHash: string
+  permittedArtifactHashes: string[]
+  permittedScopeIds: string[]
+  modelId?: string
+  modelVersion?: string
   adapterId: string
   adapterDigest: string
   destination: string
@@ -448,7 +481,7 @@ interface RemoteCallRun {
 }
 ```
 
-Context、计划、Prompt Artifact、Adapter/Profile Digest、目的地声明、输入哈希或预算任一发生变化时，适用授权即失效。系统绝不会仅因凭据存在而推断已授权。创建另一次远程提交的重试必须仍有明确的剩余重试权限；只要前一次提交结果未知，重试即被禁止。
+Context、计划、Prompt Artifact、Adapter/Profile Digest、目的地声明、输入哈希或预算任一发生变化时，适用授权即失效。`inputHash` 是精确类型化步骤输入的规范化哈希，覆盖全部获准 Artifact Hash、Scope ID、Purpose、Model Identity/Version 与 Adapter Digest；冗余显式字段必须与该投影一致。系统绝不会仅因凭据存在而推断已授权。创建另一次远程提交的重试必须仍有明确的剩余重试权限；只要前一次提交结果未知，重试即被禁止。
 
 ## 7. 视觉本体模块
 
@@ -651,13 +684,22 @@ type PromptTransformation =
     }
 
 interface PromptCandidateIR {
+  candidateHash: string
   basePromptIRSignature: string
+  targetAdapter: VersionPin
+  targetCapabilityProfile: VersionPin
   transformations: PromptTransformation[]
+  candidateSections: PromptIR['sections']
+  requestParameters: Record<string, unknown>
+  referenceMappings: PlannedReference[]
+  coverageClaims: Array<{ constraintId: string; transformationIndexes: number[] }>
   optimizer: VersionPin
   mode: 'strict' | 'balanced' | 'creative'
   warnings: string[]
 }
 ```
+
+`candidateHash` 以规范化形式覆盖 `PromptCandidateIR` 的全部其他字段并排除自身。Target Adapter/Profile、Rendered Section、Parameter、Reference Mapping、Coverage Claim、Transformation、Optimizer、Mode 或 Warning 发生变化时都会产生新 Candidate。
 
 模式：
 
@@ -865,13 +907,21 @@ Artifact Replay 取决于宿主的保留策略。如果必需 Handle 为 `delete
 
 ## 17. 插件端口
 
-v0.1 定义以下公共扩展端口：
+以下是 v0.1 的候选公共扩展面。每项只有在公共 Schema 与兼容 Fixture 同时发布后才会成为兼容性稳定接口：
+
+- `ScenarioPack`
+- `ScenarioPackRegistry`
+- `DeclarativeRulePackContribution`
+- `ProviderAdapter`
+- `ProviderCapabilityProfile`
+- `ScenarioPackManifest`
+- 离线 Testkit
+
+以下公共实现端口在 v0.1 中属于实验性接口。它们仍受相同的权限、隐私、预算和回执规则约束，但次版本可能改变其 API 或 Schema，不作兼容性承诺：
 
 - `IntentInterpreter`
 - `ReferenceInterpreter`
-- `RulePack`
 - `PromptOptimizer`
-- `ProviderAdapter`
 - `PostProcessor`
 - `StructuralValidator`
 - `SemanticReviewer`
@@ -879,6 +929,7 @@ v0.1 定义以下公共扩展端口：
 - `AssetPublisher`
 - `JobStore`
 - `JobQueue`
+- `RulePackPlugin`
 
 每个插件 Manifest 声明：
 
@@ -891,9 +942,13 @@ v0.1 定义以下公共扩展端口：
 - 密钥要求；
 - 日志脱敏策略。
 
-理解器和优化器提出产物；它们不能修改已确认事实。Rule Pack 是纯函数。Provider Adapter 不得改变已批准的参考图顺序、必需输入、输出契约或预算。
+理解器和优化器提出产物；它们不能修改已确认事实。`DeclarativeRulePackContribution` 是纯数据。`RulePackPlugin` 是单独的实验性可执行插件边界。Provider Adapter 不得改变已批准的参考图顺序、必需输入、输出契约或预算。
 
 选择插件时，其 Manifest Digest 会被快照进 `CompilationContext` 或相应 Authorization。任何执行远程工作的插件，包括 SemanticReviewer 或 AssetPublisher，都遵循与 Generation Adapter 相同的授权、预算、事件、回执、未知提交与 Reconciliation 合同。
+
+ScenarioPack 是声明式数据组合合同，不是可执行插件代码或执行 Adapter。一个 Case 选择一个 Root、显式 Extension 和可选的类型化 `HostPolicyOverlay`；确定性解析会产出 `ScenarioCompositionLock`、`EffectiveScenario` 和 `PackResolutionReport`。第一方 virtual-try-on、cosplay 和 product-shot Pack 与第三方 Pack 使用相同 Registry。Core 不识别它们的 ID。
+
+完整的 Manifest、依赖/冲突、贡献权限、Override、发现、Activation、Migration、卸载、Replay 和验收规则，以 [ScenarioPack 合同](scenario-pack-contract.md)为规范。其 Manifest 是描述性验证元数据，不是不受信任代码的沙箱。安装或注册 Pack 不会授权 `ProviderAdapter`、选择 `ProviderCapabilityProfile` 或创建远程调用权限。
 
 ## 18. 安全、隐私与权利
 
@@ -973,6 +1028,7 @@ Intent/Reference 理解、提示词优化、生成、后处理、语义审核和
 以下产物独立进行版本管理：
 
 - 本体 Schema；
+- ScenarioPack Manifest、贡献 Schema、`ScenarioCompositionLock`、`EffectiveScenario`、HostPolicyOverlay、PackActivation 和 Migration 合同；
 - `CompilationContext`、Observation/Binding Decision、Authorization 和 `ArtifactHandle` 合同；
 - 规则包；
 - ConstraintIR、ReferencePlan、PipelinePlan、PromptIR 和 PromptCandidateIR；
@@ -984,7 +1040,7 @@ Intent/Reference 理解、提示词优化、生成、后处理、语义审核和
 
 Run 产物会固定所有相关版本，使报告在项目演进后仍然可以被解释。
 
-成对维护的核心规范是 `scenario-design`、`system-design` 和 `glossary`。英文是规范源，简体中文作为一等语义译文维护；稳定的 Scenario/Requirement ID、枚举和代码标识符保持同步。Architecture 和 Roadmap 是解释性摘要，不在这一成对翻译保证中，除非它们被明确以成对版本发布。
+成对维护的四份核心规范是 `scenario-design`、`system-design`、`glossary` 和 `scenario-pack-contract`。英文是规范源，简体中文作为一等语义译文维护；稳定的 Scenario/Requirement ID、枚举和代码标识符保持同步。Architecture 和 Roadmap 是解释性摘要，不在这一成对翻译保证中，除非它们被明确以成对版本发布。
 
 ## 22. v0.1 实现边界
 
@@ -993,6 +1049,8 @@ Run 产物会固定所有相关版本，使报告在项目演进后仍然可以�
 - 每个 Case 包含零个或一个主要人物；存在人物时，可以包含多件服装、饰品或道具；
 - 稀疏本体、多范围 Observation、`ObservationDecision` 和已确认的 Binding Decision；
 - 不可变 `CompilationContext`、`RemoteCallAuthorization` 和与 Plan 绑定的 `ExecutionAuthorization` 合同；
+- 确定性 `ScenarioPackRegistry`、Root/Extension/HostPolicyOverlay 解析、精确 `ScenarioCompositionLock` 和 PackActivation 合同；
+- 普通离线 `ScenarioPackTemplate`、Validator、发布审计，以及 Migration/Uninstall/Replay 生命周期 Fixture；
 - 完整支持 manual 和 fixture 模式；
 - assisted 模式配备一个可选的多模态 Adapter；
 - experimental auto 策略具有不可绕过的高影响门禁；
@@ -1001,7 +1059,8 @@ Run 产物会固定所有相关版本，使报告在项目演进后仍然可以�
 - Mock-first 执行以及可选 Seedream/veImageX Adapter 实现；
 - 每个 Remote Step 使用本地持久化异步执行，包含持久化事件、Reconciliation、Compensation Cleanup 和 `submission_unknown` 防护；
 - CLI 和只读的本地/静态 HTML Trace Report；
-- 一个完整的离线 Mock 虚拟试衣纵向 Case、离线 Cosplay 冲突 Case 和离线纯商品回归 Case，并将其作为 Release Gate；
+- 通过与第三方 Pack 相同公共路径注册的第一方 virtual-try-on、cosplay 和 product-shot ScenarioPack；
+- 一个完整的离线 Mock 虚拟试衣纵向 Case、离线 Cosplay 冲突 Case 和离线纯商品回归 Case，并将其作为 Pack 驱动的 Release Gate；
 - 可再分发的 Fixture 和离线 CI。
 
 真实 Adapter Smoke Test 是显式启用、需要凭据且不在 CI 中运行的工作流。它们默认不会运行，也不是 `v0.1.0` 的默认 Release Gate。Release 可以发布带日期的 Smoke Evidence，但项目不会据此声称 Production Ready。
@@ -1037,4 +1096,11 @@ Run 产物会固定所有相关版本，使报告在项目演进后仍然可以�
 | SYS-012 | manual 模式无需网络访问或凭据，即可执行 compile、explain、plan、Mock-run、replay 和 compare。 |
 | SYS-013 | 技术执行/验证、概率性语义发现和人工验收始终保持为独立产物和状态机；人工拒绝不会被改写为技术失败。 |
 | SYS-014 | 每个远程 Adapter Step 都通过 Authorization 和 Receipt 声明并强制执行目的地、数据类别、调用、重试、超时、费用、取消、清理和脱敏策略。 |
-| SYS-015 | 成对的英文/中文 Scenario、System 和 Glossary 规范保持 Scenario ID、Requirement ID、枚举和代码标识符同步，并以英文为规范源。 |
+| SYS-015 | 成对的四份英文/中文核心规范保持 Scenario ID、Requirement ID、枚举和代码标识符同步，并以英文为规范源。 |
+| SYS-016 | Core 通过同一 Registry 加载第一方和第三方 ScenarioPack，并且不包含以 Scenario ID 为键的 Import 或分支。 |
+| SYS-017 | 相同的 ScenarioPackSelection、不可变 ScenarioPackCatalogSnapshot、HostPolicyOverlay、Resolver 和合同版本会产生完全一致的 ScenarioCompositionLock、EffectiveScenario、PackResolutionReport、顺序和语义 Hash。 |
+| SYS-018 | Scenario 组合会固定精确版本和 Digest，并通过解释性 Trace 阻止缺失依赖、不兼容范围、Digest 不匹配、已声明冲突、重复贡献冲突和顺序环。 |
+| SYS-019 | Ontology、DeclarativeRulePackContribution、Scope、Prompt、Review、Default、OverridePoint、FixtureSuite、UIMetadata、Capability Requirement 和 Declaration 贡献始终处于 ScenarioPack 权限边界内。 |
+| SYS-020 | ScenarioPack 不能执行网络或 Provider 调用、读取 Secret、修改已确认事实、创建 Authorization、改变预算或目的地、覆盖 Host Policy，或绕过 Guard 与 Review Gate。 |
+| SYS-021 | Discovery 使用显式本地来源；安装、发布或注册绝不意味着 PackActivation、远程访问、Provider 选择、数据传输、费用授权、Marketplace 查询、动态扫描或自动下载。 |
+| SYS-022 | 普通 ScenarioPackTemplate 与发布审计不授予 Runtime 权限；virtual try-on、cosplay 与 product-shot 作为 Pack，通过相同 Compiler、Planner、Runtime 和 Evaluation Pipeline 完成各自的离线 FixtureSuite。 |

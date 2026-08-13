@@ -2,13 +2,14 @@
 
 [English documentation](../README.md)
 
-公共合同与架构决策以英文为权威版本；成对维护的核心规范包括场景设计、系统设计和术语表，并提供完整简体中文译文。发生差异时以英文版本为准。
+公共合同与架构决策以英文为权威版本；成对维护的四份核心规范包括场景设计、系统设计、术语表和 ScenarioPack 合同，并提供完整简体中文译文。发生差异时以英文版本为准。
 
 ## 产品与系统设计
 
 - [场景与用户旅程设计](scenario-design.md) · [English](../scenario-design.md)
 - [系统设计](system-design.md) · [English](../system-design.md)
 - [术语表](glossary.md) · [English](../glossary.md)
+- [ScenarioPack 合同](scenario-pack-contract.md) · [English](../scenario-pack-contract.md)
 - [架构摘要（英文）](../architecture.md)
 - [路线图（英文）](../roadmap.md)
 

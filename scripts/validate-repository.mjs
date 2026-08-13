@@ -1,7 +1,10 @@
-import { access, readFile } from 'node:fs/promises'
+import { access, readFile, readdir } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const requiredFiles = [
   '.github/pull_request_template.md',
+  'AGENTS.md',
   'README.md',
   'LICENSE',
   'NOTICE',
@@ -16,45 +19,84 @@ const requiredFiles = [
   'docs/roadmap.md',
   'docs/scenario-design.md',
   'docs/zh-CN/scenario-design.md',
+  'docs/scenario-pack-contract.md',
+  'docs/zh-CN/scenario-pack-contract.md',
   'docs/system-design.md',
   'docs/zh-CN/system-design.md',
 ]
 
+const repositoryRoot = new URL('../', import.meta.url)
+const requiredFileContents = {}
+const markdownFileContents = {}
+const fatalUtf8Decoder = new TextDecoder('utf-8', { fatal: true })
+
+async function enumerateMarkdownFiles(directoryUrl, relativeDirectory = '') {
+  const markdownFiles = []
+  const entries = await readdir(directoryUrl, { withFileTypes: true })
+
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+    if (entry.name === '.git' || entry.name === 'node_modules') continue
+
+    const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name
+    const entryUrl = new URL(encodeURIComponent(entry.name) + (entry.isDirectory() ? '/' : ''), directoryUrl)
+
+    if (entry.isDirectory()) {
+      markdownFiles.push(...(await enumerateMarkdownFiles(entryUrl, relativePath)))
+    } else if ((entry.isFile() || entry.isSymbolicLink()) && /\.md$/i.test(entry.name)) {
+      markdownFiles.push(relativePath)
+    }
+  }
+
+  return markdownFiles
+}
+
+const markdownFiles = await enumerateMarkdownFiles(repositoryRoot)
+
+for (const file of markdownFiles) {
+  const url = new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot)
+  let content
+  try {
+    content = fatalUtf8Decoder.decode(await readFile(url))
+  } catch {
+    throw new Error(`INVALID_UTF8:${file}`)
+  }
+
+  if (content.includes('\0')) throw new Error(`NUL_CHARACTER_FOUND:${file}`)
+  if (content.includes('\uFFFD')) throw new Error(`UTF8_REPLACEMENT_CHARACTER_FOUND:${file}`)
+  markdownFileContents[file] = content
+}
+
 for (const file of requiredFiles) {
-  await access(new URL(`../${file}`, import.meta.url))
+  const url = new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot)
+  await access(url)
+  requiredFileContents[file] = markdownFileContents[file] ?? fatalUtf8Decoder.decode(await readFile(url))
 }
 
 const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
+const agents = await readFile(new URL('../AGENTS.md', import.meta.url), 'utf8')
+const contributing = await readFile(new URL('../CONTRIBUTING.md', import.meta.url), 'utf8')
+const pullRequestTemplate = await readFile(new URL('../.github/pull_request_template.md', import.meta.url), 'utf8')
 const architecture = await readFile(new URL('../docs/architecture.md', import.meta.url), 'utf8')
+const roadmap = await readFile(new URL('../docs/roadmap.md', import.meta.url), 'utf8')
 const docsIndex = await readFile(new URL('../docs/README.md', import.meta.url), 'utf8')
 const chineseDocsIndex = await readFile(new URL('../docs/zh-CN/README.md', import.meta.url), 'utf8')
 const glossary = await readFile(new URL('../docs/glossary.md', import.meta.url), 'utf8')
 const chineseGlossary = await readFile(new URL('../docs/zh-CN/glossary.md', import.meta.url), 'utf8')
 const scenarios = await readFile(new URL('../docs/scenario-design.md', import.meta.url), 'utf8')
 const chineseScenarios = await readFile(new URL('../docs/zh-CN/scenario-design.md', import.meta.url), 'utf8')
+const scenarioPackContract = await readFile(new URL('../docs/scenario-pack-contract.md', import.meta.url), 'utf8')
+const chineseScenarioPackContract = await readFile(new URL('../docs/zh-CN/scenario-pack-contract.md', import.meta.url), 'utf8')
 const systemDesign = await readFile(new URL('../docs/system-design.md', import.meta.url), 'utf8')
 const chineseSystemDesign = await readFile(new URL('../docs/zh-CN/system-design.md', import.meta.url), 'utf8')
-
-const utf8Documents = {
-  'docs/README.md': docsIndex,
-  'docs/zh-CN/README.md': chineseDocsIndex,
-  'docs/glossary.md': glossary,
-  'docs/zh-CN/glossary.md': chineseGlossary,
-  'docs/scenario-design.md': scenarios,
-  'docs/zh-CN/scenario-design.md': chineseScenarios,
-  'docs/system-design.md': systemDesign,
-  'docs/zh-CN/system-design.md': chineseSystemDesign,
-}
-
-for (const [file, content] of Object.entries(utf8Documents)) {
-  if (content.includes('\uFFFD')) throw new Error(`UTF8_REPLACEMENT_CHARACTER_FOUND:${file}`)
-}
 
 const requiredReadmePhrases = [
   'Incubation status',
   'Sparse ontology',
   'Reference Interpreter',
   'Prompt Optimizer',
+  'ScenarioPack',
+  'are planned as independent, optional `ScenarioPack` packages',
+  'candidate public compatibility surface',
 ]
 
 for (const phrase of requiredReadmePhrases) {
@@ -66,6 +108,9 @@ const requiredArchitecturePhrases = [
   'SourceBinding',
   'OntologyInstance',
   'Prompt Guard',
+  'ScenarioPackRegistry',
+  'DeclarativeRulePackContribution',
+  'lifecycle scripts',
 ]
 
 for (const phrase of requiredArchitecturePhrases) {
@@ -76,15 +121,19 @@ const pairedLinks = [
   [docsIndex, 'zh-CN/scenario-design.md', 'DOCS_INDEX_SCENARIO_TRANSLATION_LINK_MISSING'],
   [docsIndex, 'zh-CN/system-design.md', 'DOCS_INDEX_SYSTEM_TRANSLATION_LINK_MISSING'],
   [docsIndex, 'zh-CN/glossary.md', 'DOCS_INDEX_GLOSSARY_TRANSLATION_LINK_MISSING'],
+  [docsIndex, 'zh-CN/scenario-pack-contract.md', 'DOCS_INDEX_SCENARIO_PACK_TRANSLATION_LINK_MISSING'],
   [chineseDocsIndex, '../scenario-design.md', 'CHINESE_INDEX_SCENARIO_SOURCE_LINK_MISSING'],
   [chineseDocsIndex, '../system-design.md', 'CHINESE_INDEX_SYSTEM_SOURCE_LINK_MISSING'],
   [chineseDocsIndex, '../glossary.md', 'CHINESE_INDEX_GLOSSARY_SOURCE_LINK_MISSING'],
+  [chineseDocsIndex, '../scenario-pack-contract.md', 'CHINESE_INDEX_SCENARIO_PACK_SOURCE_LINK_MISSING'],
   [scenarios, 'zh-CN/scenario-design.md', 'SCENARIO_TRANSLATION_LINK_MISSING'],
   [chineseScenarios, '../scenario-design.md', 'SCENARIO_SOURCE_LINK_MISSING'],
   [systemDesign, 'zh-CN/system-design.md', 'SYSTEM_TRANSLATION_LINK_MISSING'],
   [chineseSystemDesign, '../system-design.md', 'SYSTEM_SOURCE_LINK_MISSING'],
   [glossary, 'zh-CN/glossary.md', 'GLOSSARY_TRANSLATION_LINK_MISSING'],
   [chineseGlossary, '../glossary.md', 'GLOSSARY_SOURCE_LINK_MISSING'],
+  [scenarioPackContract, 'zh-CN/scenario-pack-contract.md', 'SCENARIO_PACK_TRANSLATION_LINK_MISSING'],
+  [chineseScenarioPackContract, '../scenario-pack-contract.md', 'SCENARIO_PACK_SOURCE_LINK_MISSING'],
 ]
 
 for (const [content, link, errorCode] of pairedLinks) {
@@ -104,18 +153,482 @@ function assertSameIds(label, englishContent, translatedContent, pattern) {
   }
 }
 
-assertSameIds('SCENARIO', scenarios, chineseScenarios, /\b(?:SCN|VT|CP|PS|REV|DEV|RPK)-\d{3}\b/g)
+assertSameIds('SCENARIO', scenarios, chineseScenarios, /\b(?:SCN|VT|CP|PS|REV|DEV|RPK|SPK)-\d{3}\b/g)
 assertSameIds('SYSTEM_REQUIREMENT', systemDesign, chineseSystemDesign, /\bSYS-\d{3}\b/g)
+assertSameIds('SCENARIO_PACK_ACCEPTANCE', scenarioPackContract, chineseScenarioPackContract, /\bSPK-AC-\d{3}\b/g)
+assertSameIds('SCENARIO_PACK_ERROR_CODE', scenarioPackContract, chineseScenarioPackContract, /\bPACK_[A-Z0-9_]+\b/g)
+assertSameIds('SYSTEM_ERROR_CODE', systemDesign, chineseSystemDesign, /\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b/g)
 
-const requiredScenarioIds = ['CP-001', 'DEV-001', 'PS-001', 'REV-001', 'RPK-001', 'SCN-001', 'VT-001']
-const requiredSystemIds = Array.from({ length: 15 }, (_, index) => `SYS-${String(index + 1).padStart(3, '0')}`)
+function inlineCodeIdentifierAndEnumTokens(content) {
+  const withoutFencedBlocks = content.replace(/^(`{3,}|~{3,})[^\r\n]*\r?\n[\s\S]*?^\1\s*$/gm, '')
+  const tokens = []
 
-if (JSON.stringify(uniqueMatches(scenarios, /\b(?:SCN|VT|CP|PS|REV|DEV|RPK)-\d{3}\b/g)) !== JSON.stringify(requiredScenarioIds)) {
+  for (const match of withoutFencedBlocks.matchAll(/(?<!`)`([^`\r\n]+)`(?!`)/g)) {
+    const token = match[1].trim()
+    if (!token || /\s/u.test(token) || /\p{Script=Han}/u.test(token)) continue
+
+    const isIdentifierOrEnum =
+      /^(?:[A-Za-z_$][A-Za-z0-9_$]*)(?:[._-][A-Za-z0-9_$]+)*$/.test(token) ||
+      /^(?:[A-Za-z_$][A-Za-z0-9_$]*)\(\)$/.test(token) ||
+      /^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(token) ||
+      /^[a-z][a-z0-9.-]*\/v\d+(?:alpha|beta|rc)?\d*$/i.test(token)
+
+    if (isIdentifierOrEnum) tokens.push(token)
+  }
+
+  return [...new Set(tokens)].sort()
+}
+
+function assertSameInlineCodeTokens(label, englishContent, translatedContent) {
+  const englishTokens = inlineCodeIdentifierAndEnumTokens(englishContent)
+  const translatedTokens = inlineCodeIdentifierAndEnumTokens(translatedContent)
+  const onlyEnglish = englishTokens.filter((token) => !translatedTokens.includes(token))
+  const onlyTranslated = translatedTokens.filter((token) => !englishTokens.includes(token))
+
+  if (onlyEnglish.length || onlyTranslated.length) {
+    throw new Error(
+      `${label}_INLINE_CODE_TOKEN_MISMATCH:en-only=${onlyEnglish.join(',')}:zh-CN-only=${onlyTranslated.join(',')}`,
+    )
+  }
+}
+
+assertSameInlineCodeTokens('GLOSSARY', glossary, chineseGlossary)
+assertSameInlineCodeTokens('SCENARIO', scenarios, chineseScenarios)
+assertSameInlineCodeTokens('SCENARIO_PACK', scenarioPackContract, chineseScenarioPackContract)
+assertSameInlineCodeTokens('SYSTEM', systemDesign, chineseSystemDesign)
+
+const requiredScenarioIds = ['CP-001', 'DEV-001', 'PS-001', 'REV-001', 'RPK-001', 'SCN-001', 'SPK-001', 'VT-001']
+const requiredSystemIds = Array.from({ length: 22 }, (_, index) => `SYS-${String(index + 1).padStart(3, '0')}`)
+const requiredScenarioPackAcceptanceIds = Array.from(
+  { length: 15 },
+  (_, index) => `SPK-AC-${String(index + 1).padStart(3, '0')}`,
+)
+const requiredSystemErrorCodes = [
+  'ARTIFACT_UNAVAILABLE',
+  'CLEANUP_FAILED',
+  'CONFIRMATION_REQUIRED',
+  'CONSTRAINT_CONFLICT',
+  'EXECUTION_AUTHORIZATION_INVALID',
+  'EXECUTION_NOT_AUTHORIZED',
+  'INPUT_INVALID',
+  'INTERPRETATION_UNAVAILABLE',
+  'POSTPROCESSING_FAILED',
+  'PROMPT_CANDIDATE_UNVERIFIABLE',
+  'PROVIDER_CAPABILITY_UNSATISFIABLE',
+  'PROVIDER_FAILED',
+  'REFERENCE_BUDGET_UNSATISFIABLE',
+  'REMOTE_CALL_NOT_AUTHORIZED',
+  'REMOTE_SUBMISSION_UNKNOWN',
+  'SEMANTIC_REVIEW_REQUIRED',
+  'STRUCTURAL_VALIDATION_FAILED',
+]
+
+if (JSON.stringify(uniqueMatches(scenarios, /\b(?:SCN|VT|CP|PS|REV|DEV|RPK|SPK)-\d{3}\b/g)) !== JSON.stringify(requiredScenarioIds)) {
   throw new Error('SCENARIO_REQUIRED_IDS_MISMATCH')
 }
 
 if (JSON.stringify(uniqueMatches(systemDesign, /\bSYS-\d{3}\b/g)) !== JSON.stringify(requiredSystemIds)) {
   throw new Error('SYSTEM_REQUIRED_IDS_MISMATCH')
+}
+
+if (JSON.stringify(uniqueMatches(scenarioPackContract, /\bSPK-AC-\d{3}\b/g)) !== JSON.stringify(requiredScenarioPackAcceptanceIds)) {
+  throw new Error('SCENARIO_PACK_REQUIRED_ACCEPTANCE_IDS_MISMATCH')
+}
+
+if (
+  JSON.stringify(uniqueMatches(systemDesign, /\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b/g)) !==
+  JSON.stringify(requiredSystemErrorCodes)
+) {
+  throw new Error('SYSTEM_REQUIRED_ERROR_CODES_MISMATCH')
+}
+
+const sharedScenarioPackIdentifiers = [
+  'ScenarioPack',
+  'ScenarioPackManifest',
+  'DistributionInventoryEntry',
+  'ScenarioPackRequest',
+  'ScenarioPackDependency',
+  'ScenarioPackConflict',
+  'ScenarioPackRegistry',
+  'ScenarioPackSelection',
+  'ScenarioPackCatalogSnapshot',
+  'ScenarioPackResolution',
+  'ScenarioCompositionLock',
+  'EffectiveScenario',
+  'RulePack',
+  'DeclarativeRulePackContribution',
+  'RulePackPlugin',
+  'ScenarioPackDeclarations',
+  'ScenarioCapabilityRequirement',
+  'HostOverride',
+  'HostPolicyOverlay',
+  'OverridePoint',
+  'PackResolutionReport',
+  'FixtureSuite',
+  'UIMetadata',
+  'PackActivation',
+  'PackDeactivation',
+  'PackUninstallCheck',
+  'PackUninstallReceipt',
+  'ScenarioMigrationDeclaration',
+  'MigrationPlan',
+  'MigrationReceipt',
+  'ScenarioPackPublishAudit',
+  'ScenarioPackTemplate',
+  'ScenarioPackScaffoldInput',
+  'PackageProvenance',
+  'PackageAcquisition',
+  'ProviderAdapter',
+  'ProviderCapabilityProfile',
+]
+
+const requiredScenarioPackTypeDeclarations = [
+  'AppliedOverrideRef',
+  'DistributionInventoryEntry',
+  'EffectiveScenario',
+  'FixtureSuite',
+  'HostOverride',
+  'HostOverrideOperation',
+  'HostPolicyOverlay',
+  'JsonObject',
+  'JsonPrimitive',
+  'JsonSchemaRef',
+  'JsonValue',
+  'LocalScenarioPackSource',
+  'MigrationPlan',
+  'MigrationReceipt',
+  'OverridePoint',
+  'PackActivation',
+  'PackDeactivation',
+  'PackResolutionReport',
+  'PackUninstallCheck',
+  'PackUninstallReceipt',
+  'PackageAcquisition',
+  'PackageProvenance',
+  'ScenarioCapabilityRequirement',
+  'ScenarioCardinality',
+  'ScenarioCompositionLock',
+  'ScenarioCompositionLockEntry',
+  'ScenarioContributionDescriptor',
+  'ScenarioContributionIndex',
+  'ScenarioContributionKind',
+  'ScenarioInputExpectation',
+  'ScenarioInteractionMode',
+  'ScenarioMigrationDeclaration',
+  'ScenarioMigrationOperation',
+  'ScenarioOutputExpectation',
+  'ScenarioPack',
+  'ScenarioPackCatalogSnapshot',
+  'ScenarioPackConflict',
+  'ScenarioPackDeclarations',
+  'ScenarioPackDependency',
+  'ScenarioPackDescriptor',
+  'ScenarioPackManifest',
+  'ScenarioPackPermissions',
+  'ScenarioPackPublishAudit',
+  'ScenarioPackRegistry',
+  'ScenarioPackRequest',
+  'ScenarioPackResolution',
+  'ScenarioPackScaffoldInput',
+  'ScenarioPackSelection',
+  'ScenarioPackTemplate',
+  'UIMetadata',
+  'VersionedCoreContractRef',
+]
+
+function typeDeclarations(content) {
+  return [...new Set([...content.matchAll(/\b(?:interface|type)\s+([A-Z][A-Za-z0-9_]*)/g)].map((match) => match[1]))].sort()
+}
+
+if (JSON.stringify(typeDeclarations(scenarioPackContract)) !== JSON.stringify(requiredScenarioPackTypeDeclarations)) {
+  throw new Error(`SCENARIO_PACK_TYPE_DECLARATIONS_MISMATCH:${typeDeclarations(scenarioPackContract).join(',')}`)
+}
+
+for (const identifier of sharedScenarioPackIdentifiers) {
+  if (!scenarioPackContract.includes(identifier)) throw new Error(`SCENARIO_PACK_IDENTIFIER_MISSING:${identifier}`)
+  if (!chineseScenarioPackContract.includes(identifier)) throw new Error(`CHINESE_SCENARIO_PACK_IDENTIFIER_MISSING:${identifier}`)
+}
+
+const requiredScenarioPackErrorCodes = [
+  'PACK_ACTIVATION_INVALID',
+  'PACK_CAPABILITY_UNSATISFIABLE',
+  'PACK_COMPATIBILITY_MISMATCH',
+  'PACK_CONFIGURATION_INVALID',
+  'PACK_CONFLICT',
+  'PACK_CONTRACT_INCOMPATIBLE',
+  'PACK_CONTRIBUTION_INVALID',
+  'PACK_CORE_INCOMPATIBLE',
+  'PACK_DECLARATION_INVALID',
+  'PACK_DEPENDENCY_MISSING',
+  'PACK_DEPENDENCY_UNSATISFIABLE',
+  'PACK_DIGEST_MISMATCH',
+  'PACK_DISCLOSURE_REQUIRED',
+  'PACK_DUPLICATE_ID_VERSION',
+  'PACK_FIXTURE_FAILED',
+  'PACK_FIXTURE_INVALID',
+  'PACK_IMPLEMENTATION_UNAVAILABLE',
+  'PACK_KIND_INVALID',
+  'PACK_MANIFEST_INVALID',
+  'PACK_MIGRATION_CONFIRMATION_REQUIRED',
+  'PACK_MIGRATION_FAILED',
+  'PACK_MIGRATION_INVALID',
+  'PACK_MIGRATION_REQUIRED',
+  'PACK_MULTIPLE_ROOTS',
+  'PACK_NOT_FOUND',
+  'PACK_ORDER_CYCLE',
+  'PACK_OVERRIDE_FORBIDDEN',
+  'PACK_OVERRIDE_INVALID',
+  'PACK_OVERRIDE_POINT_NOT_FOUND',
+  'PACK_PERMISSION_FORBIDDEN',
+  'PACK_PROVENANCE_INVALID',
+  'PACK_PUBLISH_AUDIT_FAILED',
+  'PACK_REPLAY_LOCK_MISMATCH',
+  'PACK_ROOT_REQUIRED',
+  'PACK_RULE_CONFLICT',
+  'PACK_SCHEMA_UNSUPPORTED',
+  'PACK_SOURCE_UNSUPPORTED',
+  'PACK_TEMPLATE_INVALID',
+  'PACK_UNINSTALL_BLOCKED',
+  'PACK_VERSION_UNSATISFIABLE',
+]
+
+for (const errorCode of requiredScenarioPackErrorCodes) {
+  if (!scenarioPackContract.includes(errorCode)) throw new Error(`SCENARIO_PACK_ERROR_CODE_MISSING:${errorCode}`)
+  if (!chineseScenarioPackContract.includes(errorCode)) throw new Error(`CHINESE_SCENARIO_PACK_ERROR_CODE_MISSING:${errorCode}`)
+}
+
+if (
+  JSON.stringify(uniqueMatches(scenarioPackContract, /\bPACK_[A-Z0-9_]+\b/g)) !==
+  JSON.stringify(requiredScenarioPackErrorCodes)
+) {
+  throw new Error('SCENARIO_PACK_REQUIRED_ERROR_CODES_MISMATCH')
+}
+
+const requiredScenarioPackSafetyPhrases = [
+  "containsExecutableScenarioCode: false",
+  "distributionLifecycleScripts: false",
+  "containsExecutableFiles: false",
+  "network: false",
+  "remoteCalls: false",
+  "secrets: false",
+  "filesystemWrite: false",
+  "mutateConfirmedFacts: false",
+  "authorizeCalls: false",
+  "overrideHostPolicy: false",
+  "selectProvider: false",
+  "changeBudgets: false",
+  "lifecycleScriptsExecuted: false",
+  "status: 'blocked'",
+]
+
+for (const phrase of requiredScenarioPackSafetyPhrases) {
+  if (!scenarioPackContract.includes(phrase)) throw new Error(`SCENARIO_PACK_SAFETY_CONTRACT_MISSING:${phrase}`)
+  if (!chineseScenarioPackContract.includes(phrase)) throw new Error(`CHINESE_SCENARIO_PACK_SAFETY_CONTRACT_MISSING:${phrase}`)
+}
+
+if (!scenarioPackContract.includes('Core must not import first-party scenario packages')) {
+  throw new Error('SCENARIO_PACK_CORE_BRANCH_PROHIBITION_MISSING')
+}
+
+if (!chineseScenarioPackContract.includes('Core 不得导入第一方场景包')) {
+  throw new Error('CHINESE_SCENARIO_PACK_CORE_BRANCH_PROHIBITION_MISSING')
+}
+
+if (contributing.includes('explicitly import and register')) {
+  throw new Error('CONTRIBUTING_EXECUTABLE_SCENARIOPACK_WORDING_FORBIDDEN')
+}
+
+const requiredScenarioPackContractShapes = [
+  [
+    'ScenarioPackManifest',
+    [
+      'license: string',
+      'provenance: PackageProvenance',
+      'fixtures: ScenarioContributionDescriptor[]',
+      'migrations: ScenarioContributionDescriptor[]',
+      'capabilityRequirements: ScenarioCapabilityRequirement[]',
+      'declarations: ScenarioPackDeclarations',
+      'permissions: ScenarioPackPermissions',
+      'distributionInventory: DistributionInventoryEntry[]',
+    ],
+  ],
+  [
+    'ScenarioCompositionLock',
+    [
+      'contractVersion:',
+      'resolverVersion: string',
+      'catalogHash: string',
+      'hostPolicyOverlayHash?: string',
+      'compositionHash: string',
+      'lockHash: string',
+    ],
+  ],
+  [
+    'PackActivation',
+    [
+      'selectionHash: string',
+      'catalogHash: string',
+      'registryRevision: number',
+      'lockHash: string',
+      'effectiveScenarioHash: string',
+      'resolutionReportHash: string',
+      'activationHash: string',
+    ],
+  ],
+  [
+    'MigrationPlan',
+    [
+      'fromLockHash: string',
+      'targetCatalogHash: string',
+      'targetLockHash: string',
+      'targetEffectiveScenarioHash: string',
+      'targetResolutionReportHash: string',
+      'sourceCaseRevision: number',
+      'sourceEditableStateHash: string',
+      'targetCaseRevision: number',
+      'confirmationHash?: string',
+      'planHash: string',
+    ],
+  ],
+  [
+    'ScenarioPackCatalogSnapshot',
+    [
+      'registryRevision: number',
+      'entries: ScenarioPackDescriptor[]',
+      'availabilityPolicies: PackDeactivation[]',
+      'catalogHash: string',
+    ],
+  ],
+  [
+    'PackUninstallCheck',
+    [
+      'registryRevision: number',
+      "status: 'allowed' | 'blocked'",
+      'blockingReasonCodes: string[]',
+      'activeActivationHashes: string[]',
+      'availabilityPolicyHashes: string[]',
+      'activeSelectionHashes: string[]',
+      'pendingMigrationPlanHashes: string[]',
+      'checkHash: string',
+    ],
+  ],
+  [
+    'PackUninstallReceipt',
+    [
+      'removedFromRegistry: true',
+      'registryRevisionBefore: number',
+      'registryRevisionAfter: number',
+      'tombstoneDescriptorHash: string',
+      'tombstoneProvenanceHash: string',
+      'preservedHistory: true',
+      'unavailableReplayLockHashes: string[]',
+      'receiptHash: string',
+    ],
+  ],
+]
+
+function interfaceBody(content, name) {
+  const match = content.match(new RegExp(`interface ${name} \\{([\\s\\S]*?)^\\}`, 'm'))
+  if (!match) throw new Error(`SCENARIO_PACK_INTERFACE_MISSING:${name}`)
+  return match[1]
+}
+
+for (const [name, fields] of requiredScenarioPackContractShapes) {
+  const body = interfaceBody(scenarioPackContract, name)
+  for (const field of fields) {
+    if (!body.includes(field)) throw new Error(`SCENARIO_PACK_INTERFACE_FIELD_MISSING:${name}:${field}`)
+  }
+}
+
+const permissionBody = interfaceBody(scenarioPackContract, 'ScenarioPackPermissions')
+for (const field of requiredScenarioPackSafetyPhrases.slice(3, 12)) {
+  if (!permissionBody.includes(field)) throw new Error(`SCENARIO_PACK_PERMISSION_FIELD_MISSING:${field}`)
+}
+
+const declarationBody = interfaceBody(scenarioPackContract, 'ScenarioPackDeclarations')
+for (const field of requiredScenarioPackSafetyPhrases.slice(0, 3)) {
+  if (!declarationBody.includes(field)) throw new Error(`SCENARIO_PACK_DECLARATION_FIELD_MISSING:${field}`)
+}
+
+if (!interfaceBody(scenarioPackContract, 'PackageAcquisition').includes('lifecycleScriptsExecuted: false')) {
+  throw new Error('SCENARIO_PACK_ACQUISITION_SCRIPT_GUARD_MISSING')
+}
+
+if (interfaceBody(scenarioPackContract, 'DistributionInventoryEntry').includes("'manifest'")) {
+  throw new Error('SCENARIO_PACK_SELF_REFERENTIAL_MANIFEST_INVENTORY_FORBIDDEN')
+}
+
+const requiredSystemContractShapes = [
+  [
+    'CompilationContext',
+    [
+      'caseSpecId: string',
+      'caseSpecRevision: number',
+      'caseSpecHash: string',
+      'artifactHashes: string[]',
+      'decisionHashes: string[]',
+      'scenarioCompositionLockHash: string',
+      'effectiveScenarioHash: string',
+      'rulePackPlugins: VersionPin[]',
+      'optimizer: VersionPin',
+      'contextHash: string',
+    ],
+  ],
+  [
+    'ArtifactHandle',
+    [
+      'contentHash: string',
+      'role: string',
+      'resolverId: string',
+      "availability: 'available' | 'deleted' | 'expired' | 'unknown'",
+      'retentionClass: string',
+      'redactionPolicy: string',
+    ],
+  ],
+  [
+    'ObservationDecision',
+    [
+      'decisionId: string',
+      'decisionHash: string',
+      'observationHash: string',
+      'contextHash: string',
+      "status: 'proposed' | 'confirmed' | 'rejected'",
+    ],
+  ],
+  ['SourceBinding', ['contentHash: string']],
+  [
+    'BindingDecision',
+    ['decisionId: string', 'decisionHash: string', 'bindingHash: string', 'contextHash: string'],
+  ],
+  [
+    'RemoteCallAuthorization',
+    [
+      'inputHash: string',
+      'permittedArtifactHashes: string[]',
+      'permittedScopeIds: string[]',
+      'modelId?: string',
+      'modelVersion?: string',
+    ],
+  ],
+  [
+    'PromptCandidateIR',
+    [
+      'candidateHash: string',
+      'targetAdapter: VersionPin',
+      'targetCapabilityProfile: VersionPin',
+      "candidateSections: PromptIR['sections']",
+      'requestParameters: Record<string, unknown>',
+      'referenceMappings: PlannedReference[]',
+      'coverageClaims:',
+    ],
+  ],
+]
+
+for (const [name, fields] of requiredSystemContractShapes) {
+  const body = interfaceBody(systemDesign, name)
+  for (const field of fields) {
+    if (!body.includes(field)) throw new Error(`SYSTEM_INTERFACE_FIELD_MISSING:${name}:${field}`)
+  }
 }
 
 const sharedSystemIdentifiers = [
@@ -141,6 +654,15 @@ const sharedSystemIdentifiers = [
   'StepEvent',
   'StepReceipt',
   'ArtifactHandle',
+  'ScenarioPack',
+  'ScenarioPackRegistry',
+  'ScenarioPackSelection',
+  'ScenarioPackCatalogSnapshot',
+  'ScenarioCompositionLock',
+  'EffectiveScenario',
+  'PackResolutionReport',
+  'DeclarativeRulePackContribution',
+  'RulePackPlugin',
   'submission_unknown',
   'reconciling',
 ]
@@ -176,6 +698,17 @@ const sharedGlossaryIdentifiers = [
   'confidence',
   'importance',
   'decisionStatus',
+  'ScenarioPack',
+  'ScenarioPackManifest',
+  'ScenarioPackCatalogSnapshot',
+  'ScenarioCompositionLock',
+  'EffectiveScenario',
+  'DeclarativeRulePackContribution',
+  'RulePackPlugin',
+  'PackResolutionReport',
+  'PackUninstallCheck',
+  'PackUninstallReceipt',
+  'PackageAcquisition',
 ]
 
 for (const identifier of sharedGlossaryIdentifiers) {
@@ -210,6 +743,7 @@ function assertSameMermaidTopology(label, englishContent, translatedContent) {
 
 assertSameMermaidTopology('SCENARIO', scenarios, chineseScenarios)
 assertSameMermaidTopology('SYSTEM', systemDesign, chineseSystemDesign)
+assertSameMermaidTopology('SCENARIO_PACK', scenarioPackContract, chineseScenarioPackContract)
 
 function fencedBlockLanguages(content) {
   return [...content.matchAll(/^```([^\s`]*)\s*$/gm)].map((match) => match[1] || '<close>')
@@ -230,12 +764,17 @@ function typedBlocks(content, language) {
 
 assertSameFenceSequence('SCENARIO', scenarios, chineseScenarios)
 assertSameFenceSequence('SYSTEM', systemDesign, chineseSystemDesign)
+assertSameFenceSequence('SCENARIO_PACK', scenarioPackContract, chineseScenarioPackContract)
 
 if (JSON.stringify(typedBlocks(systemDesign, 'ts')) !== JSON.stringify(typedBlocks(chineseSystemDesign, 'ts'))) {
   throw new Error('SYSTEM_TYPESCRIPT_CONTRACT_MISMATCH')
 }
 
-for (const [file, content] of Object.entries(utf8Documents)) {
+if (JSON.stringify(typedBlocks(scenarioPackContract, 'ts')) !== JSON.stringify(typedBlocks(chineseScenarioPackContract, 'ts'))) {
+  throw new Error('SCENARIO_PACK_TYPESCRIPT_CONTRACT_MISMATCH')
+}
+
+for (const [file, content] of Object.entries(requiredFileContents)) {
   const sourceUrl = new URL(`../${file}`, import.meta.url)
   for (const match of content.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
     const target = match[1].trim()

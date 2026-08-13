@@ -48,7 +48,7 @@
 
 ### `EvidenceRegion`（证据区域）
 
-表示某条 `Observation` 的图像证据位于何处的可辨识联合类型。首批变体包括：带归一化坐标的 `rectangle`、带归一化点集的 `polygon`，以及包含 `ArtifactHandle` 与坐标空间元数据的 `mask`。每种变体都有明确的 `kind`；使用方不得根据可选字段猜测区域形状。
+表示某条 `Observation` 的图像证据位于何处的可辨识联合类型。首批变体包括：带归一化坐标的 `rectangle`、带归一化点集的 `polygon`，以及包含 `ArtifactHandle` 的 `mask`。矩形与多边形坐标使用各自类型字段定义的坐标空间；蒙版坐标空间由所引用的产物合同定义。每种变体都有明确的 `kind`；使用方不得根据可选字段猜测区域形状。
 
 `EvidenceRegion` 用于解释和复核，并不能证明观察结论正确。缺少证据区域表示没有可用的位置证据，不表示该结论适用于整张图片。
 
@@ -94,6 +94,166 @@
 
 缺失字段保持缺省或明确为未知，系统不得为了“填完整”而补齐本体。
 
+## 场景打包与组合
+
+### `ScenarioPack`（场景包）
+
+带版本、可分发的声明式数据包，通过组合声明式规则贡献项、场景默认值、类型化 `OverridePoint` 记录、`UIMetadata`、`FixtureSuite`、兼容性声明、迁移、文档、许可证和溯源信息，将 VOCE 公共合同组成一个可复用场景体验。
+
+`ScenarioPack` 不是模型提供方适配器、托管应用、账户或商品目录模型、执行计划、远程调用授权或 JavaScript 入口。Core 只读取它的清单，以及按内容寻址、可 JSON 序列化的贡献项。商业虚拟试衣、Cosplay 和商品图是使用相同 Core 公共接口的首发示例包；Core 不会依据它们的场景 ID 进行分支。
+
+### `ScenarioPackManifest`（场景包清单）
+
+`ScenarioPack` 的静态、机器可读声明。它包含稳定的 `packId`、版本、Core 与合同兼容范围、依赖和扩展关系、贡献项 ID、可覆盖点、`UIMetadata`、Fixture、迁移、能力要求、可审计包声明、完整分发清单、许可证、完整性信息和 `PackageProvenance`。
+
+清单描述包的行为与兼容性。安装或读取清单不会启用场景包、执行 ScenarioPack 入口、授权远程调用或授权费用。对于另行注册的 code-backed 插件，它既不是沙箱，也不是安全证明。
+
+### `ScenarioPackTemplate`（场景包模板）
+
+带版本的脚手架，为新的 `ScenarioPack` 创建最小合法目录、清单、示例声明式 `RulePack` 贡献项、支持 locale 的用户界面元数据、可再分发 Fixture、`ScenarioMigrationDeclaration` 结构、文档和离线验证命令。
+
+模板产物只是起点，不能证明最终场景包已经完整、安全、兼容或达到生产就绪状态。
+
+### `RulePack`（规则包）
+
+一种概念性的语义规则模块。在 `ScenarioPack` 内部使用的 v0.1 候选数据合同是 `DeclarativeRulePackContribution`，只有在 Schema 与兼容性 Fixture 发布后才成为兼容性稳定接口；可执行实现使用独立的实验性 `RulePackPlugin` 边界。
+
+一个 `ScenarioPack` 可以组合多个声明式规则贡献项。`RulePack` 与 `ScenarioPack` 是两个不同概念，不能作为同义词使用。
+
+### `DeclarativeRulePackContribution`（声明式规则包贡献项）
+
+带版本、按内容寻址、确定性且无副作用的规则文档，可以贡献约束、解释、降级和复核要求。它不执行网络调用、不读取密钥、不产生费用，也不作出接受或授权决定。
+
+### `RulePackPlugin`（规则包插件）
+
+通过受信任本地插件路径注册的实验性 code-backed 规则扩展，绝不通过 ScenarioPack 贡献数据注册。它在 v0.1 中拥有宿主进程权限，不属于 ScenarioPack 纯数据安全边界。
+
+### `ScenarioPackSelection`（场景包选择）
+
+场景解析的不可变请求输入：恰好一个根 `ScenarioPack`、零个或多个被显式选择的扩展包，以及一个可选、绑定到案例修订的 `HostPolicyOverlay`。只有确定性解析才能加入必需依赖扩展包，而且其轨迹必须披露这些扩展包。
+
+安装不会创建选择；选择也不会启用场景包或授权任何远程或付费步骤。
+
+### `ScenarioPackCatalogSnapshot`（场景包目录快照）
+
+显式注册的本地 ScenarioPack Descriptor、宿主可用性策略、Registry Revision、ScenarioPack 合同版本和 Resolver 版本的不可变快照。它的 `catalogHash` 覆盖按序排列的语义 Descriptor 与 Policy 投影，是解析及最终 Lock 的输入；Acquisition Locator 被排除，后续 Registry 变化不能改变已有 Snapshot。
+
+### `ScenarioComposition`（场景组合）
+
+根据 `ScenarioPackSelection` 解析得到的包与贡献项关系图：一个根 `ScenarioPack`、被显式选择或依赖所需的扩展包、其中的声明式规则及其他贡献项，以及类型化宿主叠加层。两个不相关的根场景包不会被隐式合并。
+
+组合依据已声明关系和兼容规则，不依赖加载顺序或静默的后者覆盖前者（last-wins）行为。
+
+### `ScenarioCompositionLock`（场景组合锁定记录）
+
+`ScenarioComposition` 解析后的不可变记录。它固定精确包版本，清单、包、配置、依赖与贡献项摘要，Catalog、Resolver、Contract 与 Canonicalization 版本，确定性组合顺序，宿主策略叠加层哈希、兼容性结果、`compositionHash` 和 `lockHash`。
+
+锁定记录使组合可以审计和重放。它不会启用场景包或授权执行，包升级或卸载时也不得改写它。
+
+### `EffectiveScenario`（有效场景定义）
+
+根据合法 `ScenarioCompositionLock`，在应用其中已接受的 `HostPolicyOverlay` 和 `HostOverride` 记录后生成的不可变、按内容寻址的语义场景定义。它包含新案例编译可消费的已解析本体词汇、声明式规则、理解范围、提示词段落、复核模板、默认值、能力要求、可审计声明、组合顺序、已应用覆盖 ID 和 `effectiveScenarioHash`。`UIMetadata` 仍是该语义结构之外的展示元数据。
+
+VOCE Core 消费这一公共结构及其哈希，而不是根据内置场景 ID 进行分发。任何已接受的组合或覆盖变化都会生成新的 `EffectiveScenario`，并在适用时使绑定到旧哈希的上下文或授权失效。
+
+### `HostOverride`（宿主覆盖）
+
+绑定到案例修订的 `HostPolicyOverlay` 中，一项不可变、类型化的宿主操作。它只能通过场景包声明的 `OverridePoint` 设置已声明包配置、设置明确允许覆盖的已声明默认值，或改变明确允许覆盖的 `preferred` 贡献项启用状态。
+
+`HostOverride` 不得修改已安装包、重定义词汇、削弱 Core 不变量、静默降低 `hard` 或 `required` 约束、改写已接受证据或决策、绕过授权，或引入未披露的远程目的地。已接受和被拒绝的请求都会在 `PackResolutionReport` 中保留溯源信息。
+
+### `HostPolicyOverlay`（宿主策略叠加层）
+
+不可变容器，将零个或多个类型化 `HostOverride` 记录、权限来源和理由绑定到一个案例修订，并将它们纳入确定性解析哈希。它由宿主持有，不是场景包贡献项。
+
+该叠加层不能削弱宿主策略，也不能创建网络、模型提供方、费用、证据、决策或执行权限。要将其内容用于另一个修订，必须创建新的显式绑定记录。
+
+### `OverridePoint`（可覆盖点）
+
+清单中对宿主可以覆盖的某个位置作出的声明：包配置、已声明默认值，或已声明贡献项的启用状态。它包括稳定 ID、目标类型与路径、可选值 Schema、是否允许停用，以及最高只能影响 `preferred` 重要程度。
+
+任何未声明为 `OverridePoint` 的内容都不能由宿主覆盖。类型化覆盖本身不会授权网络调用或豁免约束。
+
+### `ScenarioPackConflict`（场景包声明冲突）
+
+清单中声明的与另一个包 ID 及版本范围之间的不兼容，并带有稳定原因代码。它是确定性解析的输入，不是加载顺序提示。
+
+### `ScenarioResolutionConflict`（场景解析冲突）
+
+确定性解析因依赖、兼容性、摘要、顺序、贡献项、迁移或类型化宿主覆盖失败而产出的结构化冲突。它记录稳定原因信息、涉及的包版本与内容摘要、受影响路径或贡献项、严重程度和候选解决方案。
+
+阻断型 `ScenarioResolutionConflict` 会阻止启用。它不会通过包加载顺序、静默省略或隐式削弱来解决。
+
+### `PackResolutionReport`（包解析报告）
+
+解析 `ScenarioPackSelection` 及其可选 `HostPolicyOverlay` 得到的确定性结果。它标识已选择包、依赖与组合轨迹、已应用或被拒绝的覆盖、警告、最小可解释 `ScenarioResolutionConflict` 集合、可执行解决方案、最终锁定记录或已阻断状态，以及每项有效贡献的溯源信息。
+
+解析报告是一种解释产物，不是迁移、启用、授权或执行回执。
+
+### `FixtureSuite`（Fixture 测试集）
+
+带版本的案例与预期确定性产物集合，用于离线验证场景包；案例必须是合成、原创、公有领域或得到明确再分发许可的素材。它覆盖成功、冲突、未知、覆盖、依赖、预算、迁移和适用的无人物行为。
+
+标准 Fixture 不使用凭据、私有素材、网络访问或付费模型。它们比较结构化合同、解释、计划、签名和 Mock 回执，不把生成像素当作 Golden Output。
+
+### `UIMetadata`（用户界面元数据）
+
+支持 locale 的展示元数据，包含 `displayName`、`description`、可选 `instructions` 和消息键映射；带严重程度和可解析消息键的稳定披露记录；以及必须提供文本替代、参考素材选择支持键盘操作、信息不能只依赖颜色的无障碍声明。
+
+`UIMetadata` 不具有语义或授权权限。它的 `defaultLocale` 必须存在，必需披露消息键必须能够解析并在启用前得到确认；无障碍声明定义宿主渲染器要求，而不是对宿主应用提供认证。
+
+### `PackActivation`（包启用）
+
+宿主在必需离线门禁和披露通过后，将一个案例修订显式绑定到准确选择、Catalog/Registry Revision、`ScenarioCompositionLock`、`EffectiveScenario` 与解析报告哈希的记录。安装、注册、解析和检查发生在启用之前，但不代表已经启用。
+
+启用不会授予远程调用或执行权限。现有上下文、授权和执行运行继续固定到它们记录的包版本与内容摘要。
+
+### `PackDeactivation`（包停用）
+
+宿主不可变可用性策略记录，在精确 Registry Revision 上阻止某个包或精确版本获得新的 Case-scoped Activation，但不删除本地字节或历史记录。它与 `PackActivation` 分离，不会取消进行中工作，也不会抹除包溯源信息。
+
+卸载前通常需要先停用。反向依赖和正在使用的状态仍然可能阻止卸载。
+
+### `PackUninstallCheck`（包卸载检查）
+
+从精确 Registry Revision 移除本地可用 ScenarioPack 数据前的不可变预检结果。它记录阻断原因、活动 Activation 与可用性策略、Selection、反向依赖、编译会话、执行运行、待处理迁移、重放要求，以及当前是否阻止卸载。检查本身不授予删除数据的权限。
+
+### `PackUninstallReceipt`（包卸载回执）
+
+基于匹配的允许卸载检查进行原子 Registry Removal 的不可变结果。它记录 Registry Revision、已移除本地包字节、Descriptor/Provenance Tombstone Hash、保留的历史记录、变为不可用的重放 Lock Hash 和回执哈希。卸载绝不删除用户资产、历史证据、决策、运行或回执，也绝不替换成另一包版本。
+
+### `ScenarioMigrationDeclaration`（场景迁移声明）
+
+场景包提供、按内容寻址的声明式迁移记录。它标识稳定迁移 ID、源版本范围、目标版本、允许的配置或贡献项 ID 操作，以及内容摘要；它是数据，不是可执行生命周期钩子。
+
+迁移声明不执行网络或模型提供方调用，也绝不改写历史观察项、决策、编译上下文、执行运行、事件或回执。
+
+### `MigrationPlan`（迁移计划）
+
+根据适用 `ScenarioMigrationDeclaration`，为准确的源 `ScenarioCompositionLock` 与目标 `ScenarioPackSelection` 构建的确定性、可预览、无网络计划。它固定源案例修订/可编辑状态哈希，以及目标案例修订、Catalog、Lock、EffectiveScenario 与解析报告哈希，包含有序操作、待裁决项和 `planHash`；破坏性或有歧义的操作必须带可审计确认哈希。
+
+Dry-run 已经解析并固定目标选择、Catalog、锁定记录与 `EffectiveScenario`。应用安全计划时会校验这些 Pin 和源可编辑状态哈希，然后只创建下一可编辑案例修订与 `MigrationReceipt`。缺少必需声明或存在不安全的待裁决项时，候选版本会被阻止启用，而不是猜测转换方法。
+
+### `MigrationReceipt`（迁移回执）
+
+某次 `MigrationPlan` 尝试的不可变记录，包括计划哈希、源与目标锁定记录及有效场景哈希、新案例修订、已应用操作哈希、待裁决项和回执哈希。它不包含密钥或私有产物内容，也不是执行授权。
+
+### `ScenarioPackPublishAudit`（场景包发布审计）
+
+一次普通干净打包审计的不可变结果，包括完整分发、语义包与清单哈希、校验器与模板版本、Fixture 测试集摘要、带安全证据哈希的检查结果，以及 `auditHash`。
+
+通过审计只证明符合 ScenarioPack 合同及已声明离线 Fixture。它不会安装、注册、启用或授权，不会认证安全性、证明模型质量，也不会建立生产就绪结论。
+
+### `PackageProvenance`（包供应链溯源信息）
+
+已发布场景包由作者声明的机器可读供应链来源：发布者，以及可选的源码仓库、修订和源码摘要。宿主拥有的 `PackageAcquisition` 单独记录来源类型、定位符、完整分发摘要和未执行生命周期脚本；`ScenarioPackDescriptor` 则记录计算出的语义包内容摘要。
+
+`PackageProvenance` 支持完整性与信任决策，但不是官方背书、安全证明、权利保证或生产就绪声明。
+
+### `PackageAcquisition`（包获取记录）
+
+由宿主持有的记录，说明 ScenarioPack 字节从何处取得、完整分发归档的摘要，以及未执行包生命周期脚本。它不是作者提供的溯源声明，也不授予信任或启用权限。
+
 ## 编译与规划
 
 ### `ConstraintIR`（约束中间表示）
@@ -136,9 +296,9 @@
 
 ### `RemoteCallAuthorization`（远程调用授权）
 
-针对 `CompilationSession` 在意图理解、参考图理解或提示词优化期间进行远程调用的一项明确、有界授权。它绑定当前 `contextHash`、调用目的、适配器与模型版本、允许使用的 `ArtifactHandle` 和范围标识、远程目的地与区域、最大调用次数、字节、耗时和成本、过期时间以及幂等键。
+针对一个远程或可能产生费用的步骤所作的明确、有界授权，不论该步骤发生在编译期间还是已批准的 `PipelinePlan` 内。它绑定当前 `contextHash`、调用目的、适配器与模型版本、允许使用的 `ArtifactHandle` 和范围标识、远程目的地与区域、最大调用次数、重试、字节、耗时和成本、过期时间以及幂等键。
 
-它只授权已声明的编译期远程步骤，不授权图片生成或执行 `PipelinePlan`。任何被绑定值发生变化都需要重新授权。
+它只授权指定步骤，不能授权另一个步骤或整份计划。图片生成或其他计划执行还必须获得精确的 `ExecutionAuthorization`；任何被绑定值发生变化都需要重新授权。
 
 ### `ExecutionAuthorization`（执行授权）
 
@@ -200,7 +360,7 @@
 
 由宿主持有、采用内容寻址方式引用输入、中间产物、输出、蒙版或报告的不透明句柄。它只暴露内容哈希、媒体类型、字节大小、逻辑角色、解析器标识、可用性状态、保留类别或过期时间和脱敏策略等安全元数据，不暴露图片字节、Base64 数据、凭据或会过期的 URL。
 
-宿主负责存储、访问控制、保留和删除。每次使用时都要检查可用性。如果产物已过期或被删除，句柄会变成 `unavailable`；产物重放必须返回这一明确状态，不得静默重新下载、重新生成或发起付费调用。
+宿主负责存储、访问控制、保留和删除。每次使用时都要检查可用性。如果产物已过期或被删除，句柄记录 `expired` 或 `deleted`，产物重放返回 `ARTIFACT_UNAVAILABLE`；不得静默重新下载、重新生成或发起付费调用。
 
 ### `StepEvent`（步骤事件）
 

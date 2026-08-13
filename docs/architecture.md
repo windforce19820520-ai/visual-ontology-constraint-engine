@@ -6,7 +6,31 @@ The system converts free-form user intent and one or more reference images into 
 
 The visual ontology is domain-rich but the runtime is product-neutral. Account systems, catalogs, pricing, entitlements, publishing workflows, and private deployment logic do not belong in this repository.
 
-## 2. Sparse ontology
+## 2. Scenario composition and extension boundary
+
+Creator scenarios are composed outside Core through `ScenarioPack`. Virtual try-on, cosplay, and product-shot are independent, optional first-party packages; they are not built-in runtime modes. A third-party pack follows the same public path:
+
+```text
+explicit local ScenarioPackRegistry
+        ↓
+manifest, digest, compatibility, and offline-fixture validation
+        ↓
+deterministic selection and composition lock
+        ↓
+effective scenario
+        ↓
+the same resolver, compiler, planner, runtime, and evaluation pipeline
+```
+
+Core must not import scenario packages, compare scenario IDs, or branch on a first-party package name. `ScenarioPack` supplies declarative composition, defaults, scope candidates, review templates, and `DeclarativeRulePackContribution` records. `ProviderAdapter` executes only an already planned and authorized provider step. A scenario declares capability requirements rather than selecting a provider.
+
+The candidate public v0.1 compatibility surfaces are `ScenarioPack`, `ScenarioPackRegistry`, `ScenarioPackManifest`, `DeclarativeRulePackContribution`, `ProviderAdapter`, `ProviderCapabilityProfile`, and offline testkit contracts; each becomes compatibility-stable only with released schemas and compatibility fixtures. Other ports, including `RulePackPlugin`, remain experimental without compatibility promises. Hosts use an explicit local registry; Core performs no directory or global package scan, marketplace lookup, remote discovery, automatic download, installation, or implicit activation.
+
+First-party and community packages use pure-data npm tarballs or GitHub archives acquired without lifecycle scripts. A composition lock pins exact versions, manifests, package and contribution digests, dependency resolution, and the Catalog/resolver versions; capability snapshots remain pinned by `CompilationContext`. Offline fixtures and canonical IR expectations test compatibility without provider calls. Any executable plugin or adapter remains separately trusted local code running with host-process privileges in v0.1; manifest validation provides disclosure and reproducibility, not isolation or proof of safety.
+
+The normative contract is [ScenarioPack Contract](scenario-pack-contract.md).
+
+## 3. Sparse ontology
 
 The schema can express person identity, appearance, expression, gaze, pose, garments, accessories, props, background, camera, lighting, style, references, and output contracts. An individual `OntologyInstance` contains only facts relevant to the current task and supported by explicit intent, trusted metadata supplied by a host, confirmed reference evidence, deterministic rules, or declared defaults. Consuming trusted metadata does not make a catalog system part of VOCE.
 
@@ -24,7 +48,7 @@ optimizer_suggested
 declared_default
 ```
 
-## 3. References are evidence, not single roles
+## 4. References are evidence, not single roles
 
 A single image may contain person identity, hair, expression, pose, wardrobe, accessories, background, lighting, and camera information. The architecture separates four artifacts:
 
@@ -49,7 +73,7 @@ background      <- user intent create
 
 Observed content is never inherited automatically. `ChangeIntent remove` means the result must omit a property; `SourceBinding exclude` means a particular observation cannot supply it. Those are separate decisions.
 
-## 4. Interpretation modes
+## 5. Interpretation modes
 
 - `manual`: an application or user supplies observations plus explicit observation and binding decisions without a model call.
 - `assisted`: a multimodal model proposes observations; the deterministic resolver proposes bindings, and authorized people or host policy confirm high-impact decisions.
@@ -57,7 +81,7 @@ Observed content is never inherited automatically. `ChangeIntent remove` means t
 
 All automated observations include confidence, model and prompt version, evidence regions where available, and unresolved fields.
 
-## 5. Compilation pipeline
+## 6. Compilation pipeline
 
 ```text
 Immutable CompilationContext
@@ -93,7 +117,7 @@ Authorized provider, postprocessor, reviewer, and asset steps
 Structural validation and semantic review
 ```
 
-## 6. Prompt optimization
+## 7. Prompt optimization
 
 The prompt pipeline retains separate artifacts:
 
@@ -110,11 +134,11 @@ Hard-constraint sections of `PromptIR` are locked or represented by validated re
 
 The deterministic `Prompt Guard` proves structural coverage: locked sections are unchanged, required parameters remain valid, references retain approved identities and order, and every transformation is allowed. Free text whose semantics cannot be proven is reviewed or discarded in favor of the deterministic prompt. The guard does not claim to understand arbitrary prose or prove model compliance.
 
-## 7. Execution and cost boundary
+## 8. Execution and cost boundary
 
 Deterministic compilation, explanation, and Mock execution are offline. Optional intent/reference interpretation or prompt optimization can be remote only under explicit authorization. Any remote interpretation, LLM optimization, generation, postprocessing, semantic review, asset resolution, or asset publication requires an immutable `RemoteCallAuthorization`, a durable run, and redacted step events and receipts. Final plan execution also requires an `ExecutionAuthorization` bound to the case revision, context hash, compilation signature, plan hash, selected prompt-artifact hash, adapter/profile digests, data-transfer digest, and budget digest. Changing any bound input invalidates that authorization.
 
-An immutable `CompilationContext` pins ontology, rule-pack, policy, adapter, capability-profile, and optimizer versions plus allowed adapters, budgets, and destinations. Deterministic signatures are computed from a canonical semantic projection that excludes timestamps, run IDs, and other volatile receipt fields.
+An immutable `CompilationContext` pins the CaseSpec revision/hash, referenced artifact and decision hashes, ontology, scenario Lock, separately selected rule-plugin, policy, adapter, capability-profile, and optimizer versions plus allowed adapters, budgets, and destinations. Deterministic signatures are computed from a canonical semantic projection that excludes timestamps, run IDs, and other volatile receipt fields.
 
 The planner may produce steps such as:
 
@@ -132,7 +156,7 @@ Every remote step has an adapter-specific call, retry, timeout, cost, and data-t
 
 A potentially charged call with an unknown outcome enters `submission_unknown`, then `reconciling`. Reconciliation may recover the existing result or establish a terminal outcome, but it never automatically resubmits the call.
 
-## 8. Evaluation
+## 9. Evaluation
 
 A replayable run records only safe, content-addressed metadata:
 

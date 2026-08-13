@@ -25,6 +25,10 @@ Prompt text alone does not reliably answer:
 ## Proposed workflow
 
 ```text
+Select one root ScenarioPack + explicit extensions
+                     ↓
+Resolve exact versions, digests, overrides, and EffectiveScenario
+                     ↓
 User text → Select Intent Interpreter
                      ↓
        Remote-call preflight when external
@@ -76,9 +80,15 @@ Removing an earring from the result is different from ignoring one image as its 
 
 ## Initial scenarios
 
+The first three scenarios are planned as independent, optional `ScenarioPack` packages rather than built-in Core modes:
+
 - commercial virtual try-on visualization;
 - cosplay identity, costume, makeup, mask, and prop planning;
 - product-only shots used as a regression case to prevent person-only assumptions.
+
+First-party and third-party packs use the same explicit local `ScenarioPackRegistry`, resolution, validation, fixture, and activation path. Core never imports a scenario package or branches on a scenario ID. Installing a package does not activate it, authorize a remote call, select a provider, or create cost.
+
+For v0.1, the candidate public compatibility surface is intentionally limited to `ScenarioPack`, `ScenarioPackRegistry`, `ScenarioPackManifest`, `DeclarativeRulePackContribution`, `ProviderAdapter`, `ProviderCapabilityProfile`, and the offline testkit; it becomes stable only with released schemas and compatibility fixtures. Other ports, including `RulePackPlugin`, remain experimental. ScenarioPack runtime artifacts are declarative data; any executable plugin or adapter is separately trusted local code running with host-process privileges. Hosts register local package data explicitly; there is no dynamic package scan, marketplace, or automatic installation. A valid manifest is a declaration and compatibility input, not a sandbox or proof that third-party code is safe.
 
 This project does not promise physical fit, sizing accuracy, or exact real-world product behavior. It is an orchestration and evaluation layer for generative image workflows.
 
@@ -96,6 +106,7 @@ This project does not promise physical fit, sizing accuracy, or exact real-world
 - [Scenario and user journey design](docs/scenario-design.md) · [简体中文](docs/zh-CN/scenario-design.md)
 - [System design](docs/system-design.md) · [简体中文](docs/zh-CN/system-design.md)
 - [Glossary](docs/glossary.md) · [简体中文](docs/zh-CN/glossary.md)
+- [ScenarioPack contract](docs/scenario-pack-contract.md) · [简体中文](docs/zh-CN/scenario-pack-contract.md)
 - [Architecture](docs/architecture.md)
 - [Roadmap](docs/roadmap.md)
 - [Contributing](CONTRIBUTING.md)

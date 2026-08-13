@@ -8,7 +8,7 @@
 
 **System name:** Visual Ontology & Constraint Engine (VOCE)
 
-Terminology in this document follows the [project glossary](glossary.md).
+Terminology in this document follows the [project glossary](glossary.md). Scenario composition follows the normative [ScenarioPack contract](scenario-pack-contract.md).
 
 ## 1. Purpose
 
@@ -37,7 +37,7 @@ The system addresses a semantic orchestration problem rather than a transport pr
 - Plan around provider capabilities, data reachability, cost, timeout, and output contracts before execution.
 - Make prompt optimization inspectable through change sets and hard-constraint coverage.
 - Support offline manual, fixture, compile, explain, Mock, replay, and comparison workflows.
-- Provide extension ports for interpreters, rule packs, optimizers, providers, postprocessors, validators, reviewers, and asset publication.
+- Provide extension ports for ScenarioPacks, interpreters, rule packs, optimizers, providers, postprocessors, validators, reviewers, and asset publication.
 
 ### 2.2 Non-goals for v0.1
 
@@ -72,12 +72,16 @@ The following invariants are normative:
 15. Changing a case revision, compilation signature, plan hash, adapter, destination, input hash, or budget invalidates the corresponding authorization.
 16. The deterministic Prompt Guard proves only typed structural invariants; unverifiable language is never treated as proven-safe.
 17. Human acceptance is independent from technical execution and probabilistic semantic review.
+18. Core never imports or branches on a scenario ID; first-party and third-party ScenarioPacks use the same Registry and composition path.
+19. Installation, discovery, resolution, and PackActivation do not authorize asset access, remote calls, Provider selection, data transfer, or cost.
 
 ## 4. System context and trust boundary
 
 ```mermaid
 flowchart LR
     UI["Host application"] --> CORE["VOCE Core"]
+    UI --> SCENARIOS["Explicit ScenarioPack registry and activation"]
+    SCENARIOS --> CORE
     CORE --> STORE["Host-provided asset and job stores"]
     CORE --> PLUGINS["Trusted local plugins"]
     PLUGINS --> ANALYZER["Optional remote interpreter"]
@@ -91,7 +95,7 @@ flowchart LR
 
 The host application owns authentication, user consent, asset rights, persistence, retention, deletion, moderation policy, credentials, cost authorization, and user interface. VOCE owns public semantic contracts, deterministic compilation, plan validation, safe execution boundaries, and portable evaluation artifacts.
 
-v0.1 plugins are trusted local code running in the host process. A plugin manifest discloses network access, possible fees, data destinations, input/output schemas, compatibility, and redaction behavior. Process isolation and a public plugin marketplace are deferred.
+v0.1 executable plugins are trusted local code running in the host process. A plugin manifest discloses network access, possible fees, data destinations, input/output schemas, compatibility, and redaction behavior. Declarative ScenarioPack data is registered through its separate data-only Registry and is not executable plugin code; a Host-selected `RulePackPlugin` or custom loader crosses the trusted-plugin boundary separately and is never a ScenarioPack dependency. Process isolation and a public plugin marketplace are deferred.
 
 ## 5. Core terminology
 
@@ -99,6 +103,10 @@ v0.1 plugins are trusted local code running in the host process. A plugin manife
 | --- | --- |
 | `CaseSpec` | Normalized user request, assets, mode, policies, and desired output for one design session |
 | `CompilationContext` | Immutable versions, capability snapshots, allowed adapters, destinations, and budgets used to compile and sign a case revision |
+| `ScenarioPack` | Declarative, versioned composition of scenario vocabulary, RulePacks, scopes, Prompt sections, review templates, defaults, and fixtures |
+| `ScenarioPackSelection` | Exactly one root, explicit extensions, and an optional typed HostPolicyOverlay for one Case revision |
+| `ScenarioCompositionLock` | Exact versions, digests, dependency resolution, ordering, and override hashes selected for deterministic compilation |
+| `EffectiveScenario` | Fully composed contribution set produced from a ScenarioCompositionLock |
 | `ChangeIntent` | A requested result change: preserve, replace, adjust, create, or remove |
 | `RequestedScopePlan` | Ontology scopes that interpreters are permitted and required to analyze for this task |
 | `Observation` | A model-, metadata-, or user-proposed claim about an asset, with provenance and uncertainty |
@@ -127,6 +135,7 @@ interface CaseSpec {
   id: string
   revision: number
   mode: 'manual' | 'assisted' | 'auto'
+  scenario: ScenarioPackSelection
   userIntent: string
   assets: ReferenceAsset[]
   trustedMetadata: TrustedMetadata[]
@@ -166,12 +175,20 @@ interface DataTransferDeclaration {
 }
 
 interface CompilationContext {
+  caseSpecId: string
+  caseSpecRevision: number
+  caseSpecHash: string
+  artifactHashes: string[]
+  decisionHashes: string[]
   ontologySchema: VersionPin
-  rulePacks: VersionPin[]
+  scenarioCompositionLockHash: string
+  effectiveScenarioHash: string
+  rulePackPlugins: VersionPin[]
   hostPolicy: VersionPin
   adapters: VersionPin[]
   capabilityProfiles: VersionPin[]
   selectedGenerationProfileId: string
+  optimizer: VersionPin
   optimizerMode: 'strict' | 'balanced' | 'creative'
   budgets: AdapterBudget[]
   dataTransfers: DataTransferDeclaration[]
@@ -179,7 +196,7 @@ interface CompilationContext {
 }
 ```
 
-The context pins every rule, policy, adapter, optimizer, and capability input that can change a deterministic result. Installing another plugin or refreshing a capability profile never changes an existing context silently.
+The context pins the exact Scenario composition plus every rule, policy, adapter, optimizer, and capability input that can change a deterministic result. Installing another pack or plugin, changing PackActivation, or refreshing a capability profile never changes an existing context silently.
 
 `contextHash` is computed from the other context fields and never includes itself. Deterministic signatures use a canonical semantic projection of `CaseSpec`, confirmed decisions, and the referenced `CompilationContext`. Timestamps, run IDs, availability probes, receipt fields, and other volatile values are excluded.
 
@@ -244,8 +261,12 @@ interface ArtifactHandle {
   contentHash: string
   mediaType: string
   byteLength?: number
+  role: string
+  resolverId: string
   availability: 'available' | 'deleted' | 'expired' | 'unknown'
+  retentionClass: string
   retentionExpiresAt?: string
+  redactionPolicy: string
 }
 
 type EvidenceRegion =
@@ -277,9 +298,12 @@ interface Observation {
 }
 
 interface ObservationDecision {
+  decisionId: string
+  decisionHash: string
   observationId: string
   observationHash: string
-  status: 'confirmed' | 'rejected'
+  contextHash: string
+  status: 'proposed' | 'confirmed' | 'rejected'
   authority: 'user' | 'host_policy' | 'trusted_metadata' | 'auto_policy'
   decidedBy: string
   policyVersion?: string
@@ -296,13 +320,14 @@ Three independent axes must never be collapsed:
 
 A high-confidence observation is not automatically a hard constraint. A hard user request does not prove an image observation is correct.
 
-`Observation` is immutable candidate evidence. Its `contentHash` is computed from the canonical observation payload and excludes decisions. An analyzer cannot mark its own output confirmed. Confirmation or rejection is recorded in an `ObservationDecision` bound to that exact `observationHash`, with authority, reason, and policy version where applicable. Changing the candidate creates a new hash and invalidates the old decision.
+`Observation` is immutable candidate evidence. Its `contentHash` is computed from the canonical observation payload and excludes decisions. An analyzer cannot mark its own output confirmed. Acceptance state is recorded in an `ObservationDecision` bound to that exact `observationHash` and `contextHash`, with authority, reason, and policy version where applicable. `decisionHash` covers every other decision field and excludes itself. Changing the candidate or context invalidates the old decision.
 
 ### 6.7 SourceBinding and BindingDecision
 
 ```ts
 interface SourceBinding {
   id: string
+  contentHash: string
   targetPath: string
   observationIds: string[]
   relation: 'preserve' | 'reproduce' | 'inspire' | 'exclude'
@@ -310,7 +335,11 @@ interface SourceBinding {
 }
 
 interface BindingDecision {
+  decisionId: string
+  decisionHash: string
   bindingId: string
+  bindingHash: string
+  contextHash: string
   status: 'proposed' | 'confirmed' | 'rejected'
   authority: 'user' | 'host_policy' | 'trusted_metadata' | 'auto_policy'
   decidedBy: string
@@ -322,7 +351,7 @@ interface BindingDecision {
 
 `replace` is a change operation; `reproduce` is a source relationship. A request can replace an original jacket and reproduce the replacement from `ref-02`.
 
-Only a confirmed `BindingDecision` may admit a binding into `OntologyInstance`. Confirming an observation means accepting the candidate claim; confirming a binding separately decides whether that evidence may supply the target.
+Only a confirmed `BindingDecision` may admit a binding into `OntologyInstance`. `bindingHash` covers the immutable `SourceBinding`; `decisionHash` covers every other decision field and excludes itself. Changing the binding or context invalidates the old decision. Confirming an observation means accepting the candidate claim; confirming a binding separately decides whether that evidence may supply the target.
 
 ### 6.8 Sparse OntologyInstance
 
@@ -397,6 +426,10 @@ interface RemoteCallAuthorization {
     | 'semantic_review'
     | 'asset_publication'
   inputHash: string
+  permittedArtifactHashes: string[]
+  permittedScopeIds: string[]
+  modelId?: string
+  modelVersion?: string
   adapterId: string
   adapterDigest: string
   destination: string
@@ -447,7 +480,7 @@ interface RemoteCallRun {
 }
 ```
 
-A context, plan, prompt artifact, adapter/profile digest, destination declaration, input hash, or budget change invalidates the applicable authorization. Authorization is never inferred from credentials being present. A retry that creates another remote submission requires remaining explicit retry authority and is forbidden while the previous submission outcome is unknown.
+A context, plan, prompt artifact, adapter/profile digest, destination declaration, input hash, or budget change invalidates the applicable authorization. `inputHash` is the canonical hash of the exact typed step input, including all permitted artifact hashes, permitted scope IDs, purpose, model identity/version, and adapter digest; the redundant explicit fields must match that projection. Authorization is never inferred from credentials being present. A retry that creates another remote submission requires remaining explicit retry authority and is forbidden while the previous submission outcome is unknown.
 
 ## 7. Visual ontology modules
 
@@ -650,13 +683,22 @@ type PromptTransformation =
     }
 
 interface PromptCandidateIR {
+  candidateHash: string
   basePromptIRSignature: string
+  targetAdapter: VersionPin
+  targetCapabilityProfile: VersionPin
   transformations: PromptTransformation[]
+  candidateSections: PromptIR['sections']
+  requestParameters: Record<string, unknown>
+  referenceMappings: PlannedReference[]
+  coverageClaims: Array<{ constraintId: string; transformationIndexes: number[] }>
   optimizer: VersionPin
   mode: 'strict' | 'balanced' | 'creative'
   warnings: string[]
 }
 ```
+
+`candidateHash` covers every other `PromptCandidateIR` field in canonical form and excludes itself. Any target adapter/profile, rendered section, parameter, reference mapping, coverage claim, transformation, optimizer, mode, or warning change creates a new candidate.
 
 Modes:
 
@@ -864,13 +906,21 @@ Comparison reports diff ontology facts, source bindings, constraints, reference 
 
 ## 17. Plugin ports
 
-v0.1 defines these public extension ports:
+These are the candidate public v0.1 extension surfaces. Each becomes compatibility-stable only when its public schema and compatibility fixtures are released together:
+
+- `ScenarioPack`
+- `ScenarioPackRegistry`
+- `DeclarativeRulePackContribution`
+- `ProviderAdapter`
+- `ProviderCapabilityProfile`
+- `ScenarioPackManifest`
+- offline Testkit
+
+The following public implementation ports are experimental in v0.1. They remain governed by the same authority, privacy, budget, and receipt rules, but minor releases may change their API or schema without a compatibility promise:
 
 - `IntentInterpreter`
 - `ReferenceInterpreter`
-- `RulePack`
 - `PromptOptimizer`
-- `ProviderAdapter`
 - `PostProcessor`
 - `StructuralValidator`
 - `SemanticReviewer`
@@ -878,6 +928,7 @@ v0.1 defines these public extension ports:
 - `AssetPublisher`
 - `JobStore`
 - `JobQueue`
+- `RulePackPlugin`
 
 Every plugin manifest declares:
 
@@ -890,9 +941,13 @@ Every plugin manifest declares:
 - secret requirements;
 - log-redaction policy.
 
-Interpreters and optimizers propose artifacts; they cannot mutate confirmed facts. Rule packs are pure. Provider adapters cannot change approved reference order, required inputs, output contracts, or budgets.
+Interpreters and optimizers propose artifacts; they cannot mutate confirmed facts. `DeclarativeRulePackContribution` records are pure data. `RulePackPlugin` is a separate experimental executable-plugin boundary. Provider adapters cannot change approved reference order, required inputs, output contracts, or budgets.
 
 Selecting a plugin snapshots its manifest digest into `CompilationContext` or the relevant authorization. Any plugin that performs remote work, including a semantic reviewer or asset publisher, runs through the same authorization, budget, event, receipt, unknown-submission, and reconciliation contracts as a generation adapter.
+
+ScenarioPack is a declarative-data composition contract, not executable plugin code or an execution Adapter. A Case selects one root, explicit extensions, and an optional typed `HostPolicyOverlay`; deterministic resolution emits a `ScenarioCompositionLock`, `EffectiveScenario`, and `PackResolutionReport`. First-party virtual-try-on, cosplay, and product-shot packs use the same Registry as third-party packs. Core does not recognize their IDs.
+
+The complete Manifest, dependency/conflict, contribution authority, override, discovery, activation, migration, unload, replay, and acceptance rules are normative in the [ScenarioPack contract](scenario-pack-contract.md). Its Manifest is descriptive validation metadata, not an untrusted-code sandbox. Installing or registering a pack does not authorize a `ProviderAdapter`, select a `ProviderCapabilityProfile`, or create remote-call authority.
 
 ## 18. Security, privacy, and rights
 
@@ -972,6 +1027,7 @@ The approved values are persisted in `RemoteCallAuthorization` and, for final pl
 These artifacts are versioned independently:
 
 - ontology schema;
+- ScenarioPack manifests, contribution schemas, `ScenarioCompositionLock`, `EffectiveScenario`, HostPolicyOverlay, PackActivation, and migration contracts;
 - `CompilationContext`, observation/binding decision, authorization, and `ArtifactHandle` contracts;
 - rule packs;
 - ConstraintIR, ReferencePlan, PipelinePlan, PromptIR, and PromptCandidateIR;
@@ -983,7 +1039,7 @@ Semantic Versioning applies after the first public package release. A breaking p
 
 Run artifacts pin all relevant versions so a report remains interpretable after the project evolves.
 
-The paired core specifications are `scenario-design`, `system-design`, and `glossary`. English is normative and Simplified Chinese is maintained as a first-class semantic translation; stable scenario/requirement IDs, enums, and code identifiers remain synchronized. Architecture and roadmap documents are explanatory summaries and are not included in this paired-translation guarantee unless they are explicitly published as a pair.
+The four paired core specifications are `scenario-design`, `system-design`, `glossary`, and `scenario-pack-contract`. English is normative and Simplified Chinese is maintained as a first-class semantic translation; stable scenario/requirement IDs, enums, and code identifiers remain synchronized. Architecture and roadmap documents are explanatory summaries and are not included in this paired-translation guarantee unless they are explicitly published as a pair.
 
 ## 22. v0.1 implementation boundary
 
@@ -992,6 +1048,8 @@ The paired core specifications are `scenario-design`, `system-design`, and `glos
 - zero or one primary person per case, with multiple garments, accessories, or props when a person is present;
 - a sparse ontology, multi-scope observations, `ObservationDecision`, and confirmed binding decisions;
 - immutable `CompilationContext`, `RemoteCallAuthorization`, and plan-bound `ExecutionAuthorization` contracts;
+- deterministic `ScenarioPackRegistry`, root/extension/HostPolicyOverlay resolution, exact `ScenarioCompositionLock`, and PackActivation contracts;
+- an ordinary offline `ScenarioPackTemplate`, validator, publication audit, and migration/uninstall/replay lifecycle fixtures;
 - complete manual and fixture modes;
 - assisted mode with one optional multimodal adapter;
 - experimental auto policy with non-bypassable high-impact gates;
@@ -1000,7 +1058,8 @@ The paired core specifications are `scenario-design`, `system-design`, and `glos
 - Mock-first execution and optional Seedream/veImageX adapter implementations;
 - local persistent asynchronous execution for every remote step, with durable events, reconciliation, compensation cleanup, and submission-unknown protection;
 - CLI and a read-only local/static HTML trace report;
-- one complete offline Mock virtual-try-on vertical case, offline cosplay conflict cases, and an offline product-only regression as release gates;
+- first-party virtual-try-on, cosplay, and product-shot ScenarioPacks registered through the same public path as third-party packs;
+- one complete offline Mock virtual-try-on vertical case, offline cosplay conflict cases, and an offline product-only regression as package-driven release gates;
 - redistributable fixtures and offline CI.
 
 Real-adapter smoke tests are explicit, credentialed, non-CI workflows. They are not run by default and are not a default `v0.1.0` release gate. A release may publish dated smoke evidence, but the project does not claim production readiness from it.
@@ -1036,4 +1095,11 @@ Real-adapter smoke tests are explicit, credentialed, non-CI workflows. They are 
 | SYS-012 | Manual mode can compile, explain, plan, Mock-run, replay, and compare without network access or credentials. |
 | SYS-013 | Technical execution/validation, probabilistic semantic findings, and human acceptance remain separate artifacts and state machines; human rejection is not rewritten as a technical failure. |
 | SYS-014 | Every remote adapter step declares and enforces its destination, data categories, calls, retries, timeout, cost, cancellation, cleanup, and redaction policy through authorization and receipts. |
-| SYS-015 | The paired English/Chinese scenario, system, and glossary specifications keep scenario IDs, requirement IDs, enums, and code identifiers synchronized, with English remaining normative. |
+| SYS-015 | The four paired English/Chinese core specifications keep scenario IDs, requirement IDs, enums, and code identifiers synchronized, with English remaining normative. |
+| SYS-016 | Core loads first-party and third-party ScenarioPacks through the same Registry and contains no import or branch keyed to a scenario ID. |
+| SYS-017 | The same ScenarioPackSelection, immutable ScenarioPackCatalogSnapshot, HostPolicyOverlay, resolver, and contract versions produce identical ScenarioCompositionLock, EffectiveScenario, PackResolutionReport, ordering, and semantic hashes. |
+| SYS-018 | Scenario composition pins exact versions and digests and blocks missing dependencies, incompatible ranges, digest mismatches, declared conflicts, duplicate contribution conflicts, and ordering cycles with explanatory traces. |
+| SYS-019 | Ontology, DeclarativeRulePackContribution, scope, Prompt, review, default, OverridePoint, FixtureSuite, UIMetadata, capability requirement, and declaration contributions remain within the ScenarioPack authority boundaries. |
+| SYS-020 | A ScenarioPack cannot perform network or Provider calls, read secrets, mutate confirmed facts, create authorization, change budgets or destinations, override Host policy, or bypass guards and review gates. |
+| SYS-021 | Discovery uses explicit local sources; installation, publication, or registration never implies PackActivation, remote access, Provider selection, data transfer, cost authorization, marketplace lookup, dynamic scan, or automatic download. |
+| SYS-022 | The ordinary ScenarioPackTemplate and publication audit grant no runtime authority; virtual try-on, cosplay, and product-shot pass their offline FixtureSuites as packages through the same Compiler, Planner, Runtime, and Evaluation pipeline. |

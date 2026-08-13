@@ -38,7 +38,11 @@ A developer who embeds VOCE in an application, supplies storage and provider ada
 
 A domain expert or developer who contributes ontology vocabulary, constraints, interpretation scopes, prompt compilation, and semantic review criteria.
 
-### 2.5 Operator
+### 2.5 Scenario-pack author
+
+A third-party developer who composes reusable rule packs, scenario defaults, typed host override points, user-interface metadata, fixtures, compatibility declarations, and migrations into a distributable `ScenarioPack`.
+
+### 2.6 Operator
 
 A person responsible for provider credentials, cost limits, retention, privacy policy, and asynchronous job infrastructure. VOCE defines boundaries but does not provide a hosted operator console in v0.1.
 
@@ -80,7 +84,9 @@ flowchart LR
 
 ### 4.1 Step 1 — Choose a scenario
 
-The host application selects an initial rule-pack composition, interaction mode, and output preset. v0.1 reference scenarios are virtual try-on, cosplay, and product shot.
+The host application selects an initial `ScenarioPack`, interaction mode, and output preset. Commercial virtual try-on, cosplay, and product shot are the initial example `ScenarioPack` implementations. All three use the same public interpretation, resolution, compilation, planning, execution, and evaluation interfaces.
+
+Stable document IDs such as `VT-001`, `CP-001`, and `PS-001` identify examples and acceptance narratives; VOCE Core does not recognize or branch on those IDs. Core receives an `EffectiveScenario` assembled through public contracts.
 
 This choice supplies defaults; it must not prevent a later request from adding or removing supported concepts.
 
@@ -458,7 +464,7 @@ VOCE traces use IDs, hashes, safe summaries, and redacted receipts by default. T
 ## 13. Integrator journey (`DEV-001`)
 
 1. install the SDK and run offline examples;
-2. select rule packs and an interaction mode;
+2. select a `ScenarioPack`, its composed rule packs, and an interaction mode;
 3. map application assets and metadata to VOCE contracts;
 4. use manual or fixture interpreters first;
 5. run `compile`, `explain`, and Mock execution without network calls;
@@ -478,7 +484,89 @@ VOCE traces use IDs, hashes, safe summaries, and redacted receipts by default. T
 6. verify deterministic signatures and bilingual user explanations where supplied;
 7. document what the pack can and cannot claim.
 
-## 15. Scenario acceptance criteria for v0.1
+`RPK-001` remains the low-level journey for authoring deterministic semantic rules. Packaging those rules into an installable product scenario is the separate `SPK-001` journey.
+
+## 15. Third-party ScenarioPack authoring and lifecycle (`SPK-001`)
+
+A `ScenarioPack` is a distributable declarative-data scenario composition, not a provider adapter, hosted product, or permission to call a network service. Core reads its manifest and content-addressed, JSON-serializable contributions and never executes a ScenarioPack JavaScript entrypoint. A code-backed `RulePackPlugin` or custom loader is a separate trusted-local-plugin boundary because process isolation is deferred; the manifest is neither a sandbox nor a security proof. v0.1 supports distribution through ordinary package registries or source releases, but does not imply a VOCE marketplace, sandbox review, or official endorsement.
+
+### 15.1 Scaffold from a versioned template
+
+The author starts from `ScenarioPackTemplate`, chooses a stable `packId`, version, license, default locale, and VOCE Core and ontology-schema compatibility ranges. The template creates a `ScenarioPackManifest`, example `DeclarativeRulePackContribution`, UI metadata, redistributable `FixtureSuite`, migration directory, and offline validation commands.
+
+A `packId` identifies the semantic package independently of a registry package name and is never reused for an unrelated scenario. Template output contains no account, catalog, price, entitlement, private deployment, secret, or real-provider assumption.
+
+### 15.2 Define the public package contract
+
+The author declares the scenario goal and non-goals, input and output expectations, interaction modes, rights and privacy notices, required declarative rule contributions, explicit extension-pack dependencies and relationships, typed `OverridePoint` records, UI metadata, fixtures, migrations, capability requirements, auditable package declarations, license, and `PackageProvenance`. v0.1 does not auto-activate optional dependencies; an optional feature is an explicitly selected extension.
+
+A v0.1 `ScenarioPackSelection` requests a `ScenarioComposition` with exactly one root `ScenarioPack`, zero or more explicitly selected extension packs, and an optional typed `HostPolicyOverlay` containing revision-bound `HostOverride` records. Resolution expands dependency-required extension packs deterministically from the selected packages and discloses their declarative rule contributions in its trace. Two unrelated root scenario packs are never merged implicitly. ScenarioPack contributions remain declarative, deterministic, and side-effect-free and perform no remote call; code-backed plugins, remote adapters, and authorization remain separate host concerns.
+
+### 15.3 Resolve composition and create a lock
+
+Before activation, the resolver validates Core and schema compatibility, dependency ranges and integrity, contribution identifiers, extension relationships, migration availability, capability requirements, and auditable declarations. It produces a `ScenarioCompositionLock` that pins exact versions, manifest, package, configuration, dependency and contribution digests, Catalog, resolver and contract versions, deterministic composition order, the accepted Host-policy-overlay hash, `compositionHash`, and `lockHash`.
+
+The same inputs and versions produce the same lock and `EffectiveScenario`. Load order is not a semantic priority mechanism, and composition never uses silent last-wins behavior.
+
+### 15.4 Apply typed host overrides
+
+The host supplies one or more immutable `HostOverride` records inside a case-revision-bound `HostPolicyOverlay`. An override may change only a typed `OverridePoint` declared by the pack: pack configuration, a declared default, or activation of an explicitly overrideable preferred contribution. Host policy remains separately authoritative and may add or tighten constraints and block a capability.
+
+An override may not weaken Core invariants, silently downgrade `hard` or `required` constraints, rewrite accepted observations or decisions, bypass authorization, add an undisclosed remote destination, or mutate the installed pack. Every accepted override retains provenance and changes the deterministic `compositionHash` and `effectiveScenarioHash`; denied overrides remain visible in the resolution report.
+
+### 15.5 Explain composition conflicts
+
+The resolver returns a `PackResolutionReport` rather than choosing a winner implicitly. A blocking item identifies a stable reason code, the involved pack IDs, versions and digests, contribution or rule IDs, affected ontology path or metadata field, the precedence rule, and actionable resolutions such as selecting a compatible version, removing an extension, or using a declared override point.
+
+Dependency, schema, rule, UI-metadata, and migration conflicts block activation. The resolver reports a minimal explainable conflict set and does not silently omit a pack, reorder semantic contributions, or weaken a requirement.
+
+### 15.6 Provide user-interface metadata
+
+`UIMetadata` uses locale maps for `displayName`, `description`, and optional `instructions`; stable disclosures with severity and message keys; and accessibility declarations covering required text alternatives, keyboard-operable reference selection, and information that does not rely on color alone. A pack declares one `defaultLocale`, which must name an available locale, and every disclosure key must resolve there; missing translations remain visibly missing rather than being presented as authored copy.
+
+UI metadata is presentation guidance, not semantic authority. It cannot create `ChangeIntent`, `ObservationDecision`, `SourceBinding`, `BindingDecision`, constraints, composition, or authorization, and required disclosures must be acknowledged before activation. Its accessibility declaration states requirements for the host renderer; it does not certify the host application or transfer final conformance responsibility.
+
+### 15.7 Validate with offline fixtures
+
+The author supplies a redistributable `FixtureSuite` covering a successful case, one image contributing multiple observations, unknown and clarification states, a hard conflict, allowed and forbidden host overrides, an incompatible dependency, provider-reference budget pressure, a no-person regression, and every supported migration path.
+
+Standard fixture and release-gate tests run without network access, credentials, private assets, or paid models. They compare deterministic ontology, `ConstraintIR`, reference and pipeline plans, Prompt Guard decisions, explanations, Mock receipts, UI metadata schemas, and repeated signatures; generated pixels are not golden fixtures.
+
+### 15.8 Audit and publish
+
+Before publishing, the author validates the manifest and schemas, dependency lock, licenses and asset redistribution rights, locale declarations, migration notes, capability requirements and declarations, compatibility matrix, integrity digest, and absence of secrets, private images, Base64 payloads, signed URLs, and install-time remote behavior. A clean pack operation must reproduce the package digest and emit a `ScenarioPackPublishAudit`; the published artifact includes a changelog and verifiable `PackageProvenance`.
+
+Each published version is immutable. A passing `ScenarioPackPublishAudit` proves only contract conformance and declared offline-fixture results. Publication to a normal registry or source release does not mean that VOCE reviewed, recommends, certifies security for, or considers the pack production-ready.
+
+### 15.9 Install, inspect, and activate explicitly
+
+The host acquires the selected pure-data distribution without running package lifecycle scripts, then inspects its static manifest, distribution and contribution digests, integrity, license, compatibility, dependency graph, UI metadata, declared behavior, and offline fixtures before registration and resolution. Core loads only declared data and never executes a ScenarioPack entrypoint. Any separately selected executable plugin follows its own review and registration path and is not a ScenarioPack dependency. Acquisition and registration do not select a pack for a case. Activation explicitly binds one case revision to an accepted selection, lock, and effective scenario; none of these lifecycle operations grants network, data-transfer, or cost authorization.
+
+Activation is explicit. The host chooses a `ScenarioCompositionLock` with its accepted optional `HostPolicyOverlay`, runs required offline gates, and records `PackActivation` with the effective composition hash. Only the case revision named by that `PackActivation` uses the composition; every other revision requires its own activation record. Existing `CompilationContext`, authorization, and runs remain pinned to their recorded versions and digests.
+
+### 15.10 Upgrade side by side
+
+An upgrade installs the candidate version beside the active version. The host performs compatibility checks, migration dry-runs, offline fixtures, and an old/new diff of the effective scenario, constraints, plans, explanations, UI metadata, remote destinations, and budgets before explicit activation.
+
+Activation of the candidate does not mutate in-progress sessions or historical records. New revisions receive a new composition hash, and authorization bound to an earlier composition cannot authorize the upgraded one.
+
+### 15.11 Migrate deterministically and offline
+
+The pack author supplies content-addressed `ScenarioMigrationDeclaration` records with a source version range, one exact target version, and declarative operations. For an exact source lock and target `ScenarioPackSelection`, the host builds a deterministic, previewable, network-free `MigrationPlan` that pins the source editable state and the resolved target Catalog, lock, effective scenario, and resolution report; destructive or ambiguous operations require a content-addressed confirmation. Applying the plan revalidates those pins and creates only the next editable case revision. A `MigrationReceipt` records the plan and confirmation hashes, old and new lock and effective-scenario hashes, source-state hash, applied operation hashes, unresolved items, and the new revision.
+
+Migration never rewrites historical observations, decisions, `CompilationContext`, `ExecutionRun`, `StepEvent`, or receipts. If no required declaration or safe plan exists, candidate activation is blocked. Unsupported downgrade is declared explicitly rather than simulated through a lossy reverse migration.
+
+### 15.12 Deactivate, uninstall, and preserve history
+
+Host availability policy prevents a deactivated pack from being used for new case-revision activation without deleting its local descriptor or data. Uninstall first checks active activations and policy records, reverse dependencies, active selections, compilation or execution, pending migration plans, and replay requirements against an exact Registry revision. A pack selected or dependency-required in an existing lock cannot be unloaded from that lock. Removing local files does not rewrite a historical lock, but it affects future discovery and can make historical plan replay unavailable; the operation is blocked with an explanation unless active dependencies are resolved through an explicit plan.
+
+Uninstall does not delete user assets, case history, run evidence, `ScenarioCompositionLock`, or safe package provenance. Historical records continue to name the exact pack version and digest. If the exact declarative implementation is no longer available, plan replay returns `PACK_IMPLEMENTATION_UNAVAILABLE`; if a required host-owned artifact is gone, artifact replay returns `ARTIFACT_UNAVAILABLE`. The system does not substitute another version, download or reinstall it silently, regenerate an artifact, or issue a paid call.
+
+### 15.13 Contract acceptance
+
+Normative acceptance details in the [public ScenarioPack contract](scenario-pack-contract.md) use stable `SPK-AC-*` identifiers. This journey references that contract instead of copying its tests and requirements into narrative documentation. The official template, third-party packs, and the virtual-try-on, cosplay, and product-shot examples pass the same applicable public contract; Core contains no scenario-ID-specific acceptance branch.
+
+## 16. Scenario acceptance criteria for v0.1
 
 The v0.1 scenario layer is acceptable when:
 
@@ -496,4 +584,5 @@ The v0.1 scenario layer is acceptable when:
 12. `artifact replay` reports unavailable when a required host artifact has been deleted or expired;
 13. technical validation, model-assisted findings, and human review remain distinct;
 14. manual mode completes compilation and Mock execution without a model or network call;
-15. the full workflow can be implemented by a host application without adopting private product concepts.
+15. the full workflow can be implemented by a host application without adopting private product concepts;
+16. `SPK-001` implementations satisfy the applicable stable `SPK-AC-*` items in the [public ScenarioPack contract](scenario-pack-contract.md) without duplicating those normative details here.
