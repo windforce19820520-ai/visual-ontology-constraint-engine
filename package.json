@@ -1,0 +1,15 @@
+{
+  "name": "visual-ontology-constraint-engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Visual ontology, constraint compilation, prompt optimization, and evaluation for reference-guided image generation.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node scripts/validate-repository.mjs",
+    "validate": "node scripts/validate-repository.mjs"
+  },
+  "license": "Apache-2.0"
+}
