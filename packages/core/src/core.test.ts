@@ -1,0 +1,7 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { canonicalize, hashWithoutSelf, sha256, validateManifest } from './index.js'
+const manifest={schemaVersion:'voce.scenario-pack/v1alpha1',packId:'fixture.root',version:'0.1.0',kind:'root',declarations:{containsExecutableScenarioCode:false,distributionLifecycleScripts:false,containsExecutableFiles:false,fixturesRequireNetwork:false,fixturesRequireRealProvider:false},permissions:{network:false,remoteCalls:false,secrets:false,filesystemWrite:false,mutateConfirmedFacts:false,authorizeCalls:false,overrideHostPolicy:false,selectProvider:false,changeBudgets:false},distributionInventory:[]}
+test('manifest rejects executable declarations and missing identity',()=>{validateManifest(manifest);assert.throws(()=>validateManifest({...manifest,declarations:{...manifest.declarations,containsExecutableFiles:true}}),/PACK_DECLARATION_INVALID/);assert.throws(()=>validateManifest({...manifest,packId:''}),/PACK_MANIFEST_INVALID/)})
+test('canonical hashes are key-order independent',()=>{assert.equal(canonicalize({b:2,a:1}),canonicalize({a:1,b:2}));assert.equal(sha256({b:2,a:1}),sha256({a:1,b:2}))})
+test('arrays and values affect hashes',()=>{assert.notEqual(sha256([1,2]),sha256([2,1]));assert.notEqual(sha256({value:1}),sha256({value:2}));assert.equal(hashWithoutSelf({value:1,hash:'old'},'hash'),hashWithoutSelf({value:1,hash:'new'},'hash'))})

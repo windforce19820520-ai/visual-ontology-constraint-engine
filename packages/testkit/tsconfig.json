@@ -1,0 +1,1 @@
+{"compilerOptions":{"composite":true,"declaration":true,"outDir":"dist","rootDir":"src","strict":true,"target":"ES2022","module":"NodeNext","moduleResolution":"NodeNext","skipLibCheck":true},"references":[{"path":"../core"},{"path":"../contracts"}],"include":["src"]}

@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"voce.scenario-pack-selection/v1alpha1","type":"object","required":["root","extensions"],"properties":{"root":{"type":"object","required":["packId","versionRange"]},"extensions":{"type":"array"},"hostPolicyOverlay":{"type":"object"}},"additionalProperties":false}

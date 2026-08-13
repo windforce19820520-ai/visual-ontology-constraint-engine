@@ -8,8 +8,13 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node scripts/validate-repository.mjs",
-    "validate": "node scripts/validate-repository.mjs"
+    "repository-validate": "node scripts/validate-repository.mjs",
+    "validate": "npm run repository-validate && npm run typecheck && npm test",
+    "typecheck": "tsc -b",
+    "test": "npm run build && node --test packages/*/dist/**/*.test.js",
+    "build": "tsc -b"
   },
+  "workspaces": ["packages/*"],
+  "devDependencies": { "typescript": "^5.6.3", "@types/node": "^22.0.0" },
   "license": "Apache-2.0"
 }
