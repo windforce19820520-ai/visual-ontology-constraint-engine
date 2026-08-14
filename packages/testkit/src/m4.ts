@@ -11,7 +11,7 @@ import type {
   ReferenceCandidate,
   ReferenceDependency,
   ReferencePlanningInput,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import {
   computeCompilationContextHash,
   computeOntologyInstanceHash,
@@ -21,7 +21,7 @@ import {
   MOCK_IMAGE_PROFILE,
   planReferences,
   sha256,
-} from '@voce/core'
+} from '@voce-engine/core'
 
 export const M4_FIXTURE_CASE_ID = 'case-m4-fixture'
 export const M4_FIXTURE_CASE_REVISION = 1

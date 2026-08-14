@@ -1,6 +1,6 @@
 {
   "schemaVersion": "voce.scenario-pack-source/v1alpha1",
-  "packId": "@voce/scenario-virtual-tryon",
+  "packId": "@voce-engine/scenario-virtual-tryon",
   "version": "0.1.0",
   "kind": "root",
   "scenarioLabel": "virtual try-on offline fixture",

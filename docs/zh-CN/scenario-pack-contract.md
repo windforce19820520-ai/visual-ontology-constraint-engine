@@ -810,9 +810,9 @@ Scaffold 只会在显式选择的 Workspace 中创建文件。普通发布审计
 v0.1 计划中的初始包都将是普通 Registry Entry：
 
 ```text
-@voce/scenario-virtual-try-on
-@voce/scenario-cosplay
-@voce/scenario-product-shot
+@voce-engine/scenario-virtual-try-on
+@voce-engine/scenario-cosplay
+@voce-engine/scenario-product-shot
 ```
 
 它们可以共享版本化 Ontology 与声明式 Rule Schema，也可以依赖携带可复用贡献项的兼容 Extension ScenarioPack，但 Core 不包含对它们的内置 Import 或 Branch。Product-shot 必须能在零人物情况下编译。使用符合合同的第三方 Pack 替换任何第一方 Pack，都不需要修改 Core。

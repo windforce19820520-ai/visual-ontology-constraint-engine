@@ -1,6 +1,7 @@
 {
-  "name": "@voce/contracts",
+  "name": "@voce-engine/contracts",
   "version": "0.1.0-rc.1",
+  "description": "Versioned public contracts and JSON Schemas for the VOCE release candidate.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": { ".": "./dist/index.js", "./schemas/*": "./schemas/*" },
@@ -8,5 +9,8 @@
   "files": ["dist/index.js", "dist/index.d.ts", "schemas", "README.md", "LICENSE"],
   "engines": { "node": ">=20" },
   "repository": { "type": "git", "url": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine.git", "directory": "packages/contracts" },
+  "homepage": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine#readme",
+  "bugs": { "url": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues" },
+  "publishConfig": { "access": "public", "tag": "next" },
   "scripts": { "build": "tsc -b" }
 }

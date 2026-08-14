@@ -9,7 +9,7 @@ import { gunzipSync } from 'node:zlib'
 export const ROOT = fileURLToPath(new URL('..', import.meta.url))
 export const RELEASE_CANDIDATE = '0.1.0-rc.1'
 export const RELEASE_ROOT = path.join(ROOT, 'release-candidate', `v${RELEASE_CANDIDATE}`)
-export const PACKAGE_NAMES = ['@voce/contracts', '@voce/core', '@voce/testkit', '@voce/cli']
+export const PACKAGE_NAMES = ['@voce-engine/contracts', '@voce-engine/core', '@voce-engine/testkit', '@voce-engine/cli']
 export const PACKAGE_DIRS = Object.fromEntries(PACKAGE_NAMES.map((name) => [name, path.join(ROOT, 'packages', name.split('/').at(-1))]))
 export const PNPM = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 
@@ -143,8 +143,8 @@ export function validatePackageManifest(name, manifest) {
   if (!Array.isArray(manifest.files) || !manifest.files.some((file) => file.startsWith('dist/')) || !manifest.files.includes('README.md') || !manifest.files.includes('LICENSE')) fail(`M8_PACKAGE_FILES_INVALID:${name}`)
   if (manifest.engines?.node !== '>=20') fail(`M8_PACKAGE_ENGINE_INVALID:${name}`)
   if (manifest.repository?.type !== 'git' || !String(manifest.repository?.url ?? '').endsWith('.git') || manifest.repository?.directory !== `packages/${name.split('/').at(-1)}`) fail(`M8_PACKAGE_REPOSITORY_INVALID:${name}`)
-  if (name === '@voce/contracts' && !manifest.files.includes('schemas')) fail('M8_CONTRACT_SCHEMAS_NOT_DECLARED')
-  if (name === '@voce/cli' && manifest.bin?.voce !== 'dist/cli.js') fail('M8_CLI_BIN_INVALID')
+  if (name === '@voce-engine/contracts' && !manifest.files.includes('schemas')) fail('M8_CONTRACT_SCHEMAS_NOT_DECLARED')
+  if (name === '@voce-engine/cli' && manifest.bin?.voce !== 'dist/cli.js') fail('M8_CLI_BIN_INVALID')
   const dependencySets = [manifest.dependencies, manifest.devDependencies, manifest.peerDependencies]
   for (const dependencies of dependencySets) for (const value of Object.values(dependencies ?? {})) if (String(value).startsWith('workspace:')) fail(`M8_WORKSPACE_DEPENDENCY_IN_PUBLIC_MANIFEST:${name}`)
   for (const key of ['preinstall', 'install', 'postinstall', 'prepare']) if (manifest.scripts?.[key] !== undefined) fail(`M8_LIFECYCLE_SCRIPT:${name}:${key}`)

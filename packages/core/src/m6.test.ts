@@ -19,7 +19,7 @@ import type {
   StructuralValidationArtifactInput,
   StructuralValidationInput,
   VersionPin,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import {
   FixtureSemanticReviewer,
   RecordingMockTransport,

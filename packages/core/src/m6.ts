@@ -46,7 +46,7 @@ import type {
   StructuralValidationReport,
   OutputContract,
   VersionPin,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import {
   ARTIFACT_REPLAY_RESULT_SCHEMA_VERSION,
   COMPARISON_ENTRY_SCHEMA_VERSION,
@@ -66,7 +66,7 @@ import {
   STRUCTURAL_VALIDATION_FINDING_SCHEMA_VERSION,
   STRUCTURAL_VALIDATION_INPUT_SCHEMA_VERSION,
   STRUCTURAL_VALIDATION_REPORT_SCHEMA_VERSION,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import { canonicalize, sha256 } from './canonical.js'
 import { computeRemoteCallAuthorizationHash, dispatchPreflight } from './m4.js'
 

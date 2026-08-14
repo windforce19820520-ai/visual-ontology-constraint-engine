@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createScenarioPackRegistry, canonicalize, hashWithoutSelf, sha256, validateManifest } from './index.js'
-import type { HostOverride, HostPolicyOverlay, JsonObject, ScenarioPack, ScenarioPackManifest } from '@voce/contracts'
+import type { HostOverride, HostPolicyOverlay, JsonObject, ScenarioPack, ScenarioPackManifest } from '@voce-engine/contracts'
 
 const categories = ['ontologyVocabulary', 'rulePacks', 'interpretationScopes', 'promptSections', 'reviewTemplates', 'defaults', 'overridePoints'] as const
 const emptyIndex = { ontologyVocabulary: [], rulePacks: [], interpretationScopes: [], promptSections: [], reviewTemplates: [], defaults: [], overridePoints: [] }

@@ -8,10 +8,10 @@ const suite = JSON.parse(await readFile(path.join(suiteRoot, 'manifest.json'), '
 if (suite.schemaVersion !== 'voce.compatibility-suite/v1alpha1' || suite.releaseCandidate !== RELEASE_CANDIDATE) fail('M8_COMPATIBILITY_MANIFEST_INVALID')
 
 const packageSources = {
-  '@voce/contracts': path.join(ROOT, 'packages', 'contracts'),
-  '@voce/core': path.join(ROOT, 'packages', 'core'),
-  '@voce/testkit': path.join(ROOT, 'packages', 'testkit'),
-  '@voce/cli': path.join(ROOT, 'packages', 'cli'),
+  '@voce-engine/contracts': path.join(ROOT, 'packages', 'contracts'),
+  '@voce-engine/core': path.join(ROOT, 'packages', 'core'),
+  '@voce-engine/testkit': path.join(ROOT, 'packages', 'testkit'),
+  '@voce-engine/cli': path.join(ROOT, 'packages', 'cli'),
 }
 const typeChecks = {}
 for (const [name, exports] of Object.entries(suite.candidatePublicSurface)) {

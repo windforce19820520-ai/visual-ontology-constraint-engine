@@ -6,17 +6,17 @@ import type {
   ScenarioPack,
   ScenarioPackManifest,
   ScenarioPackRegistry,
-} from '@voce/contracts'
-import { BUNDLE_MANIFEST_SCHEMA_VERSION } from '@voce/contracts'
+} from '@voce-engine/contracts'
+import { BUNDLE_MANIFEST_SCHEMA_VERSION } from '@voce-engine/contracts'
 import {
   MOCK_IMAGE_PROFILE,
   MockProviderAdapter,
   createMockRuntimeForPlan,
   createScenarioPackRegistry,
   replayArtifacts,
-} from '@voce/core'
-import { fixtureM4ConstraintInput, fixtureM5ExecutionInput, fixtureM6Artifact } from '@voce/testkit'
-import { CLI_VERSION, runCli } from '@voce/cli'
+} from '@voce-engine/core'
+import { fixtureM4ConstraintInput, fixtureM5ExecutionInput, fixtureM6Artifact } from '@voce-engine/testkit'
+import { CLI_VERSION, runCli } from '@voce-engine/cli'
 
 declare const pack: ScenarioPack
 declare const manifest: ScenarioPackManifest

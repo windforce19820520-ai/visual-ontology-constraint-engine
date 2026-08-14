@@ -1,6 +1,6 @@
 # M7 implementation notes
 
-- M7 adds `@voce/cli` as a separate workspace package. It imports public `@voce/contracts`, `@voce/core`, and `@voce/testkit` entrypoints; it does not copy Core compiler, planner, execution, evaluation, or trace logic.
+- M7 adds `@voce-engine/cli` as a separate workspace package. It imports public `@voce-engine/contracts`, `@voce-engine/core`, and `@voce-engine/testkit` entrypoints; it does not copy Core compiler, planner, execution, evaluation, or trace logic.
 - CLI sources are explicit local paths. The supported fixture source is a JSON data document under an explicitly named directory; standard `scenario-pack/manifest.json` directories are also accepted. No global package scan, marketplace, automatic install, lifecycle script, ScenarioPack JavaScript entrypoint, credential probe, or network probe is used.
 - First-party and third-party fixtures are loaded through the same `MemoryScenarioPackRegistry` and resolver. Scenario-specific behavior is fixture data; Core has no scenario-name branch.
 - Bundle layers are separate directories with a `voce.bundle-manifest/v1alpha1` manifest, sorted SHA-256 inventory, semantic hash, and fixed public pins. Volatile time and local paths are absent from semantic projections. Readers fail closed on unsafe inventory, hash mismatch, extra/missing files, symlinks, hardlinks, path traversal, and unsafe public values.

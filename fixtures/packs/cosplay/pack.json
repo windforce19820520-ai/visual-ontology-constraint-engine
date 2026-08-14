@@ -1,6 +1,6 @@
 {
   "schemaVersion": "voce.scenario-pack-source/v1alpha1",
-  "packId": "@voce/scenario-cosplay",
+  "packId": "@voce-engine/scenario-cosplay",
   "version": "0.1.0",
   "kind": "root",
   "scenarioLabel": "cosplay offline fixture",

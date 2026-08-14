@@ -14,10 +14,10 @@ export async function runConsumer(room = path.join(ROOT, 'clean-room', `m8-${REL
   if (!semverTarball) fail('M8_CONSUMER_SEMVER_TARBALL_MISSING')
   const tarballName = (name) => path.basename(packageAudit.find((item) => item.name === name)?.tarball ?? fail(`M8_CONSUMER_TARBALL_MISSING:${name}`))
   const localDependencies = {
-    '@voce/contracts': `file:../tarballs/${tarballName('@voce/contracts')}`,
-    '@voce/core': `file:../tarballs/${tarballName('@voce/core')}`,
-    '@voce/testkit': `file:../tarballs/${tarballName('@voce/testkit')}`,
-    '@voce/cli': `file:../tarballs/${tarballName('@voce/cli')}`,
+    '@voce-engine/contracts': `file:../tarballs/${tarballName('@voce-engine/contracts')}`,
+    '@voce-engine/core': `file:../tarballs/${tarballName('@voce-engine/core')}`,
+    '@voce-engine/testkit': `file:../tarballs/${tarballName('@voce-engine/testkit')}`,
+    '@voce-engine/cli': `file:../tarballs/${tarballName('@voce-engine/cli')}`,
     semver: `file:../tarballs/${semverTarball}`,
   }
   await writeFile(path.join(app, 'package.json'), JSON.stringify({ name: 'voce-m8-consumer', private: true, type: 'module', dependencies: localDependencies }, null, 2) + '\n', 'utf8')
@@ -27,16 +27,16 @@ export async function runConsumer(room = path.join(ROOT, 'clean-room', `m8-${REL
 
   const dependencyPaths = {}
   for (const name of ['contracts', 'core', 'testkit', 'cli']) {
-    const dependencyPath = path.join(app, 'node_modules', '@voce', name); const metadata = await lstat(dependencyPath); const resolved = await realpath(dependencyPath)
+    const dependencyPath = path.join(app, 'node_modules', '@voce-engine', name); const metadata = await lstat(dependencyPath); const resolved = await realpath(dependencyPath)
     if (!resolved.startsWith(room + path.sep) || resolved.includes(`${path.sep}packages${path.sep}`)) fail(`M8_CONSUMER_WORKSPACE_FALLBACK:${name}`)
-    dependencyPaths[`@voce/${name}`] = { insideRoom: true, symlinkToWorkspace: false }
+    dependencyPaths[`@voce-engine/${name}`] = { insideRoom: true, symlinkToWorkspace: false }
     if (metadata.isSymbolicLink() && resolved.includes(`${path.sep}packages${path.sep}`)) fail(`M8_CONSUMER_WORKSPACE_LINK:${name}`)
   }
 
   await cp(path.join(ROOT, 'fixtures', 'packs'), packs, { recursive: true }); await cp(path.join(ROOT, 'fixtures', 'cases'), cases, { recursive: true }); await cp(path.join(ROOT, 'fixtures', 'profiles'), profiles, { recursive: true })
   const renamed = path.join(packs, 'renamed-third-party'); await cp(path.join(packs, 'third-party-minimal'), renamed, { recursive: true }); const renamedPack = JSON.parse(await readFile(path.join(renamed, 'pack.json'), 'utf8')); renamedPack.packId = 'renamed.example/third-party-minimal'; await writeFile(path.join(renamed, 'pack.json'), JSON.stringify(renamedPack, null, 2) + '\n', 'utf8')
   const checkScript = path.join(app, 'consumer-check.mjs')
-  await writeFile(checkScript, `import { createRequire } from 'node:module'\nimport { readFileSync } from 'node:fs'\nimport * as contracts from '@voce/contracts'\nimport * as core from '@voce/core'\nimport * as testkit from '@voce/testkit'\nimport { CLI_VERSION, runCli } from '@voce/cli'\nconst require = createRequire(import.meta.url)\nconst schemaPath = require.resolve('@voce/contracts/schemas/BundleManifest.schema.json')\nconst schema = JSON.parse(readFileSync(schemaPath, 'utf8'))\nconst adapter = new core.MockProviderAdapter()\nif (CLI_VERSION !== '${RELEASE_CANDIDATE}' || contracts.BUNDLE_MANIFEST_SCHEMA_VERSION !== 'voce.bundle-manifest/v1alpha1' || schema.$id !== 'voce.bundle-manifest/v1alpha1' || adapter.offline !== true) process.exit(2)\nif (typeof core.createScenarioPackRegistry !== 'function' || typeof testkit.fixtureM5ExecutionInput !== 'function' || typeof runCli !== 'function') process.exit(3)\nconsole.log(JSON.stringify({ status: 'passed', cliVersion: CLI_VERSION, schemaId: schema.$id, schemaReadableFromInstalledPackage: true, mockAdapterOffline: true }))\n`, 'utf8')
+  await writeFile(checkScript, `import { createRequire } from 'node:module'\nimport { readFileSync } from 'node:fs'\nimport * as contracts from '@voce-engine/contracts'\nimport * as core from '@voce-engine/core'\nimport * as testkit from '@voce-engine/testkit'\nimport { CLI_VERSION, runCli } from '@voce-engine/cli'\nconst require = createRequire(import.meta.url)\nconst schemaPath = require.resolve('@voce-engine/contracts/schemas/BundleManifest.schema.json')\nconst schema = JSON.parse(readFileSync(schemaPath, 'utf8'))\nconst adapter = new core.MockProviderAdapter()\nif (CLI_VERSION !== '${RELEASE_CANDIDATE}' || contracts.BUNDLE_MANIFEST_SCHEMA_VERSION !== 'voce.bundle-manifest/v1alpha1' || schema.$id !== 'voce.bundle-manifest/v1alpha1' || adapter.offline !== true) process.exit(2)\nif (typeof core.createScenarioPackRegistry !== 'function' || typeof testkit.fixtureM5ExecutionInput !== 'function' || typeof runCli !== 'function') process.exit(3)\nconsole.log(JSON.stringify({ status: 'passed', cliVersion: CLI_VERSION, schemaId: schema.$id, schemaReadableFromInstalledPackage: true, mockAdapterOffline: true }))\n`, 'utf8')
   const consumerCheck = parseJsonLine(run(process.execPath, [checkScript], app))
   const typeFixture = path.join(app, 'consumer.ts'); await cp(path.join(ROOT, 'compatibility', `v${RELEASE_CANDIDATE}`, 'consumer.ts'), typeFixture)
   const tsc = path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc'); run(process.execPath, [tsc, '--noEmit', '--strict', '--target', 'ES2022', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', '--skipLibCheck', 'consumer.ts'], app)
@@ -61,7 +61,7 @@ export async function runConsumer(room = path.join(ROOT, 'clean-room', `m8-${REL
   const comparison = voce(['compare', '--before', path.join(output, 'virtual-tryon', 'run'), '--after', path.join(output, 'product-shot', 'run'), '--out', path.join(output, 'comparison.json')])
   if (comparison.status !== 'ok' || !comparison.reportHash) fail('M8_CONSUMER_COMPARE_FAILED')
 
-  const removable = path.join(app, 'node_modules', '@voce', 'contracts'); const removed = path.join(app, 'node_modules', '@voce', 'contracts.removed'); await rename(removable, removed); const removalProbe = run(process.execPath, ['-e', "import('@voce/contracts').then(() => process.exit(2)).catch((error) => process.exit(error?.code === 'ERR_MODULE_NOT_FOUND' ? 0 : 3))"], app, { allowFailure: true }); await rename(removed, removable); if (removalProbe === undefined) fail('M8_CONSUMER_REMOVAL_PROBE_FAILED')
+  const removable = path.join(app, 'node_modules', '@voce-engine', 'contracts'); const removed = path.join(app, 'node_modules', '@voce-engine', 'contracts.removed'); await rename(removable, removed); const removalProbe = run(process.execPath, ['-e', "import('@voce-engine/contracts').then(() => process.exit(2)).catch((error) => process.exit(error?.code === 'ERR_MODULE_NOT_FOUND' ? 0 : 3))"], app, { allowFailure: true }); await rename(removed, removable); if (removalProbe === undefined) fail('M8_CONSUMER_REMOVAL_PROBE_FAILED')
   const summary = { status: 'passed', releaseCandidate: RELEASE_CANDIDATE, install: installMode, packageSources: 'local-tarballs', workspaceSymlinks: false, ignoreScripts: true, packageAudit, dependencyPaths, publicImport: consumerCheck, typeScriptConsumer: { status: 'passed', declarations: 'resolved-from-installed-packages' }, cli: { version: version.version, doctor: doctor.status, networkProbe: doctor.providers.networkProbe }, packs: packResults, verticals, comparison: { status: comparison.status, reportHash: comparison.reportHash }, removalProbe: 'ERR_MODULE_NOT_FOUND_after_package_removal' }
   await writeJson(path.join(room, 'consumer-summary.json'), summary)
   if (room.startsWith(RELEASE_ROOT)) await writeJson(path.join(RELEASE_ROOT, 'consumer-summary.json'), summary)

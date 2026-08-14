@@ -11,7 +11,7 @@ import type {
   PromptTransformation,
   ProviderCapabilityProfile,
   RemoteCallAuthorization,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import {
   computeExecutionBudgetDigest,
   computeExecutionDataTransferDigest,
@@ -27,7 +27,7 @@ import {
   MOCK_JPEG_PROFILE,
   planPipeline,
   sha256,
-} from '@voce/core'
+} from '@voce-engine/core'
 import {
   fixtureM4ConstraintIR,
   fixtureM4Context,

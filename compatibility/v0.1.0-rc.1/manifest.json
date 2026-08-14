@@ -3,13 +3,13 @@
   "releaseCandidate": "0.1.0-rc.1",
   "status": "candidate-not-stable",
   "publicPackages": [
-    "@voce/contracts",
-    "@voce/core",
-    "@voce/testkit",
-    "@voce/cli"
+    "@voce-engine/contracts",
+    "@voce-engine/core",
+    "@voce-engine/testkit",
+    "@voce-engine/cli"
   ],
   "candidatePublicSurface": {
-    "@voce/contracts": [
+    "@voce-engine/contracts": [
       "ScenarioPack",
       "ScenarioPackRegistry",
       "ScenarioPackManifest",
@@ -18,7 +18,7 @@
       "ProviderCapabilityProfile",
       "BundleManifest"
     ],
-    "@voce/core": [
+    "@voce-engine/core": [
       "MemoryScenarioPackRegistry",
       "createScenarioPackRegistry",
       "MOCK_IMAGE_PROFILE",
@@ -26,12 +26,12 @@
       "createMockRuntimeForPlan",
       "replayArtifacts"
     ],
-    "@voce/testkit": [
+    "@voce-engine/testkit": [
       "fixtureM4ConstraintInput",
       "fixtureM5ExecutionInput",
       "fixtureM6Artifact"
     ],
-    "@voce/cli": [
+    "@voce-engine/cli": [
       "CLI_VERSION",
       "runCli"
     ]

@@ -12,7 +12,7 @@ import type {
   OutputContract,
   ProviderCapabilityProfile,
   ReferenceCandidate,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import {
   CapabilityAwarePipelinePlanner,
   ConstraintGraphCompiler,

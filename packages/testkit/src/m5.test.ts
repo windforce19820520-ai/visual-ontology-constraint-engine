@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import type { PromptIR, PromptTransformation, PromptSection } from '@voce/contracts'
+import type { PromptIR, PromptTransformation, PromptSection } from '@voce-engine/contracts'
 import {
   DeterministicPromptGuard,
   DeterministicPromptOptimizer,
@@ -21,7 +21,7 @@ import {
   guardPromptCandidate,
   optimizePromptIRWithFallback,
   replayArtifact,
-} from '@voce/core'
+} from '@voce-engine/core'
 import {
   fixtureM5Candidate,
   fixtureM5CompilationInput,

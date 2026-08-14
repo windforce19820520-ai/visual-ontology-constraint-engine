@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { JsonValue } from '@voce/contracts'
+import type { JsonValue } from '@voce-engine/contracts'
 
 function compareCodeUnits(a: string, b: string): number {
   const length = Math.min(a.length, b.length)

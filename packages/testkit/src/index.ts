@@ -8,15 +8,15 @@ import type {
   Provenance,
   RequestedScope,
   RequestedScopePlan,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import {
   createBindingDecision,
   createObservationDecision,
   createSourceBinding,
   computeRequestedScopePlanHash,
   sha256,
-} from '@voce/core'
-import type { JsonValue } from '@voce/contracts'
+} from '@voce-engine/core'
+import type { JsonValue } from '@voce-engine/contracts'
 
 export function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message)

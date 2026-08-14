@@ -809,9 +809,9 @@ Passing the audit means only that the package conforms to this contract and its 
 The initial packages planned for v0.1 will be ordinary Registry entries:
 
 ```text
-@voce/scenario-virtual-try-on
-@voce/scenario-cosplay
-@voce/scenario-product-shot
+@voce-engine/scenario-virtual-try-on
+@voce-engine/scenario-cosplay
+@voce-engine/scenario-product-shot
 ```
 
 They may share versioned ontology and declarative rule schemas, and may depend on compatible extension ScenarioPacks that carry reusable contributions, but Core contains no built-in imports or branches for them. Product-shot must compile with zero people. Replacing any first-party pack with a contract-compatible third-party pack requires no Core change.
