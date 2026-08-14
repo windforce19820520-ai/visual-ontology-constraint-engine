@@ -564,6 +564,7 @@ export interface SeedreamGenerateInput {
   sequential_image_generation?: unknown
   output_format?: 'png'|'jpeg'
   size?: string
+  watermark?: boolean
   referenceArtifacts?: StructuralValidationArtifactInput[]
   [key: string]: unknown
 }
@@ -661,7 +662,7 @@ function pngHeader(bytes: Uint8Array): { width: number; height: number; alpha: b
 }
 
 function seedreamAllowedKeys(): Set<string> {
-  return new Set(['prompt', 'image', 'n', 'output_format', 'size', 'referenceArtifacts'])
+  return new Set(['prompt', 'image', 'n', 'output_format', 'size', 'watermark', 'referenceArtifacts'])
 }
 
 function validateSeedreamInput(input: SeedreamGenerateInput): SeedreamImageInput[] {
@@ -670,6 +671,7 @@ function validateSeedreamInput(input: SeedreamGenerateInput): SeedreamImageInput
   if ('sequential_image_generation' in input) throw new ProviderTransportError('SEEDREAM_SEQUENTIAL_IMAGE_GENERATION_FORBIDDEN', 'Sequential image generation is not allowed.')
   if (input.n !== undefined && input.n !== 1) throw new ProviderTransportError('SEEDREAM_CARDINALITY_INVALID', 'Seedream requires n=1.')
   if (input.output_format !== undefined && input.output_format !== 'png' && input.output_format !== 'jpeg') throw new ProviderTransportError('SEEDREAM_OUTPUT_FORMAT_UNSUPPORTED', 'Seedream output_format must be png or jpeg.')
+  if (input.watermark !== undefined && typeof input.watermark !== 'boolean') throw new ProviderTransportError('SEEDREAM_WATERMARK_INVALID', 'Seedream watermark must be a boolean.')
   const images = imageInputs(input.image)
   if (images.length > 10) throw new ProviderTransportError('SEEDREAM_REFERENCE_LIMIT_EXCEEDED', 'Seedream accepts at most ten reference images.')
   for (const image of images) {
@@ -704,11 +706,12 @@ async function resolveSeedreamInput(input: SeedreamGenerateInput, config: Seedre
 export function buildSeedreamRequest(input: SeedreamGenerateInput, config: SeedreamAdapterConfig, authorization?: RemoteCallAuthorization): ProviderRequestEnvelope {
   validateAdapterConfig(config)
   const images = validateSeedreamInput(input)
-  const payload: JsonObject = { prompt: input.prompt, n: 1 }
+  const payload: JsonObject = { model: config.model, prompt: input.prompt, n: 1 }
   if (images.length === 1) payload.image = toProviderImage(images[0], input.referenceArtifacts ?? [])
   if (images.length > 1) payload.image = images.map((image) => toProviderImage(image, input.referenceArtifacts ?? []))
   if (input.output_format !== undefined) payload.output_format = input.output_format
   if (input.size !== undefined) payload.size = input.size
+  if (input.watermark !== undefined) payload.watermark = input.watermark
   const artifactHashes = sortedStrings([
     ...images.filter((value): value is ArtifactHandle => Boolean(value && typeof value === 'object' && !(value instanceof Uint8Array) && 'contentHash' in value)).map((value) => value.contentHash),
     ...(input.referenceArtifacts ?? []).filter((item) => images.some((value) => typeof value === 'object' && !(value instanceof Uint8Array) && value.id === item.artifact.id)).map((item) => item.artifact.contentHash),

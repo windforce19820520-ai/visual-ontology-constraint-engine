@@ -9,5 +9,6 @@ coverage/
 *.tsbuildinfo
 release-candidate/
 clean-room/
+m9-smoke-artifacts/
 .DS_Store
 Thumbs.db

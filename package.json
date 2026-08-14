@@ -20,7 +20,10 @@
     "release-candidate": "node scripts/release-candidate.mjs",
     "clean-room": "node scripts/clean-room.mjs",
     "security": "node scripts/security-gate.mjs",
-    "verify-checksums": "node scripts/verify-checksums.mjs"
+    "verify-checksums": "node scripts/verify-checksums.mjs",
+    "m9:preflight": "node scripts/m9-seedream-smoke.mjs --preflight-only",
+    "m9:prepare": "node scripts/m9-seedream-smoke.mjs --prepare-assets-only",
+    "m9:smoke": "node scripts/m9-seedream-smoke.mjs"
   },
   "workspaces": ["packages/*"],
   "devDependencies": { "typescript": "^5.6.3", "@types/node": "^22.0.0" },
