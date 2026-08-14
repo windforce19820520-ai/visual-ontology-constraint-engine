@@ -3,7 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { RELEASE_CANDIDATE, RELEASE_ROOT, ROOT, PNPM, cliPath, fail, packPublicPackages, parseJsonLine, run, writeJson } from './m8-common.mjs'
 
-export async function runConsumer(room = path.join(RELEASE_ROOT, 'consumer')) {
+export async function runConsumer(room = path.join(ROOT, 'clean-room', `m8-${RELEASE_CANDIDATE}`)) {
   await rm(room, { recursive: true, force: true })
   const tarballs = path.join(room, 'tarballs'); const app = path.join(room, 'app'); const packs = path.join(room, 'packs'); const cases = path.join(room, 'cases'); const profiles = path.join(room, 'profiles'); const output = path.join(room, 'output')
   await mkdir(tarballs, { recursive: true }); await mkdir(app, { recursive: true }); await mkdir(packs, { recursive: true }); await mkdir(cases, { recursive: true }); await mkdir(profiles, { recursive: true }); await mkdir(output, { recursive: true })
