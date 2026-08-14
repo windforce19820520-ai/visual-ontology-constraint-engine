@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "voce.prompt-ir/v1alpha1",
+  "id": "prompt-ir-fixture",
+  "caseId": "case-m5-fixture",
+  "caseRevision": 1,
+  "contextHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "compilationSignature": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "constraintIRHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "referencePlanHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "pipelinePlanHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "outputContractHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "targetAdapter": { "id": "mock.image-generator", "version": "1.0.0", "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000" },
+  "targetCapabilityProfile": { "id": "mock-native-transparent", "version": "1.0.0", "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000" },
+  "objective": "Produce only the approved visual result.",
+  "positiveDescription": "Preserve locked requirements and approved references.",
+  "sections": [
+    { "schemaVersion": "voce.prompt-section/v1alpha1", "id": "objective", "kind": "objective", "priority": 120, "order": 0, "content": "Produce only the approved visual result.", "constraintIds": [], "sourceIds": [], "decisionIds": [], "assetIds": [], "importance": "required", "mutability": "rephraseable", "locked": false },
+    { "schemaVersion": "voce.prompt-section/v1alpha1", "id": "output", "kind": "output", "priority": 100, "order": 1000, "content": "Use the typed output contract.", "constraintIds": ["constraint-output"], "sourceIds": [], "decisionIds": [], "assetIds": [], "importance": "hard", "mutability": "locked", "locked": true }
+  ],
+  "parameters": [],
+  "referenceMappings": [],
+  "forbidden": [],
+  "output": { "artifactKind": "image", "dataType": "image", "mediaTypes": ["image/png"], "cardinality": { "min": 1, "max": 1 }, "background": "transparent", "allowAlpha": true },
+  "constraintCoverage": [{ "schemaVersion": "voce.prompt-constraint-coverage/v1alpha1", "constraintId": "constraint-output", "sectionIds": ["output"], "parameterIds": [], "referenceMappingIds": [], "locked": true }],
+  "sourceIds": [],
+  "constraintIds": ["constraint-output"],
+  "decisionIds": [],
+  "assetIds": [],
+  "deterministicSignature": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+}

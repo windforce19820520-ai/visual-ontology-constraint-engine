@@ -767,3 +767,573 @@ export interface SemanticDiff {
   blocked: string[]
   diffHash: string
 }
+
+/* M5: provider-neutral Prompt IR, Guard, rendering, and offline execution. */
+export const PROMPT_SECTION_SCHEMA_VERSION = 'voce.prompt-section/v1alpha1' as const
+export const PROMPT_PARAMETER_SCHEMA_VERSION = 'voce.prompt-parameter/v1alpha1' as const
+export const PROMPT_REFERENCE_MAPPING_SCHEMA_VERSION = 'voce.prompt-reference-mapping/v1alpha1' as const
+export const PROMPT_CONSTRAINT_COVERAGE_SCHEMA_VERSION = 'voce.prompt-constraint-coverage/v1alpha1' as const
+export const PROMPT_IR_SCHEMA_VERSION = 'voce.prompt-ir/v1alpha1' as const
+export const PROMPT_TRANSFORMATION_SCHEMA_VERSION = 'voce.prompt-transformation/v1alpha1' as const
+export const PROMPT_CANDIDATE_IR_SCHEMA_VERSION = 'voce.prompt-candidate-ir/v1alpha1' as const
+export const PROMPT_GUARD_FINDING_SCHEMA_VERSION = 'voce.prompt-guard-finding/v1alpha1' as const
+export const PROMPT_GUARD_INPUT_SCHEMA_VERSION = 'voce.prompt-guard-input/v1alpha1' as const
+export const PROMPT_GUARD_RESULT_SCHEMA_VERSION = 'voce.prompt-guard-result/v1alpha1' as const
+export const PROMPT_COMPILATION_INPUT_SCHEMA_VERSION = 'voce.prompt-compilation-input/v1alpha1' as const
+export const PROMPT_OPTIMIZATION_INPUT_SCHEMA_VERSION = 'voce.prompt-optimization-input/v1alpha1' as const
+export const PROVIDER_RENDER_REQUEST_SCHEMA_VERSION = 'voce.provider-render-request/v1alpha1' as const
+export const PROVIDER_RENDER_RESULT_SCHEMA_VERSION = 'voce.provider-render-result/v1alpha1' as const
+export const EXECUTION_RUN_SCHEMA_VERSION = 'voce.execution-run/v1alpha1' as const
+export const STEP_EVENT_SCHEMA_VERSION = 'voce.step-event/v1alpha1' as const
+export const STEP_RECEIPT_SCHEMA_VERSION = 'voce.step-receipt/v1alpha1' as const
+export const REMOTE_CALL_RUN_SCHEMA_VERSION = 'voce.remote-call-run/v1alpha1' as const
+export const EVALUATION_SCHEMA_VERSION = 'voce.evaluation/v1alpha1' as const
+export const HUMAN_ACCEPTANCE_SCHEMA_VERSION = 'voce.human-acceptance/v1alpha1' as const
+export const CLEANUP_RECEIPT_SCHEMA_VERSION = 'voce.cleanup-receipt/v1alpha1' as const
+export const COMPENSATION_RECEIPT_SCHEMA_VERSION = 'voce.compensation-receipt/v1alpha1' as const
+export const EXECUTION_TRACE_SCHEMA_VERSION = 'voce.execution-trace/v1alpha1' as const
+export const ARTIFACT_REPLAY_RESULT_SCHEMA_VERSION = 'voce.artifact-replay-result/v1alpha1' as const
+export const OFFLINE_EXECUTION_INPUT_SCHEMA_VERSION = 'voce.offline-execution-input/v1alpha1' as const
+
+export type PromptSectionKind = 'objective'|'positive'|'hard_constraint'|'required_constraint'|'preferred'|'forbidden'|'reference'|'output'|'suggestion'
+export type PromptSectionMutability = 'locked'|'rephraseable'|'reorderable'|'suggestion_slot'
+export type PromptParameterType = 'string'|'number'|'integer'|'boolean'|'enum'|'object'|'array'
+export type PromptTransformationKind = 'rephrase'|'reorder'|'parameter_move'|'suggestion'|'add_suggestion'|'declared_suggestion'|'free_text'
+export type PromptGuardSeverity = 'info'|'warning'|'error'|'critical'
+export type PromptGuardStatus = 'accepted'|'rejected'|'fallback'
+
+export interface PromptParameterBounds {
+  type?: PromptParameterType
+  minimum?: number
+  maximum?: number
+  minItems?: number
+  maxItems?: number
+  allowedValues?: JsonValue[]
+}
+
+export interface PromptSection {
+  schemaVersion: typeof PROMPT_SECTION_SCHEMA_VERSION
+  id: string
+  kind: PromptSectionKind
+  priority: number
+  order: number
+  content: string
+  text?: string
+  constraintIds: string[]
+  sourceIds: string[]
+  decisionIds: string[]
+  assetIds: string[]
+  importance: Importance
+  mutability: PromptSectionMutability
+  locked?: boolean
+  slotId?: string
+}
+
+export interface PromptParameter {
+  schemaVersion: typeof PROMPT_PARAMETER_SCHEMA_VERSION
+  id: string
+  name: string
+  value: JsonValue
+  valueType: PromptParameterType
+  required: boolean
+  mutability: PromptSectionMutability
+  bounds?: PromptParameterBounds
+  constraintIds: string[]
+  sourceIds: string[]
+  decisionIds: string[]
+  provenance?: Provenance
+  type?: PromptParameterType
+  minimum?: number
+  maximum?: number
+  allowedValues?: JsonValue[]
+}
+
+export interface PromptReferenceMapping {
+  schemaVersion: typeof PROMPT_REFERENCE_MAPPING_SCHEMA_VERSION
+  id: string
+  plannedReferenceId: string
+  referenceId?: string
+  assetId: string
+  contentHash: string
+  label: string
+  role: string
+  order: number
+  required: boolean
+  constraintIds: string[]
+  sourceBindingIds: string[]
+  decisionIds: string[]
+}
+
+export interface PromptProhibition {
+  id: string
+  text: string
+  constraintIds: string[]
+  sourceIds: string[]
+  importance: Importance
+}
+
+export interface PromptConstraintCoverage {
+  schemaVersion: typeof PROMPT_CONSTRAINT_COVERAGE_SCHEMA_VERSION
+  constraintId: string
+  sectionIds: string[]
+  parameterIds: string[]
+  referenceMappingIds: string[]
+  locked: boolean
+}
+
+export interface PromptIR {
+  schemaVersion: typeof PROMPT_IR_SCHEMA_VERSION
+  id: string
+  caseId: string
+  caseRevision: number
+  contextHash: string
+  compilationSignature: string
+  constraintIRHash: string
+  referencePlanHash: string
+  pipelinePlanHash: string
+  outputContractHash: string
+  targetAdapter: VersionPin
+  targetCapabilityProfile: VersionPin
+  objective: string
+  positiveDescription: string
+  sections: PromptSection[]
+  parameters: PromptParameter[]
+  referenceMappings: PromptReferenceMapping[]
+  forbidden: PromptProhibition[]
+  output: OutputContract
+  constraintCoverage: PromptConstraintCoverage[]
+  sourceIds: string[]
+  constraintIds: string[]
+  decisionIds: string[]
+  assetIds: string[]
+  deterministicSignature: string
+}
+
+export interface PromptCompilationInput {
+  schemaVersion: typeof PROMPT_COMPILATION_INPUT_SCHEMA_VERSION
+  caseId: string
+  caseRevision: number
+  context: CompilationContext
+  contextHash: string
+  constraintIR: ConstraintIR
+  referencePlan: ReferencePlan
+  pipelinePlan: PipelinePlan
+  outputContract: OutputContract
+  targetAdapter: VersionPin
+  targetCapabilityProfile: VersionPin
+  objective?: string
+  positiveDescription?: string
+}
+
+export interface PromptTransformationProof {
+  kind: 'deterministic_rephrase'|'whitespace_normalization'|'declared_suggestion'|'typed_parameter_move'
+  sourceSectionHash?: string
+  preservedConstraintIds: string[]
+  explanation: string
+}
+
+export interface PromptRephraseTransformation {
+  schemaVersion?: typeof PROMPT_TRANSFORMATION_SCHEMA_VERSION
+  kind: 'rephrase'
+  sectionId: string
+  content?: string
+  text?: string
+  constraintIds?: string[]
+  sourceIds?: string[]
+  proof?: PromptTransformationProof
+}
+
+export interface PromptReorderTransformation {
+  schemaVersion?: typeof PROMPT_TRANSFORMATION_SCHEMA_VERSION
+  kind: 'reorder'
+  sectionIds: string[]
+  proof?: PromptTransformationProof
+}
+
+export interface PromptParameterMoveTransformation {
+  schemaVersion?: typeof PROMPT_TRANSFORMATION_SCHEMA_VERSION
+  kind: 'parameter_move'
+  sectionId: string
+  parameterId?: string
+  parameterName: string
+  value?: JsonValue
+  proof?: PromptTransformationProof
+}
+
+export interface PromptSuggestionTransformation {
+  schemaVersion?: typeof PROMPT_TRANSFORMATION_SCHEMA_VERSION
+  kind: 'suggestion'|'add_suggestion'|'declared_suggestion'
+  slotId: string
+  content?: string
+  text?: string
+  provenance: Provenance
+  constraintIds?: string[]
+  sourceIds?: string[]
+  proof?: PromptTransformationProof
+}
+
+export interface PromptFreeTextTransformation {
+  schemaVersion?: typeof PROMPT_TRANSFORMATION_SCHEMA_VERSION
+  kind: 'free_text'
+  content: string
+}
+
+export type PromptTransformation = PromptRephraseTransformation|PromptReorderTransformation|PromptParameterMoveTransformation|PromptSuggestionTransformation|PromptFreeTextTransformation
+
+export interface PromptCoverageClaim {
+  constraintId: string
+  transformationIndexes: number[]
+  sectionIds: string[]
+  parameterIds: string[]
+  referenceMappingIds: string[]
+}
+
+export interface PromptCandidateIR {
+  schemaVersion: typeof PROMPT_CANDIDATE_IR_SCHEMA_VERSION
+  id: string
+  candidateHash: string
+  basePromptIRHash: string
+  basePromptIRSignature?: string
+  targetAdapter: VersionPin
+  targetCapabilityProfile: VersionPin
+  targetAdapterDigest: string
+  targetProfileDigest: string
+  sections: PromptSection[]
+  parameters: PromptParameter[]
+  referenceMappings: PromptReferenceMapping[]
+  constraintCoverage: PromptConstraintCoverage[]
+  transformations: PromptTransformation[]
+  optimizer: VersionPin
+  mode: 'strict'|'balanced'|'creative'
+  warnings: string[]
+  candidateSections?: PromptSection[]
+  requestParameters?: JsonObject
+  coverageClaims?: PromptCoverageClaim[]
+}
+
+export interface PromptOptimizationInput {
+  schemaVersion: typeof PROMPT_OPTIMIZATION_INPUT_SCHEMA_VERSION
+  promptIR: PromptIR
+  targetAdapter?: VersionPin
+  targetCapabilityProfile?: VersionPin
+  optimizer?: VersionPin
+  mode?: 'strict'|'balanced'|'creative'
+}
+
+export interface PromptOptimizer {
+  optimize(input: PromptOptimizationInput): PromptCandidateIR
+}
+
+export interface PromptGuardFinding {
+  schemaVersion: typeof PROMPT_GUARD_FINDING_SCHEMA_VERSION
+  id: string
+  code: string
+  severity: PromptGuardSeverity
+  blocking: boolean
+  constraintIds: string[]
+  sourceIds: string[]
+  sectionIds: string[]
+  decisionIds: string[]
+  assetIds: string[]
+  explanation: string
+}
+
+export interface PromptGuardInput {
+  schemaVersion: typeof PROMPT_GUARD_INPUT_SCHEMA_VERSION
+  promptIR: PromptIR
+  candidate: PromptCandidateIR
+  constraintIR: ConstraintIR
+  referencePlan: ReferencePlan
+  pipelinePlan: PipelinePlan
+  outputContract: OutputContract
+  context: CompilationContext
+  policy?: 'reject'|'fallback'
+}
+
+export interface PromptGuardResult {
+  schemaVersion: typeof PROMPT_GUARD_RESULT_SCHEMA_VERSION
+  status: PromptGuardStatus
+  accepted: boolean
+  candidateHash: string
+  basePromptIRHash: string
+  findings: PromptGuardFinding[]
+  guardedCandidate?: PromptCandidateIR
+  deterministicFallback: PromptIR
+  resultHash: string
+}
+
+export interface ProviderRenderRequest {
+  schemaVersion: typeof PROVIDER_RENDER_REQUEST_SCHEMA_VERSION
+  id: string
+  caseId: string
+  caseRevision: number
+  contextHash: string
+  promptIRHash: string
+  promptCandidateHash?: string
+  guardResultHash?: string
+  targetAdapter: VersionPin
+  targetCapabilityProfile: VersionPin
+  sections: PromptSection[]
+  parameters: PromptParameter[]
+  referenceMappings: PromptReferenceMapping[]
+  output: OutputContract
+  pipelinePlanHash: string
+  requestHash: string
+}
+
+export interface ProviderRenderResult {
+  schemaVersion: typeof PROVIDER_RENDER_RESULT_SCHEMA_VERSION
+  status: 'ok'|'failed'|'submission_unknown'
+  requestHash: string
+  adapterId: string
+  adapterVersion: VersionPin
+  providerRequestId?: string
+  outputArtifacts: ArtifactHandle[]
+  metadata: JsonObject
+  failureCode?: string
+  resultHash: string
+}
+
+export interface ProviderRenderer {
+  render(request: ProviderRenderRequest): ProviderRenderResult
+}
+
+export interface ProviderAdapter extends ProviderRenderer {
+  id: string
+  version: VersionPin
+  digest: string
+  profileDigest?: string
+  offline?: boolean
+}
+
+export type ExecutionRunState = 'queued'|'running'|'validating'|'needs_review'|'submission_unknown'|'reconciling'|'completed'|'failed'|'cancel_requested'|'cancelled'
+export type StepEventState = 'pending'|'authorized'|'submitted'|'acknowledged'|'succeeded'|'failed'|'cancel_requested'|'cancelled'|'skipped'|'cleanup_pending'|'cleaned'|'cleanup_failed'|'submission_unknown'|'reconciling'
+
+export interface ExecutionRun {
+  schemaVersion: typeof EXECUTION_RUN_SCHEMA_VERSION
+  id: string
+  caseId: string
+  caseRevision: number
+  contextHash: string
+  constraintIRHash: string
+  referencePlanHash: string
+  pipelinePlanHash: string
+  promptArtifactHash?: string
+  executionAuthorizationId: string
+  state: ExecutionRunState
+  technicalOutcome: 'pending'|'succeeded'|'failed'|'unknown'|'cancelled'
+  createdAt: string
+  updatedAt: string
+  currentStepId?: string
+  eventCount: number
+  stepIds: string[]
+  outputArtifacts: ArtifactHandle[]
+  cleanupStatus: 'pending'|'completed'|'cleanup_failed'
+  humanAcceptanceId?: string
+  parentRunId?: string
+  liveRerunOf?: string
+  runHash: string
+}
+
+export interface StepEvent {
+  schemaVersion: typeof STEP_EVENT_SCHEMA_VERSION
+  id: string
+  runId: string
+  sequence: number
+  stepId: string
+  state: StepEventState
+  at: string
+  contextHash: string
+  pipelinePlanHash: string
+  promptArtifactHash?: string
+  authorizationId?: string
+  inputHash?: string
+  outputHashes: string[]
+  adapterId: string
+  adapterVersion: VersionPin
+  profileDigest?: string
+  providerRequestId?: string
+  destination: string
+  dataCategories: string[]
+  budgetId?: string
+  attempt: number
+  retriesUsed: number
+  cost?: number
+  bytes?: number
+  failureCode?: string
+  safeReferences: string[]
+  eventHash: string
+}
+
+export interface StepReceipt {
+  schemaVersion: typeof STEP_RECEIPT_SCHEMA_VERSION
+  id: string
+  runId: string
+  stepId: string
+  state: StepEventState
+  eventIds: string[]
+  firstSequence: number
+  lastSequence: number
+  authorizationId?: string
+  inputHash?: string
+  outputHashes: string[]
+  adapterId: string
+  adapterVersion: VersionPin
+  profileDigest?: string
+  providerRequestId?: string
+  destination: string
+  dataCategories: string[]
+  budgetId?: string
+  maximumCalls: number
+  maximumRetries: number
+  timeoutMs: number
+  attempts: number
+  retriesUsed: number
+  actualCost?: number
+  actualBytes?: number
+  failureCode?: string
+  cleanupStatus: 'pending'|'cleaned'|'cleanup_failed'|'not_required'
+  receiptHash: string
+}
+
+export interface RemoteCallRun {
+  schemaVersion: typeof REMOTE_CALL_RUN_SCHEMA_VERSION
+  id: string
+  runId: string
+  stepId: string
+  authorizationId: string
+  inputHash: string
+  state: ExecutionRunState|StepEventState
+  provider: string
+  adapterId: string
+  profileDigest?: string
+  destination: string
+  budgetId: string
+  maximumCalls: number
+  maximumRetries: number
+  timeoutMs: number
+  receiptId?: string
+  providerRequestId?: string
+  runHash: string
+}
+
+export interface EvaluationFinding {
+  id: string
+  code: string
+  status: 'pass'|'fail'|'needs_review'|'unknown'
+  severity: 'info'|'warning'|'error'
+  explanation: string
+  sourceIds: string[]
+  artifactIds: string[]
+}
+
+export interface Evaluation {
+  schemaVersion: typeof EVALUATION_SCHEMA_VERSION
+  id: string
+  runId: string
+  technicalStatus: 'pending'|'passed'|'failed'|'needs_review'
+  findings: EvaluationFinding[]
+  artifactIds: string[]
+  evaluationHash: string
+}
+
+export type EvaluationReport = Evaluation
+
+export interface HumanAcceptance {
+  schemaVersion: typeof HUMAN_ACCEPTANCE_SCHEMA_VERSION
+  id: string
+  runId: string
+  status: 'pending'|'accepted'|'declined'|'waived'
+  reviewerId?: string
+  decidedAt?: string
+  reasonCode?: string
+  artifactIds: string[]
+  acceptanceHash: string
+}
+
+export interface CleanupReceipt {
+  schemaVersion: typeof CLEANUP_RECEIPT_SCHEMA_VERSION
+  id: string
+  runId: string
+  cleanupId: string
+  status: 'pending'|'succeeded'|'cleanup_failed'
+  attempts: number
+  maximumRetries: number
+  artifactRoles: string[]
+  destination: string
+  dataCategories: string[]
+  eventIds: string[]
+  failureCode?: string
+  receiptHash: string
+}
+
+export interface CompensationReceipt {
+  schemaVersion: typeof COMPENSATION_RECEIPT_SCHEMA_VERSION
+  id: string
+  runId: string
+  compensationId: string
+  trigger: 'failure'|'cancel'|'submission_unknown'|'worker_restart'
+  cleanupId: string
+  status: 'pending'|'succeeded'|'cleanup_failed'
+  attempts: number
+  maximumRetries: number
+  eventIds: string[]
+  failureCode?: string
+  receiptHash: string
+}
+
+export interface ExecutionTraceProjection {
+  schemaVersion: typeof EXECUTION_TRACE_SCHEMA_VERSION
+  runId: string
+  state: ExecutionRunState
+  executionAuthorizationHash: string
+  pipelinePlanHash: string
+  promptArtifactHash?: string
+  events: StepEvent[]
+  receipts: StepReceipt[]
+  remoteCallRuns: RemoteCallRun[]
+  cleanupReceipts: CleanupReceipt[]
+  compensationReceipts: CompensationReceipt[]
+  evaluation?: Evaluation
+  humanAcceptance?: HumanAcceptance
+  traceHash: string
+}
+
+export type ExecutionTrace = ExecutionTraceProjection
+
+export interface OfflineExecutionOptions {
+  now?: string
+  failStepIds?: string[]
+  unknownStepIds?: string[]
+  retryableFailureStepIds?: string[]
+  cancelBeforeStepId?: string
+  workerRestartAfterStepId?: string
+  cleanupFailureIds?: string[]
+  compensationFailureIds?: string[]
+  maximumCleanupRetries?: number
+}
+
+export interface OfflineExecutionInput {
+  schemaVersion: typeof OFFLINE_EXECUTION_INPUT_SCHEMA_VERSION
+  context: CompilationContext
+  contextHash: string
+  constraintIR: ConstraintIR
+  referencePlan: ReferencePlan
+  pipelinePlan: PipelinePlan
+  outputContract: OutputContract
+  promptArtifact: PromptIR|PromptCandidateIR
+  promptGuardResult?: PromptGuardResult
+  executionAuthorization: ExecutionAuthorization
+  remoteCallAuthorizations: RemoteCallAuthorization[]
+  options?: OfflineExecutionOptions
+}
+
+export interface ArtifactReplayResult {
+  schemaVersion: typeof ARTIFACT_REPLAY_RESULT_SCHEMA_VERSION
+  status: 'available'|'unavailable'
+  code: 'REPLAY_AVAILABLE'|'ARTIFACT_UNAVAILABLE'
+  artifactIds: string[]
+  missingArtifactIds: string[]
+  traceHash?: string
+  resultHash: string
+}

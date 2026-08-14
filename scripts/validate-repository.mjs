@@ -25,6 +25,7 @@ const requiredFiles = [
   'docs/zh-CN/system-design.md',
   'docs/implementation-notes/m3-decisions.md',
   'docs/implementation-notes/m4-decisions.md',
+  'docs/implementation-notes/m5-decisions.md',
 ]
 
 const requiredContractSchemas = [
@@ -84,6 +85,31 @@ const requiredContractSchemas = [
   'packages/contracts/schemas/ExecutionAuthorization.schema.json',
   'packages/contracts/schemas/ExplainResult.schema.json',
   'packages/contracts/schemas/SemanticDiff.schema.json',
+  'packages/contracts/schemas/PromptSection.schema.json',
+  'packages/contracts/schemas/PromptParameter.schema.json',
+  'packages/contracts/schemas/PromptReferenceMapping.schema.json',
+  'packages/contracts/schemas/PromptConstraintCoverage.schema.json',
+  'packages/contracts/schemas/PromptIR.schema.json',
+  'packages/contracts/schemas/PromptCompilationInput.schema.json',
+  'packages/contracts/schemas/PromptTransformation.schema.json',
+  'packages/contracts/schemas/PromptCandidateIR.schema.json',
+  'packages/contracts/schemas/PromptGuardFinding.schema.json',
+  'packages/contracts/schemas/PromptGuardInput.schema.json',
+  'packages/contracts/schemas/PromptGuardResult.schema.json',
+  'packages/contracts/schemas/PromptOptimizationInput.schema.json',
+  'packages/contracts/schemas/ProviderRenderRequest.schema.json',
+  'packages/contracts/schemas/ProviderRenderResult.schema.json',
+  'packages/contracts/schemas/ExecutionRun.schema.json',
+  'packages/contracts/schemas/StepEvent.schema.json',
+  'packages/contracts/schemas/StepReceipt.schema.json',
+  'packages/contracts/schemas/RemoteCallRun.schema.json',
+  'packages/contracts/schemas/Evaluation.schema.json',
+  'packages/contracts/schemas/HumanAcceptance.schema.json',
+  'packages/contracts/schemas/CleanupReceipt.schema.json',
+  'packages/contracts/schemas/CompensationReceipt.schema.json',
+  'packages/contracts/schemas/ExecutionTrace.schema.json',
+  'packages/contracts/schemas/ArtifactReplayResult.schema.json',
+  'packages/contracts/schemas/OfflineExecutionInput.schema.json',
 ]
 
 const repositoryRoot = new URL('../', import.meta.url)
@@ -160,6 +186,15 @@ for (const file of ['fixtures/m4-provider-native-transparent.json', 'fixtures/m4
   const value = JSON.parse(await readFile(url, 'utf8'))
   if (value.schemaVersion !== 'voce.provider-capability-profile/v1alpha1') throw new Error(`M4_FIXTURE_SCHEMA_VERSION_MISSING:${file}`)
   if (!/^sha256:[0-9a-f]{64}$/.test(value.profileHash ?? '') || !/^sha256:[0-9a-f]{64}$/.test(value.adapterDigest ?? '')) throw new Error(`M4_FIXTURE_PROFILE_HASH_MISSING:${file}`)
+}
+
+for (const [file, expectedVersion] of [['fixtures/m5-prompt-ir-minimal.json', 'voce.prompt-ir/v1alpha1'], ['fixtures/m5-execution-trace-minimal.json', 'voce.execution-trace/v1alpha1']]) {
+  const url = new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot)
+  const value = JSON.parse(await readFile(url, 'utf8'))
+  if (value.schemaVersion !== expectedVersion) throw new Error(`M5_FIXTURE_SCHEMA_VERSION_MISSING:${file}`)
+  for (const field of ['contextHash', 'pipelinePlanHash', 'traceHash', 'deterministicSignature']) {
+    if (value[field] !== undefined && !/^sha256:[0-9a-f]{64}$/.test(value[field])) throw new Error(`M5_FIXTURE_HASH_MISSING:${file}:${field}`)
+  }
 }
 
 const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "voce.execution-trace/v1alpha1",
+  "runId": "execution-run-fixture",
+  "state": "completed",
+  "executionAuthorizationHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "pipelinePlanHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "promptArtifactHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "events": [],
+  "receipts": [],
+  "remoteCallRuns": [],
+  "cleanupReceipts": [],
+  "compensationReceipts": [],
+  "traceHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+}
