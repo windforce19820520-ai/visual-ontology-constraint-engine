@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "voce.evaluation-report/v1alpha1",
+  "id": "fixture-evaluation-report",
+  "runId": "fixture-run",
+  "technicalOutcome": "succeeded",
+  "technicalStatus": "passed",
+  "cleanup": {"status": "not_required", "receiptIds": [], "failureCodes": []},
+  "replay": {"mode": "none", "status": "not_requested", "artifactIds": []},
+  "artifactIds": [],
+  "sourceHashes": {},
+  "status": "complete",
+  "warnings": [],
+  "reportHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+}

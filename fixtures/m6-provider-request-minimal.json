@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "voce.provider-request-envelope/v1alpha1",
+  "id": "fixture-provider-request",
+  "adapterId": "fixture.adapter",
+  "adapterDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "profileId": "fixture.profile",
+  "profileDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "modelId": "fixture-model",
+  "modelVersion": "1.0.0",
+  "stepId": "fixture-step",
+  "destination": "https://provider.example.test",
+  "purpose": "generation",
+  "inputHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "inputArtifactHashes": [],
+  "dataCategories": ["prompt"],
+  "maximumCalls": 1,
+  "maximumRetries": 0,
+  "timeoutMs": 60000,
+  "idempotencyKey": "fixture-idempotency",
+  "payload": {"prompt": "offline fixture"},
+  "requestHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+}
