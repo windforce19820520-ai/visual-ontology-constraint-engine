@@ -688,6 +688,8 @@ export interface DispatchSnapshot {
   purpose?: RemoteCallPurpose
   inputHash?: string
   inputManifestHash?: string
+  modelId?: string
+  modelVersion?: string
   permittedArtifactHashes?: string[]
   permittedScopeIds?: string[]
   constraintIds?: string[]
@@ -695,21 +697,26 @@ export interface DispatchSnapshot {
   adapterDigest?: string
   profileDigest?: string
   destination?: string
+  region?: string
   dataCategories?: string[]
   maximumCalls?: number
   maximumRetries?: number
   maximumBytes?: number
   timeoutMs?: number
   maximumCost?: number
+  currency?: string
+  idempotencyKey?: string
   constraintIRHash?: string
   compilationSignature?: string
   referencePlanHash?: string
   pipelinePlanHash?: string
   outputContractHash?: string
+  promptArtifactHash?: string
   adapterProfileDigests?: string[]
   destinations?: string[]
   dataTransferDigest?: string
   budgetDigest?: string
+  remoteCallAuthorizationIds?: string[]
 }
 
 export interface DispatchPreflightResult {

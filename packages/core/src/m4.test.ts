@@ -273,12 +273,25 @@ test('transparent output blocks before generation when postprocessing capability
 
 test('authorization preflight fails closed on any bound plan or destination change', () => {
   const remote = createRemoteCallAuthorization({ schemaVersion: 'voce.remote-call-authorization/v1alpha1', id: 'auth-remote', caseId: CASE_ID, caseRevision: REVISION, contextHash: context().contextHash, stepId: 'generate', purpose: 'generation', inputHash: sha256({ input: 1 }), permittedArtifactHashes: [], permittedScopeIds: [], constraintIds: [], adapterId: 'mock.image-generator', adapterDigest: MOCK_NATIVE_TRANSPARENT_PROFILE.adapterDigest!, profileDigest: MOCK_NATIVE_TRANSPARENT_PROFILE.profileHash, destination: MOCK_NATIVE_TRANSPARENT_PROFILE.destination!, dataCategories: ['reference_image'], maximumCalls: 1, maximumRetries: 0, timeoutMs: 120_000, idempotencyKey: 'idempotency-1', authority: 'fixture-authority', authorizedBy: 'fixture-user', authorizedAt: FIXED_M4_TIME })
-  const snapshot = { kind: 'remote_call' as const, caseId: CASE_ID, caseRevision: REVISION, contextHash: remote.contextHash, stepId: remote.stepId, purpose: remote.purpose, inputHash: remote.inputHash, permittedArtifactHashes: [], permittedScopeIds: [], constraintIds: [], adapterId: remote.adapterId, adapterDigest: remote.adapterDigest, profileDigest: remote.profileDigest, destination: remote.destination, dataCategories: remote.dataCategories, maximumCalls: remote.maximumCalls, maximumRetries: remote.maximumRetries, timeoutMs: remote.timeoutMs }
+  const snapshot = { kind: 'remote_call' as const, caseId: CASE_ID, caseRevision: REVISION, contextHash: remote.contextHash, stepId: remote.stepId, purpose: remote.purpose, inputHash: remote.inputHash, permittedArtifactHashes: [], permittedScopeIds: [], constraintIds: [], adapterId: remote.adapterId, adapterDigest: remote.adapterDigest, profileDigest: remote.profileDigest, destination: remote.destination, dataCategories: remote.dataCategories, maximumCalls: remote.maximumCalls, maximumRetries: remote.maximumRetries, timeoutMs: remote.timeoutMs, idempotencyKey: remote.idempotencyKey }
+  const minimalRemote = preflightDispatch(remote, { kind: 'remote_call', caseId: CASE_ID, caseRevision: REVISION, contextHash: remote.contextHash })
+  assert.equal(minimalRemote.code, 'AUTHORIZATION_STALE')
+  assert.ok(minimalRemote.reasons.includes('SNAPSHOT_FIELD_MISSING:stepId'))
   assert.equal(preflightDispatch(remote, snapshot).status, 'authorized')
   assert.equal(preflightDispatch(remote, { ...snapshot, destination: 'mock://changed' }).code, 'AUTHORIZATION_STALE')
+  const incompleteRemote = { ...remote, adapterDigest: undefined } as unknown as typeof remote
+  const incompleteRemoteResult = preflightDispatch(incompleteRemote, snapshot)
+  assert.equal(incompleteRemoteResult.code, 'EXECUTION_NOT_AUTHORIZED')
+  assert.ok(incompleteRemoteResult.reasons.includes('AUTHORIZATION_FIELD_MISSING:adapterDigest'))
   const tampered = { ...remote, maximumCalls: 2 }
   assert.equal(preflightDispatch(tampered, snapshot).code, 'EXECUTION_NOT_AUTHORIZED')
   const execution = createExecutionAuthorization({ schemaVersion: 'voce.execution-authorization/v1alpha1', id: 'auth-execution', caseId: CASE_ID, caseRevision: REVISION, contextHash: remote.contextHash, constraintIRHash: sha256({ ir: 1 }), compilationSignature: sha256({ ir: 1 }), referencePlanHash: sha256({ refs: 1 }), pipelinePlanHash: sha256({ plan: 1 }), outputContractHash: sha256({ output: 1 }), adapterProfileDigests: [MOCK_NATIVE_TRANSPARENT_PROFILE.profileHash!], destinations: [MOCK_NATIVE_TRANSPARENT_PROFILE.destination!], dataTransferDigest: sha256({ transfer: 1 }), budgetDigest: sha256({ budget: 1 }), remoteCallAuthorizationIds: [remote.id], authority: 'fixture-authority', authorizedBy: 'fixture-user', authorizedAt: FIXED_M4_TIME })
+  const minimalExecution = preflightDispatch(execution, { kind: 'execution', caseId: CASE_ID, caseRevision: REVISION, contextHash: execution.contextHash })
+  assert.equal(minimalExecution.code, 'AUTHORIZATION_STALE')
+  assert.ok(minimalExecution.reasons.includes('SNAPSHOT_FIELD_MISSING:constraintIRHash'))
+  const executionSnapshot = { kind: 'execution' as const, caseId: CASE_ID, caseRevision: REVISION, contextHash: execution.contextHash, constraintIRHash: execution.constraintIRHash, compilationSignature: execution.compilationSignature, referencePlanHash: execution.referencePlanHash, pipelinePlanHash: execution.pipelinePlanHash, outputContractHash: execution.outputContractHash, adapterProfileDigests: execution.adapterProfileDigests, destinations: execution.destinations, dataTransferDigest: execution.dataTransferDigest, budgetDigest: execution.budgetDigest, remoteCallAuthorizationIds: execution.remoteCallAuthorizationIds }
+  assert.equal(preflightDispatch(execution, executionSnapshot).status, 'authorized')
+  assert.equal(preflightDispatch(execution, { ...executionSnapshot, budgetDigest: sha256({ budget: 2 }) }).code, 'AUTHORIZATION_STALE')
   assert.equal(computeExecutionAuthorizationHash(execution), execution.authorizationHash)
   assert.equal(computeExecutionAuthorizationHash({ ...execution, authorizedAt: '2026-08-14T00:00:00.000Z' }), execution.authorizationHash)
 })

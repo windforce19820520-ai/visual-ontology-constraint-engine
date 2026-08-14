@@ -1918,38 +1918,210 @@ function expired(expiresAt: string | undefined, now: string): boolean {
   return !Number.isFinite(expiry) || !Number.isFinite(current) || current >= expiry
 }
 
+function validString(value: unknown): boolean {
+  return typeof value === 'string' && value.length > 0
+}
+
+function validDate(value: unknown): boolean {
+  return typeof value === 'string' && value.length > 0 && Number.isFinite(Date.parse(value))
+}
+
+function validNonNegativeInteger(value: unknown): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+function validPositiveInteger(value: unknown): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0
+}
+
+function validNonNegativeNumber(value: unknown): boolean {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+function validStringArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((item) => validString(item))
+}
+
+function validHashArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((item) => isHash(item))
+}
+
+function authorizationFieldReasons(field: string, value: unknown, validator: (value: unknown) => boolean, required = true): string[] {
+  if (value === undefined) return required ? [`AUTHORIZATION_FIELD_MISSING:${field}`] : []
+  return validator(value) ? [] : [`AUTHORIZATION_FIELD_INVALID:${field}`]
+}
+
+function remoteAuthorizationCompletenessReasons(authorization: RemoteCallAuthorization): string[] {
+  const reasons: string[] = []
+  const requireField = (field: string, value: unknown, validator: (value: unknown) => boolean): void => { reasons.push(...authorizationFieldReasons(field, value, validator)) }
+  const optionalField = (field: string, value: unknown, validator: (value: unknown) => boolean): void => { reasons.push(...authorizationFieldReasons(field, value, validator, false)) }
+  requireField('schemaVersion', authorization.schemaVersion, (value) => value === REMOTE_CALL_AUTHORIZATION_SCHEMA_VERSION)
+  requireField('id', authorization.id, validString)
+  requireField('caseId', authorization.caseId, validString)
+  requireField('caseRevision', authorization.caseRevision, validNonNegativeInteger)
+  requireField('contextHash', authorization.contextHash, isHash)
+  requireField('stepId', authorization.stepId, validString)
+  requireField('purpose', authorization.purpose, (value) => ['intent_interpretation', 'reference_interpretation', 'prompt_optimization', 'generation', 'postprocessing', 'semantic_review', 'asset_publication'].includes(value as string))
+  requireField('inputHash', authorization.inputHash, isHash)
+  requireField('permittedArtifactHashes', authorization.permittedArtifactHashes, validHashArray)
+  requireField('permittedScopeIds', authorization.permittedScopeIds, validStringArray)
+  requireField('constraintIds', authorization.constraintIds, validStringArray)
+  requireField('adapterId', authorization.adapterId, validString)
+  requireField('adapterDigest', authorization.adapterDigest, isHash)
+  requireField('destination', authorization.destination, validString)
+  requireField('dataCategories', authorization.dataCategories, validStringArray)
+  requireField('maximumCalls', authorization.maximumCalls, validNonNegativeInteger)
+  requireField('maximumRetries', authorization.maximumRetries, validNonNegativeInteger)
+  requireField('timeoutMs', authorization.timeoutMs, validPositiveInteger)
+  requireField('idempotencyKey', authorization.idempotencyKey, validString)
+  requireField('authority', authorization.authority, validString)
+  requireField('authorizedBy', authorization.authorizedBy, validString)
+  requireField('authorizedAt', authorization.authorizedAt, validDate)
+  requireField('authorizationHash', authorization.authorizationHash, isHash)
+  optionalField('inputManifestHash', authorization.inputManifestHash, isHash)
+  optionalField('modelId', authorization.modelId, validString)
+  optionalField('modelVersion', authorization.modelVersion, validString)
+  optionalField('profileDigest', authorization.profileDigest, isHash)
+  optionalField('region', authorization.region, validString)
+  optionalField('maximumBytes', authorization.maximumBytes, validNonNegativeInteger)
+  optionalField('maximumCost', authorization.maximumCost, validNonNegativeNumber)
+  optionalField('currency', authorization.currency, validString)
+  optionalField('expiresAt', authorization.expiresAt, validDate)
+  return sortedStrings(reasons)
+}
+
+function executionAuthorizationCompletenessReasons(authorization: ExecutionAuthorization): string[] {
+  const reasons: string[] = []
+  const requireField = (field: string, value: unknown, validator: (value: unknown) => boolean): void => { reasons.push(...authorizationFieldReasons(field, value, validator)) }
+  const optionalField = (field: string, value: unknown, validator: (value: unknown) => boolean): void => { reasons.push(...authorizationFieldReasons(field, value, validator, false)) }
+  requireField('schemaVersion', authorization.schemaVersion, (value) => value === EXECUTION_AUTHORIZATION_SCHEMA_VERSION)
+  requireField('id', authorization.id, validString)
+  requireField('caseId', authorization.caseId, validString)
+  requireField('caseRevision', authorization.caseRevision, validNonNegativeInteger)
+  requireField('contextHash', authorization.contextHash, isHash)
+  requireField('constraintIRHash', authorization.constraintIRHash, isHash)
+  requireField('compilationSignature', authorization.compilationSignature, isHash)
+  requireField('referencePlanHash', authorization.referencePlanHash, isHash)
+  requireField('pipelinePlanHash', authorization.pipelinePlanHash, isHash)
+  requireField('outputContractHash', authorization.outputContractHash, isHash)
+  requireField('adapterProfileDigests', authorization.adapterProfileDigests, validHashArray)
+  requireField('destinations', authorization.destinations, validStringArray)
+  requireField('dataTransferDigest', authorization.dataTransferDigest, isHash)
+  requireField('budgetDigest', authorization.budgetDigest, isHash)
+  requireField('remoteCallAuthorizationIds', authorization.remoteCallAuthorizationIds, validStringArray)
+  requireField('authority', authorization.authority, validString)
+  requireField('authorizedBy', authorization.authorizedBy, validString)
+  requireField('authorizedAt', authorization.authorizedAt, validDate)
+  requireField('authorizationHash', authorization.authorizationHash, isHash)
+  optionalField('promptArtifactHash', authorization.promptArtifactHash, isHash)
+  optionalField('expiresAt', authorization.expiresAt, validDate)
+  return sortedStrings(reasons)
+}
+
+function sameSnapshotValue(left: unknown, right: unknown): boolean {
+  return canonicalize(jsonReady(left)) === canonicalize(jsonReady(right))
+}
+
+function requiredSnapshotField(mismatches: string[], snapshot: DispatchSnapshot, field: keyof DispatchSnapshot, expected: unknown): void {
+  const name = String(field)
+  if (expected === undefined) {
+    mismatches.push(`AUTHORIZATION_FIELD_MISSING:${name}`)
+  } else if (snapshot[field] === undefined) {
+    mismatches.push(`SNAPSHOT_FIELD_MISSING:${name}`)
+  } else if (!sameSnapshotValue(snapshot[field], expected)) {
+    mismatches.push(`SNAPSHOT_FIELD_MISMATCH:${name}`)
+  }
+}
+
+function optionalSnapshotField(mismatches: string[], snapshot: DispatchSnapshot, field: keyof DispatchSnapshot, expected: unknown): void {
+  const name = String(field)
+  const actual = snapshot[field]
+  if (expected === undefined && actual === undefined) return
+  if (expected === undefined) {
+    mismatches.push(`SNAPSHOT_FIELD_UNEXPECTED:${name}`)
+  } else if (actual === undefined) {
+    mismatches.push(`SNAPSHOT_FIELD_MISSING:${name}`)
+  } else if (!sameSnapshotValue(actual, expected)) {
+    mismatches.push(`SNAPSHOT_FIELD_MISMATCH:${name}`)
+  }
+}
+
 function remoteSnapshotMismatches(authorization: RemoteCallAuthorization, snapshot: DispatchSnapshot): string[] {
   const mismatches: string[] = []
-  if (snapshot.kind !== 'remote_call') mismatches.push('kind')
-  const compare = (field: keyof DispatchSnapshot, expected: unknown): void => {
-    if (snapshot[field] !== undefined && canonicalize(jsonReady(snapshot[field])) !== canonicalize(jsonReady(expected))) mismatches.push(String(field))
-  }
-  compare('caseId', authorization.caseId); compare('caseRevision', authorization.caseRevision); compare('contextHash', authorization.contextHash); compare('stepId', authorization.stepId); compare('purpose', authorization.purpose); compare('inputHash', authorization.inputHash); compare('inputManifestHash', authorization.inputManifestHash)
-  compare('permittedArtifactHashes', sortedStrings(authorization.permittedArtifactHashes)); compare('permittedScopeIds', sortedStrings(authorization.permittedScopeIds)); compare('constraintIds', sortedStrings(authorization.constraintIds)); compare('adapterId', authorization.adapterId); compare('adapterDigest', authorization.adapterDigest); compare('profileDigest', authorization.profileDigest); compare('destination', authorization.destination); compare('dataCategories', sortedStrings(authorization.dataCategories)); compare('maximumCalls', authorization.maximumCalls); compare('maximumRetries', authorization.maximumRetries); compare('maximumBytes', authorization.maximumBytes); compare('timeoutMs', authorization.timeoutMs); compare('maximumCost', authorization.maximumCost)
+  const required: Array<[keyof DispatchSnapshot, unknown]> = [
+    ['kind', 'remote_call'],
+    ['caseId', authorization.caseId],
+    ['caseRevision', authorization.caseRevision],
+    ['contextHash', authorization.contextHash],
+    ['stepId', authorization.stepId],
+    ['purpose', authorization.purpose],
+    ['inputHash', authorization.inputHash],
+    ['permittedArtifactHashes', sortedStrings(authorization.permittedArtifactHashes)],
+    ['permittedScopeIds', sortedStrings(authorization.permittedScopeIds)],
+    ['constraintIds', sortedStrings(authorization.constraintIds)],
+    ['adapterId', authorization.adapterId],
+    ['adapterDigest', authorization.adapterDigest],
+    ['destination', authorization.destination],
+    ['dataCategories', sortedStrings(authorization.dataCategories)],
+    ['maximumCalls', authorization.maximumCalls],
+    ['maximumRetries', authorization.maximumRetries],
+    ['timeoutMs', authorization.timeoutMs],
+    ['idempotencyKey', authorization.idempotencyKey],
+  ]
+  for (const [field, expected] of required) requiredSnapshotField(mismatches, snapshot, field, expected)
+  const optional: Array<[keyof DispatchSnapshot, unknown]> = [
+    ['inputManifestHash', authorization.inputManifestHash],
+    ['modelId', authorization.modelId],
+    ['modelVersion', authorization.modelVersion],
+    ['profileDigest', authorization.profileDigest],
+    ['region', authorization.region],
+    ['maximumBytes', authorization.maximumBytes],
+    ['maximumCost', authorization.maximumCost],
+    ['currency', authorization.currency],
+  ]
+  for (const [field, expected] of optional) optionalSnapshotField(mismatches, snapshot, field, expected)
   return sortedStrings(mismatches)
 }
 
 function executionSnapshotMismatches(authorization: ExecutionAuthorization, snapshot: DispatchSnapshot): string[] {
   const mismatches: string[] = []
-  if (snapshot.kind !== 'execution') mismatches.push('kind')
-  const compare = (field: keyof DispatchSnapshot, expected: unknown): void => {
-    if (snapshot[field] !== undefined && canonicalize(jsonReady(snapshot[field])) !== canonicalize(jsonReady(expected))) mismatches.push(String(field))
-  }
-  compare('caseId', authorization.caseId); compare('caseRevision', authorization.caseRevision); compare('contextHash', authorization.contextHash); compare('constraintIRHash', authorization.constraintIRHash); compare('compilationSignature', authorization.compilationSignature); compare('referencePlanHash', authorization.referencePlanHash); compare('pipelinePlanHash', authorization.pipelinePlanHash); compare('outputContractHash', authorization.outputContractHash); compare('adapterProfileDigests', sortedStrings(authorization.adapterProfileDigests)); compare('destinations', sortedStrings(authorization.destinations)); compare('dataTransferDigest', authorization.dataTransferDigest); compare('budgetDigest', authorization.budgetDigest)
+  const required: Array<[keyof DispatchSnapshot, unknown]> = [
+    ['kind', 'execution'],
+    ['caseId', authorization.caseId],
+    ['caseRevision', authorization.caseRevision],
+    ['contextHash', authorization.contextHash],
+    ['constraintIRHash', authorization.constraintIRHash],
+    ['compilationSignature', authorization.compilationSignature],
+    ['referencePlanHash', authorization.referencePlanHash],
+    ['pipelinePlanHash', authorization.pipelinePlanHash],
+    ['outputContractHash', authorization.outputContractHash],
+    ['adapterProfileDigests', sortedStrings(authorization.adapterProfileDigests)],
+    ['destinations', sortedStrings(authorization.destinations)],
+    ['dataTransferDigest', authorization.dataTransferDigest],
+    ['budgetDigest', authorization.budgetDigest],
+    ['remoteCallAuthorizationIds', sortedStrings(authorization.remoteCallAuthorizationIds)],
+  ]
+  for (const [field, expected] of required) requiredSnapshotField(mismatches, snapshot, field, expected)
+  optionalSnapshotField(mismatches, snapshot, 'promptArtifactHash', authorization.promptArtifactHash)
   return sortedStrings(mismatches)
 }
 
 export function dispatchPreflight(authorization: RemoteCallAuthorization | ExecutionAuthorization, snapshot: DispatchSnapshot, now = FIXED_M4_TIME): DispatchPreflightResult {
   try {
-    const isRemote = authorization.schemaVersion === REMOTE_CALL_AUTHORIZATION_SCHEMA_VERSION
-    const hashValid = isRemote ? isHash(authorization.authorizationHash) && computeRemoteCallAuthorizationHash(authorization as RemoteCallAuthorization) === authorization.authorizationHash : isHash(authorization.authorizationHash) && computeExecutionAuthorizationHash(authorization as ExecutionAuthorization) === authorization.authorizationHash
-    if (!hashValid) return { status: 'blocked', code: 'EXECUTION_NOT_AUTHORIZED', reasons: ['AUTHORIZATION_HASH_MISMATCH'], authorizationHash: authorization.authorizationHash }
-    if (expired(authorization.expiresAt, now)) return { status: 'blocked', code: 'AUTHORIZATION_STALE', reasons: ['AUTHORIZATION_EXPIRED'], authorizationHash: authorization.authorizationHash }
+    const authorizationHash = typeof authorization?.authorizationHash === 'string' ? authorization.authorizationHash : ''
+    const isRemote = authorization?.schemaVersion === REMOTE_CALL_AUTHORIZATION_SCHEMA_VERSION
+    const isExecution = authorization?.schemaVersion === EXECUTION_AUTHORIZATION_SCHEMA_VERSION
+    if (!isRemote && !isExecution) return { status: 'blocked', code: 'EXECUTION_NOT_AUTHORIZED', reasons: ['AUTHORIZATION_SCHEMA_INVALID'], authorizationHash }
+    const completenessReasons = isRemote ? remoteAuthorizationCompletenessReasons(authorization as RemoteCallAuthorization) : executionAuthorizationCompletenessReasons(authorization as ExecutionAuthorization)
+    if (completenessReasons.length) return { status: 'blocked', code: 'EXECUTION_NOT_AUTHORIZED', reasons: completenessReasons, authorizationHash }
+    const hashValid = isRemote ? computeRemoteCallAuthorizationHash(authorization as RemoteCallAuthorization) === authorization.authorizationHash : computeExecutionAuthorizationHash(authorization as ExecutionAuthorization) === authorization.authorizationHash
+    if (!hashValid) return { status: 'blocked', code: 'EXECUTION_NOT_AUTHORIZED', reasons: ['AUTHORIZATION_HASH_MISMATCH'], authorizationHash }
+    if (expired(authorization.expiresAt, now)) return { status: 'blocked', code: 'AUTHORIZATION_STALE', reasons: ['AUTHORIZATION_EXPIRED'], authorizationHash }
     const reasons = isRemote ? remoteSnapshotMismatches(authorization as RemoteCallAuthorization, snapshot) : executionSnapshotMismatches(authorization as ExecutionAuthorization, snapshot)
-    if (reasons.length) return { status: 'blocked', code: 'AUTHORIZATION_STALE', reasons, authorizationHash: authorization.authorizationHash }
-    return { status: 'authorized', code: 'AUTHORIZED', reasons: [], authorizationHash: authorization.authorizationHash }
+    if (reasons.length) return { status: 'blocked', code: 'AUTHORIZATION_STALE', reasons, authorizationHash }
+    return { status: 'authorized', code: 'AUTHORIZED', reasons: [], authorizationHash }
   } catch {
-    return { status: 'blocked', code: 'EXECUTION_NOT_AUTHORIZED', reasons: ['PREFLIGHT_INPUT_INVALID'], authorizationHash: authorization?.authorizationHash ?? '' }
+    return { status: 'blocked', code: 'EXECUTION_NOT_AUTHORIZED', reasons: ['PREFLIGHT_INPUT_INVALID'], authorizationHash: typeof authorization?.authorizationHash === 'string' ? authorization.authorizationHash : '' }
   }
 }
 
