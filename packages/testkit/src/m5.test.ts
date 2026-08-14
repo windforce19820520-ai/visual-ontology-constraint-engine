@@ -10,9 +10,13 @@ import {
   OfflineExecutionRuntime,
   computePromptCandidateHash,
   computePromptIRHash,
+  computeExecutionRunHash,
+  computeExecutionTraceHash,
+  computeRemoteCallAuthorizationHash,
   createProviderRenderRequest,
   compilePromptIR,
   createPromptCandidateIR,
+  createMockRuntimeForPlan,
   executeOffline,
   guardPromptCandidate,
   optimizePromptIRWithFallback,
@@ -28,6 +32,20 @@ import {
 
 function copy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+function declaredSuggestion(slotId: string, content: string): PromptTransformation {
+  return {
+    schemaVersion: 'voce.prompt-transformation/v1alpha1',
+    kind: 'declared_suggestion',
+    slotId,
+    content,
+    text: content,
+    provenance: { source: 'optimizer_suggested', sourceIds: [], createdBy: 'm5-fixture-optimizer', createdAt: '2026-01-01T00:00:00.000Z' },
+    constraintIds: [],
+    sourceIds: [],
+    proof: { kind: 'declared_suggestion', preservedConstraintIds: [], explanation: 'Fixture suggestion is explicitly declared by the optimizer.' },
+  }
 }
 
 test('M5 PromptIR is structured, signature-stable, and defensive under insertion-order changes', () => {
@@ -131,6 +149,42 @@ test('provider-neutral render request is guard-bound and mock rendering stays vi
   assert.equal(adapter.render(tampered).status, 'failed')
 })
 
+test('offline execution fails closed for missing or mismatched adapters and exact mock registration completes both plans', () => {
+  const missingInput = fixtureM5ExecutionInput()
+  const missing = new OfflineExecutionRuntime().execute(missingInput)
+  assert.equal(missing.status, 'blocked')
+  assert.ok(missing.reasons.some((reason) => reason.startsWith('ADAPTER_NOT_REGISTERED:')))
+
+  const mismatchedInput = fixtureM5ExecutionInput()
+  const mismatchedStep = mismatchedInput.pipelinePlan.steps.find((step) => step.type === 'generate')!
+  const mismatched = new OfflineExecutionRuntime(new MockProviderAdapter({}, mismatchedStep.adapterId)).execute(mismatchedInput)
+  assert.equal(mismatched.status, 'blocked')
+  assert.ok(mismatched.reasons.some((reason) => reason.startsWith('ADAPTER_BINDING_MISMATCH:')))
+
+  for (const profile of [MOCK_NATIVE_TRANSPARENT_PROFILE, MOCK_JPEG_PLUS_REMOVAL_PROFILE]) {
+    const input = fixtureM5ExecutionInput(profile)
+    const result = createMockRuntimeForPlan(input.pipelinePlan).execute(input)
+    assert.equal(result.status, 'completed')
+  }
+})
+
+test('remote authorization binds region and data categories exactly', () => {
+  const cases: Array<{ field: 'region'; value: string } | { field: 'dataCategories'; value: string[] }> = [
+    { field: 'region', value: 'tampered-region' },
+    { field: 'dataCategories', value: ['unauthorized-category'] },
+  ]
+  for (const { field, value } of cases) {
+    const input = fixtureM5ExecutionInput()
+    const authorization = input.remoteCallAuthorizations[0]
+    if (field === 'region') authorization.region = value
+    else authorization.dataCategories = value
+    authorization.authorizationHash = computeRemoteCallAuthorizationHash(authorization)
+    const result = executeOffline(input)
+    assert.equal(result.status, 'blocked')
+    assert.ok(result.reasons.some((reason) => reason === `REMOTE_AUTHORIZATION_${field === 'region' ? 'REGION' : 'DATA_CATEGORIES'}_MISMATCH`))
+  }
+})
+
 test('execution preflight rejects plan, destination, budget, and prompt binding changes', () => {
   const base = fixtureM5ExecutionInput()
   const cases = [
@@ -177,7 +231,7 @@ test('submission_unknown does not resubmit and explicit reconcile changes only s
   const input = fixtureM5ExecutionInput()
   const remoteStep = input.pipelinePlan.steps.find((step) => step.mayCreateChargedSubmission)!
   input.options = { unknownStepIds: [remoteStep.id] }
-  const runtime = new OfflineExecutionRuntime()
+  const runtime = createMockRuntimeForPlan(input.pipelinePlan)
   const unknown = runtime.execute(input)
   assert.equal(unknown.status, 'submission_unknown')
   assert.equal(unknown.events.filter((event) => event.stepId === remoteStep.id && event.state === 'submitted').length, 1)
@@ -185,6 +239,79 @@ test('submission_unknown does not resubmit and explicit reconcile changes only s
   assert.equal(reconciled.status, 'completed')
   assert.equal(reconciled.events.filter((event) => event.stepId === remoteStep.id && event.state === 'submitted').length, 1)
   assert.ok(reconciled.events.some((event) => event.state === 'reconciling'))
+})
+
+test('completed reconciliation resumes downstream steps without resubmitting the unknown step', () => {
+  const input = fixtureM5ExecutionInput()
+  const generation = input.pipelinePlan.steps.find((step) => step.type === 'generate')!
+  input.options = { unknownStepIds: [generation.id] }
+  const runtime = createMockRuntimeForPlan(input.pipelinePlan)
+  const unknown = runtime.execute(input)
+  const reconciled = runtime.reconcile(unknown.executionRun!.id, 'completed')
+  assert.equal(reconciled.status, 'completed')
+  assert.equal(reconciled.events.filter((event) => event.stepId === generation.id && event.state === 'submitted').length, 1)
+  assert.equal(reconciled.receipts.find((receipt) => receipt.stepId === generation.id)?.state, 'succeeded')
+  for (const step of input.pipelinePlan.steps.filter((candidate) => candidate.type === 'normalize' || candidate.type === 'structural_validate')) {
+    assert.equal(reconciled.events.filter((event) => event.stepId === step.id && event.state === 'succeeded').length, 1)
+  }
+  const reconciledRemote = reconciled.remoteCallRuns.find((run) => run.stepId === generation.id)!
+  const reconciledReceipt = reconciled.receipts.find((receipt) => receipt.stepId === generation.id)!
+  assert.equal(reconciledRemote.state, 'succeeded')
+  assert.equal(reconciledRemote.receiptId, reconciledReceipt.id)
+  assert.equal(reconciledRemote.providerRequestId, reconciledReceipt.providerRequestId)
+  assert.equal(reconciled.executionRun!.runHash, computeExecutionRunHash(reconciled.executionRun!))
+  assert.equal(reconciled.trace!.traceHash, computeExecutionTraceHash(reconciled.trace!))
+})
+
+test('reconciled downstream failure cannot become a completed run', () => {
+  const input = fixtureM5ExecutionInput()
+  const generation = input.pipelinePlan.steps.find((step) => step.type === 'generate')!
+  const downstream = input.pipelinePlan.steps.find((step) => step.type === 'structural_validate')!
+  input.options = { unknownStepIds: [generation.id], failStepIds: [downstream.id] }
+  const runtime = createMockRuntimeForPlan(input.pipelinePlan)
+  const unknown = runtime.execute(input)
+  const reconciled = runtime.reconcile(unknown.executionRun!.id, 'completed')
+  assert.equal(reconciled.status, 'failed')
+  assert.notEqual(reconciled.executionRun!.state, 'completed')
+  assert.ok(reconciled.events.some((event) => event.stepId === downstream.id && event.state === 'failed'))
+  assert.equal(reconciled.events.filter((event) => event.stepId === generation.id && event.state === 'submitted').length, 1)
+})
+
+test('new suggestion sections require a declared slot, matching transformation, and declared proof', () => {
+  const prompt = fixtureM5PromptIR()
+  const slot = prompt.sections.find((section) => section.mutability === 'suggestion_slot')!
+  const base = fixtureM5Candidate(prompt)
+
+  const withoutTransformation = copy(base)
+  withoutTransformation.sections.push({ schemaVersion: 'voce.prompt-section/v1alpha1', id: 'manual-suggestion', kind: 'suggestion', priority: slot.priority, order: 3000, content: 'unproven suggestion', text: 'unproven suggestion', constraintIds: [], sourceIds: [], decisionIds: [], assetIds: [], importance: 'preferred', mutability: 'rephraseable', locked: false, slotId: slot.slotId })
+  withoutTransformation.candidateSections = copy(withoutTransformation.sections)
+  withoutTransformation.candidateHash = computePromptCandidateHash(withoutTransformation)
+  const noTransformationResult = guardPromptCandidate(fixtureM5GuardInput(prompt, withoutTransformation))
+  assert.notEqual(noTransformationResult.status, 'accepted')
+  assert.ok(noTransformationResult.findings.some((finding) => finding.code === 'UNAUTHORIZED_SECTION_ADDED' || finding.code === 'PROMPT_CANDIDATE_UNVERIFIABLE'))
+
+  const inventedSlot = copy(base)
+  inventedSlot.sections.push({ schemaVersion: 'voce.prompt-section/v1alpha1', id: 'invented-slot-suggestion', kind: 'suggestion', priority: 1, order: 3001, content: 'invented slot', text: 'invented slot', constraintIds: [], sourceIds: [], decisionIds: [], assetIds: [], importance: 'preferred', mutability: 'rephraseable', locked: false, slotId: 'invented.slot' })
+  inventedSlot.transformations.push(declaredSuggestion('invented.slot', 'invented slot'))
+  inventedSlot.candidateSections = copy(inventedSlot.sections)
+  inventedSlot.candidateHash = computePromptCandidateHash(inventedSlot)
+  const inventedSlotResult = guardPromptCandidate(fixtureM5GuardInput(prompt, inventedSlot))
+  assert.notEqual(inventedSlotResult.status, 'accepted')
+  assert.ok(inventedSlotResult.findings.some((finding) => finding.code === 'PROMPT_CANDIDATE_UNVERIFIABLE' || finding.code === 'SUGGESTION_SLOT_INVALID'))
+
+  const contentMismatch = createPromptCandidateIR(prompt, [declaredSuggestion(slot.slotId!, 'declared content')])
+  const added = contentMismatch.sections.find((section) => section.id !== slot.id && section.slotId === slot.slotId)!
+  added.content = 'tampered content'
+  added.text = 'tampered content'
+  contentMismatch.candidateSections = copy(contentMismatch.sections)
+  contentMismatch.candidateHash = computePromptCandidateHash(contentMismatch)
+  const contentMismatchResult = guardPromptCandidate(fixtureM5GuardInput(prompt, contentMismatch))
+  assert.notEqual(contentMismatchResult.status, 'accepted')
+  assert.ok(contentMismatchResult.findings.some((finding) => finding.code === 'PROMPT_CANDIDATE_UNVERIFIABLE'))
+
+  const valid = createPromptCandidateIR(prompt, [declaredSuggestion(slot.slotId!, 'valid declared content')])
+  const validResult = guardPromptCandidate(fixtureM5GuardInput(prompt, valid))
+  assert.equal(validResult.status, 'accepted')
 })
 
 test('cleanup remains visible on failure, cancellation, restart, and cleanup failure', () => {
@@ -217,8 +344,9 @@ test('replay returns ARTIFACT_UNAVAILABLE without regeneration and runtime resul
   const artifact = { id: 'deleted', storeId: 'fixture', contentHash: 'sha256:' + '1'.repeat(64), mediaType: 'image/png', role: 'generated', resolverId: 'fixture', availability: 'deleted' as const, retentionClass: 'fixture', redactionPolicy: 'hash-only' }
   const replay = replayArtifact(artifact)
   assert.equal(replay.code, 'ARTIFACT_UNAVAILABLE')
-  const runtime = new OfflineExecutionRuntime()
-  const result = runtime.execute(fixtureM5ExecutionInput())
+  const input = fixtureM5ExecutionInput()
+  const runtime = createMockRuntimeForPlan(input.pipelinePlan)
+  const result = runtime.execute(input)
   result.events[0].state = 'failed'
   const fetched = runtime.get(result.executionRun!.id)!
   assert.notEqual(fetched.events[0].state, 'failed')

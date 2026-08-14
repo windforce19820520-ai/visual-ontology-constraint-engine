@@ -30,6 +30,7 @@ import type {
   PromptGuardResult,
   PromptIR,
   PromptOptimizationInput,
+  PromptOptimizer,
   PromptParameter,
   PromptProhibition,
   PromptReferenceMapping,
@@ -275,7 +276,7 @@ export function computePromptIRHash(prompt: PromptIR): string {
 export const computePromptIRSignature = computePromptIRHash
 
 function transformationProjection(transformation: PromptTransformation): JsonObject {
-  const value = clone(transformation) as Record<string, unknown>
+  const value = clone(transformation) as unknown as Record<string, unknown>
   if (value.schemaVersion === undefined) value.schemaVersion = PROMPT_TRANSFORMATION_SCHEMA_VERSION
   if (Array.isArray(value.sectionIds)) value.sectionIds = sortedStrings(value.sectionIds as string[])
   if (Array.isArray(value.constraintIds)) value.constraintIds = sortedStrings(value.constraintIds as string[])
@@ -355,7 +356,7 @@ export function computePromptCandidateHash(candidate: PromptCandidateIR): string
 }
 
 export function computePromptGuardResultHash(result: PromptGuardResult): string {
-  const value = clone(result) as Record<string, unknown>
+  const value = clone(result) as unknown as Record<string, unknown>
   delete value.resultHash
   return sha256(jsonReady(value))
 }
@@ -709,7 +710,7 @@ function applyTransformation(prompt: PromptIR, sections: PromptSection[], parame
       schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
       id: hashId('prompt-suggestion', { slotId: transformation.slotId, content, sourceIds: transformation.sourceIds, constraintIds: transformation.constraintIds }),
       kind: 'suggestion', priority: slot.priority, order: Math.max(...sections.map((item) => item.order), 0) + 1,
-      content, text: content, constraintIds: sortedStrings(transformation.constraintIds), sourceIds: sortedStrings(transformation.sourceIds), decisionIds: [], assetIds: [], importance: 'preferred', mutability: 'rephraseable', locked: false,
+      content, text: content, constraintIds: sortedStrings(transformation.constraintIds), sourceIds: sortedStrings(transformation.sourceIds), decisionIds: [], assetIds: [], importance: 'preferred', mutability: 'rephraseable', locked: false, slotId: transformation.slotId,
     })
   }
 }
@@ -752,7 +753,7 @@ export function createPromptCandidateIR(prompt: PromptIR, transformations: Promp
   return clone(candidateBase)
 }
 
-export class DeterministicPromptOptimizer implements import('@voce/contracts').PromptOptimizer {
+export class DeterministicPromptOptimizer implements PromptOptimizer {
   optimize(input: PromptOptimizationInput): PromptCandidateIR {
     const safeInput = clone(input)
     if (safeInput.schemaVersion !== PROMPT_OPTIMIZATION_INPUT_SCHEMA_VERSION) throw new Error('PROMPT_OPTIMIZATION_INPUT_SCHEMA_INVALID')
@@ -889,8 +890,24 @@ export class PromptGuard {
       }
     }
     for (const section of candidateSectionList) if (!baseSections.has(section.id)) {
-      const allowed = section.kind === 'suggestion' && section.mutability !== 'locked' && section.constraintIds.every((id) => !prompt.constraintIds.includes(id) || prompt.constraintCoverage.find((item) => item.constraintId === id)?.locked !== true)
-      if (!allowed) addGuardFinding(findings, { code: 'UNAUTHORIZED_SECTION_ADDED', severity: 'critical', blocking: true, constraintIds: section.constraintIds, sourceIds: section.sourceIds, sectionIds: [section.id], decisionIds: section.decisionIds, assetIds: section.assetIds, explanation: `Candidate added a section not declared by PromptIR: ${section.id}.` })
+      const matchingSuggestions = candidate.transformations.filter((transformation): transformation is Extract<PromptTransformation, { kind: 'suggestion'|'add_suggestion'|'declared_suggestion' }> => {
+        if (transformation.kind !== 'suggestion' && transformation.kind !== 'add_suggestion' && transformation.kind !== 'declared_suggestion') return false
+        const transformationContent = transformation.content ?? transformation.text
+        const transformationText = transformation.text ?? transformation.content
+        const slot = prompt.sections.find((candidateSlot) => candidateSlot.slotId === transformation.slotId && candidateSlot.mutability === 'suggestion_slot')
+        return slot !== undefined
+          && section.slotId === transformation.slotId
+          && section.content === transformationContent
+          && section.text === transformationText
+          && canonicalize(sortedStrings(section.constraintIds)) === canonicalize(sortedStrings(transformation.constraintIds))
+          && canonicalize(sortedStrings(section.sourceIds)) === canonicalize(sortedStrings(transformation.sourceIds))
+          && transformation.provenance.source === 'optimizer_suggested'
+          && transformation.proof?.kind === 'declared_suggestion'
+      })
+      const structurallyAllowed = section.kind === 'suggestion' && section.mutability !== 'locked' && section.constraintIds.every((id) => !prompt.constraintIds.includes(id) || prompt.constraintCoverage.find((item) => item.constraintId === id)?.locked !== true)
+      if (!structurallyAllowed || matchingSuggestions.length === 0) {
+        addGuardFinding(findings, { code: matchingSuggestions.length === 0 && structurallyAllowed ? 'PROMPT_CANDIDATE_UNVERIFIABLE' : 'UNAUTHORIZED_SECTION_ADDED', severity: 'critical', blocking: true, constraintIds: section.constraintIds, sourceIds: section.sourceIds, sectionIds: [section.id], decisionIds: section.decisionIds, assetIds: section.assetIds, explanation: `Candidate added suggestion section ${section.id} without a matching declared, proven suggestion transformation.` })
+      }
     }
     for (const parameter of prompt.parameters) {
       const candidateParameter = candidateParameterMap.get(parameter.id)
@@ -943,6 +960,7 @@ export class PromptGuard {
       } else if (transformation.kind === 'suggestion' || transformation.kind === 'add_suggestion' || transformation.kind === 'declared_suggestion') {
         const slot = prompt.sections.find((section) => section.slotId === transformation.slotId && section.mutability === 'suggestion_slot')
         if (!slot || transformation.provenance.source !== 'optimizer_suggested') addGuardFinding(findings, { code: 'SUGGESTION_SLOT_INVALID', severity: 'error', blocking: true, constraintIds: transformation.constraintIds ?? [], sourceIds: transformation.sourceIds ?? [], sectionIds: slot ? [slot.id] : [], decisionIds: [], assetIds: [], explanation: 'Suggestions must use a declared slot and optimizer_suggested provenance.' })
+        else if (transformation.proof?.kind !== 'declared_suggestion') addGuardFinding(findings, { code: 'PROMPT_CANDIDATE_UNVERIFIABLE', severity: 'critical', blocking: true, constraintIds: transformation.constraintIds ?? [], sourceIds: transformation.sourceIds ?? [], sectionIds: [slot.id], decisionIds: [], assetIds: [], explanation: 'Added suggestions require declared_suggestion proof.' })
         else if ((transformation.constraintIds ?? []).some((id) => prompt.constraintCoverage.find((coverage) => coverage.constraintId === id)?.locked)) addGuardFinding(findings, { code: 'SUGGESTION_WEAKENS_LOCKED_CONSTRAINT', severity: 'critical', blocking: true, constraintIds: transformation.constraintIds ?? [], sourceIds: transformation.sourceIds ?? [], sectionIds: [slot.id], decisionIds: [], assetIds: [], explanation: 'Suggestion references a locked constraint and cannot be used to weaken it.' })
       } else if ((transformation as PromptFreeTextTransformation).kind === 'free_text') addGuardFinding(findings, { code: 'PROMPT_CANDIDATE_UNVERIFIABLE', severity: 'error', blocking: true, constraintIds: [], sourceIds: [], sectionIds: [], decisionIds: [], assetIds: [], explanation: 'Arbitrary free-text transformation cannot be mechanically proven safe.' })
       else addGuardFinding(findings, { code: 'PROMPT_TRANSFORMATION_NOT_ALLOWED', severity: 'critical', blocking: true, constraintIds: [], sourceIds: [], sectionIds: [], decisionIds: [], assetIds: [], explanation: 'Candidate contains a transformation outside the Prompt Guard AST allowlist.' })
@@ -1100,7 +1118,9 @@ export interface OfflineStepAdapter {
   id: string
   version: VersionPin
   digest: string
+  profileDigest?: string
   executeStep(context: MockStepExecutionContext): MockStepExecutionResult
+  reconcileStep?(context: MockStepExecutionContext): MockStepExecutionResult
 }
 
 function promptArtifactHash(promptArtifact: PromptIR|PromptCandidateIR): string {
@@ -1206,6 +1226,8 @@ function remoteSnapshot(authorization: RemoteCallAuthorization): import('@voce/c
     purpose: authorization.purpose,
     inputHash: authorization.inputHash,
     inputManifestHash: authorization.inputManifestHash,
+    modelId: authorization.modelId,
+    modelVersion: authorization.modelVersion,
     permittedArtifactHashes: sortedStrings(authorization.permittedArtifactHashes),
     permittedScopeIds: sortedStrings(authorization.permittedScopeIds),
     constraintIds: sortedStrings(authorization.constraintIds),
@@ -1286,6 +1308,9 @@ export interface MockProviderAdapterOptions {
   failStepIds?: string[]
   unknownStepIds?: string[]
   retryableFailureStepIds?: string[]
+  version?: VersionPin
+  digest?: string
+  profileDigest?: string
 }
 
 export class MockProviderAdapter implements ProviderAdapter, OfflineStepAdapter {
@@ -1298,8 +1323,9 @@ export class MockProviderAdapter implements ProviderAdapter, OfflineStepAdapter 
 
   constructor(options: MockProviderAdapterOptions = {}, id = 'voce.mock.offline') {
     this.id = id
-    this.version = { id, version: '1.0.0', digest: sha256({ adapter: id, version: '1.0.0', fixture: 'offline' }) }
-    this.digest = this.version.digest
+    this.version = clone(options.version ?? { id, version: '1.0.0', digest: options.digest ?? sha256({ adapter: id, version: '1.0.0', fixture: 'offline' }) })
+    this.digest = options.digest ?? this.version.digest
+    this.profileDigest = options.profileDigest
     this.options = { failStepIds: sortedStrings(options.failStepIds), unknownStepIds: sortedStrings(options.unknownStepIds), retryableFailureStepIds: sortedStrings(options.retryableFailureStepIds) }
   }
 
@@ -1331,6 +1357,18 @@ export class MockProviderAdapter implements ProviderAdapter, OfflineStepAdapter 
     const remote = requiredRemoteStep(context.step)
     return { status: 'succeeded', outputArtifacts: artifacts, metadata: { offline: true, virtual: true, provider: this.id, stepType: context.step.type, destination: context.step.destination, budgetId: context.step.budget.id }, ...(remote ? { providerRequestId: `mock-request-${hashId('request', { stepId, attempt: context.attempt }).slice('request-'.length)}` } : {}), actualCost: 0 }
   }
+
+  reconcileStep(context: MockStepExecutionContext): MockStepExecutionResult {
+    const mediaType = mockMediaType(context.step)
+    const outputArtifacts = context.step.outputArtifactRoles.map((role) => virtualArtifact(context.runId, context.step, role, mediaType))
+    return {
+      status: 'succeeded',
+      outputArtifacts,
+      metadata: { offline: true, virtual: true, reconciled: true, provider: this.id, stepType: context.step.type, destination: context.step.destination, budgetId: context.step.budget.id },
+      providerRequestId: `mock-reconciled-${hashId('request', { runId: context.runId, stepId: context.step.id }).slice('request-'.length)}`,
+      actualCost: 0,
+    }
+  }
 }
 
 export class MockGeneratorAdapter extends MockProviderAdapter {
@@ -1354,7 +1392,7 @@ function adapterCanRender(adapter: OfflineStepAdapter): adapter is OfflineStepAd
 }
 
 function eventProjection(event: StepEvent): JsonObject {
-  const value = clone(event) as Record<string, unknown>
+  const value = clone(event) as unknown as Record<string, unknown>
   delete value.eventHash
   delete value.id
   delete value.runId
@@ -1364,7 +1402,7 @@ function eventProjection(event: StepEvent): JsonObject {
 }
 
 function receiptProjection(receipt: StepReceipt): JsonObject {
-  const value = clone(receipt) as Record<string, unknown>
+  const value = clone(receipt) as unknown as Record<string, unknown>
   delete value.receiptHash
   delete value.id
   delete value.runId
@@ -1375,7 +1413,7 @@ function receiptProjection(receipt: StepReceipt): JsonObject {
 }
 
 function cleanupReceiptProjection(receipt: CleanupReceipt): JsonObject {
-  const value = clone(receipt) as Record<string, unknown>
+  const value = clone(receipt) as unknown as Record<string, unknown>
   delete value.receiptHash
   delete value.id
   delete value.runId
@@ -1384,7 +1422,7 @@ function cleanupReceiptProjection(receipt: CleanupReceipt): JsonObject {
 }
 
 function compensationReceiptProjection(receipt: CompensationReceipt): JsonObject {
-  const value = clone(receipt) as Record<string, unknown>
+  const value = clone(receipt) as unknown as Record<string, unknown>
   delete value.receiptHash
   delete value.id
   delete value.runId
@@ -1393,7 +1431,7 @@ function compensationReceiptProjection(receipt: CompensationReceipt): JsonObject
 }
 
 function executionRunProjection(run: ExecutionRun): JsonObject {
-  const value = clone(run) as Record<string, unknown>
+  const value = clone(run) as unknown as Record<string, unknown>
   delete value.runHash
   delete value.createdAt
   delete value.updatedAt
@@ -1567,7 +1605,7 @@ export function computeExecutionRunHash(run: ExecutionRun): string {
 }
 
 function traceProjection(trace: ExecutionTraceProjection): JsonObject {
-  const value = clone(trace) as Record<string, unknown>
+  const value = clone(trace) as unknown as Record<string, unknown>
   delete value.traceHash
   value.events = sortedBy((value.events as StepEvent[] | undefined) ?? [], (event) => `${event.sequence}|${event.id}`)
   value.receipts = sortedBy((value.receipts as StepReceipt[] | undefined) ?? [], (receipt) => receipt.stepId)
@@ -1630,19 +1668,19 @@ function humanAcceptanceForRun(runId: string, artifacts: ArtifactHandle[]): Huma
 }
 
 function updateHumanAcceptanceHash(acceptance: HumanAcceptance): HumanAcceptance {
-  const base = clone(acceptance) as Record<string, unknown>
+  const base = clone(acceptance) as unknown as Record<string, unknown>
   delete base.acceptanceHash
   return clone({ ...base, acceptanceHash: sha256(base as JsonObject) }) as HumanAcceptance
 }
 
 function updateStepReceiptHash(receipt: StepReceipt): StepReceipt {
-  const base = clone(receipt) as Record<string, unknown>
+  const base = clone(receipt) as unknown as Record<string, unknown>
   delete base.receiptHash
-  return clone({ ...base, receiptHash: sha256(receiptProjection(base as StepReceipt)) }) as StepReceipt
+  return clone({ ...base, receiptHash: sha256(receiptProjection(base as unknown as StepReceipt)) }) as unknown as StepReceipt
 }
 
 function updateRemoteCallRunHash(run: RemoteCallRun): RemoteCallRun {
-  const base = clone(run) as Record<string, unknown>
+  const base = clone(run) as unknown as Record<string, unknown>
   delete base.runHash
   delete base.id
   delete base.runId
@@ -1682,6 +1720,8 @@ function remoteAuthorizationExactReasons(input: OfflineExecutionInput): string[]
     if (canonicalize(sortedStrings(authorization.permittedScopeIds)) !== canonicalize(scopes)) reasons.push('REMOTE_AUTHORIZATION_SCOPE_MISMATCH')
     if (canonicalize(sortedStrings(authorization.constraintIds)) !== canonicalize(constraints)) reasons.push('REMOTE_AUTHORIZATION_CONSTRAINT_SCOPE_MISMATCH')
     if (authorization.profileDigest !== step.profileVersion.digest) reasons.push('REMOTE_AUTHORIZATION_PROFILE_REQUIRED')
+    if (authorization.region !== step.dataTransfer.region) reasons.push('REMOTE_AUTHORIZATION_REGION_MISMATCH')
+    if (canonicalize(sortedStrings(authorization.dataCategories)) !== canonicalize(sortedStrings(step.dataTransfer.dataCategories))) reasons.push('REMOTE_AUTHORIZATION_DATA_CATEGORIES_MISMATCH')
     const expectedMaximumBytes = step.budget.maximumBytes ?? step.dataTransfer.maximumBytes
     const expectedMaximumCost = step.budget.maximumCost
     if (authorization.maximumCalls !== step.budget.maximumCalls || authorization.maximumRetries !== step.budget.maximumRetries || authorization.timeoutMs !== step.budget.timeoutMs) reasons.push('REMOTE_AUTHORIZATION_BUDGET_MISMATCH')
@@ -1807,6 +1847,68 @@ function resultForRecord(record: OfflineRuntimeRecord, code = 'EXECUTION_COMPLET
   })
 }
 
+function refreshReconciledReceipts(record: OfflineRuntimeRecord, steps: PipelineStep[]): void {
+  for (const step of steps) {
+    const events = record.events.filter((event) => event.stepId === step.id)
+    const receipt = makeStepReceipt(record.run.id, step, events, stepCleanupStatus(record, step))
+    const index = record.receipts.findIndex((candidate) => candidate.stepId === step.id)
+    if (index >= 0) record.receipts[index] = receipt
+    else record.receipts.push(receipt)
+  }
+  for (const remote of record.remoteCallRuns) {
+    const stepEvents = record.events.filter((event) => event.stepId === remote.stepId)
+    const terminal = stepEvents.at(-1)
+    const receipt = record.receipts.find((candidate) => candidate.stepId === remote.stepId)
+    if (terminal) remote.state = terminal.state
+    if (terminal?.providerRequestId) remote.providerRequestId = terminal.providerRequestId
+    if (receipt) remote.receiptId = receipt.id
+    record.remoteCallRuns[record.remoteCallRuns.indexOf(remote)] = updateRemoteCallRunHash(remote)
+  }
+}
+
+function appendReconciliationCleanup(record: OfflineRuntimeRecord, outcome: 'success'|'failure'|'cancel'|'unknown', workerRestarted: boolean): void {
+  for (const cleanup of sortedBy(record.input.pipelinePlan.cleanup, (item) => item.id)) {
+    if (!cleanupConditionMatches(cleanup, outcome, workerRestarted) || record.cleanupReceipts.some((receipt) => receipt.cleanupId === cleanup.id)) continue
+    const cleanupEvents: StepEvent[] = []
+    const shouldFail = record.options.cleanupFailureIds.includes(cleanup.id)
+    let failedCleanup = false
+    for (let attempt = 0; attempt <= record.options.maximumCleanupRetries; attempt += 1) {
+      const pending = runtimeCleanupEvent(record, cleanup, 'cleanup_pending')
+      appendRuntimeEvent(record, pending); cleanupEvents.push(pending)
+      const terminalState: StepEventState = shouldFail ? 'cleanup_failed' : 'cleaned'
+      const terminalEvent = runtimeCleanupEvent(record, cleanup, terminalState, shouldFail ? 'CLEANUP_FAILED' : undefined)
+      appendRuntimeEvent(record, terminalEvent); cleanupEvents.push(terminalEvent)
+      if (!shouldFail) break
+      failedCleanup = true
+    }
+    record.cleanupReceipts.push(makeCleanupReceipt(record.run.id, cleanup, cleanupEvents, failedCleanup, record.options.maximumCleanupRetries))
+  }
+}
+
+function appendReconciliationCompensation(record: OfflineRuntimeRecord, outcome: 'success'|'failure'|'cancel'|'unknown', workerRestarted: boolean, completed: Set<string>, failed: Set<string>): void {
+  const trigger = compensationTrigger(outcome, workerRestarted)
+  if (!trigger) return
+  for (const compensation of sortedBy(record.input.pipelinePlan.compensation.filter((item) => item.trigger === trigger && (workerRestarted || item.appliesToStepIds.some((id) => failed.has(id) || !completed.has(id)))), (item) => item.id)) {
+    if (record.compensationReceipts.some((receipt) => receipt.compensationId === compensation.id)) continue
+    const cleanup = record.input.pipelinePlan.cleanup.find((item) => item.id === compensation.cleanupId)
+    if (!cleanup) continue
+    const compensationCleanup = { ...cleanup, id: compensation.id, artifactRoles: cleanup.artifactRoles, appliesToStepIds: compensation.appliesToStepIds }
+    const compensationEvents: StepEvent[] = []
+    const shouldFail = record.options.compensationFailureIds.includes(compensation.id)
+    let failedCompensation = false
+    for (let attempt = 0; attempt <= record.options.maximumCleanupRetries; attempt += 1) {
+      const pending = runtimeCleanupEvent(record, compensationCleanup, 'cleanup_pending')
+      appendRuntimeEvent(record, pending); compensationEvents.push(pending)
+      const terminalState: StepEventState = shouldFail ? 'cleanup_failed' : 'cleaned'
+      const terminalEvent = runtimeCleanupEvent(record, compensationCleanup, terminalState, shouldFail ? 'CLEANUP_FAILED' : undefined)
+      appendRuntimeEvent(record, terminalEvent); compensationEvents.push(terminalEvent)
+      if (!shouldFail) break
+      failedCompensation = true
+    }
+    record.compensationReceipts.push(makeCompensationReceipt(record.run.id, compensation, compensationEvents, failedCompensation, record.options.maximumCleanupRetries))
+  }
+}
+
 function makeExecutionRun(input: OfflineExecutionInput, options: Required<OfflineExecutionOptions>): ExecutionRun {
   const promptHash = promptArtifactHash(input.promptArtifact)
   const base: Omit<ExecutionRun, 'runHash'> = {
@@ -1891,15 +1993,120 @@ function pipelineExecutionOrder(steps: PipelineStep[]): PipelineStep[] {
   return ordered
 }
 
+function adapterRegistrationReasons(steps: PipelineStep[], adapters: Map<string, OfflineStepAdapter>): string[] {
+  const reasons: string[] = []
+  for (const step of steps) {
+    const adapter = adapters.get(step.adapterId)
+    if (!adapter) {
+      reasons.push(`ADAPTER_NOT_REGISTERED:${step.adapterId}`)
+      continue
+    }
+    const versionMatches = adapter.id === step.adapterId
+      && adapter.version.id === step.adapterVersion.id
+      && adapter.version.version === step.adapterVersion.version
+      && adapter.version.digest === step.adapterVersion.digest
+      && adapter.digest === step.adapterVersion.digest
+    if (!versionMatches) reasons.push(`ADAPTER_BINDING_MISMATCH:${step.id}`)
+    if (adapter.profileDigest !== undefined && adapter.profileDigest !== step.profileVersion.digest) reasons.push(`ADAPTER_PROFILE_BINDING_MISMATCH:${step.id}`)
+  }
+  return sortedStrings(reasons)
+}
+
+interface RegisteredStepExecutionResult {
+  terminal: StepEventState
+  terminalResult?: MockStepExecutionResult
+  outcome: 'success'|'failure'|'cancel'|'unknown'
+}
+
 export class OfflineExecutionRuntime {
-  private readonly defaultAdapter: OfflineStepAdapter
   private readonly adapters: Map<string, OfflineStepAdapter>
   private readonly records = new Map<string, OfflineRuntimeRecord>()
 
-  constructor(adapter: OfflineStepAdapter = new MockProviderAdapter(), adapters: OfflineStepAdapter[] = []) {
-    this.defaultAdapter = adapter
+  constructor(adapter?: OfflineStepAdapter, adapters: OfflineStepAdapter[] = []) {
     this.adapters = new Map(adapters.map((candidate) => [candidate.id, candidate]))
-    this.adapters.set(adapter.id, adapter)
+    if (adapter) this.adapters.set(adapter.id, adapter)
+  }
+
+  private executeRegisteredStep(record: OfflineRuntimeRecord, step: PipelineStep, authorization: RemoteCallAuthorization | undefined): RegisteredStepExecutionResult {
+    const input = record.input
+    const options = record.options
+    const promptHash = promptArtifactHash(input.promptArtifact)
+    const inputHash = computeExecutionStepInputHash(step, input.contextHash, input.pipelinePlan.planHash, input.referencePlan.planHash, promptHash, input.referencePlan.ordered.map((reference) => reference.contentHash))
+    const append = (event: StepEvent): void => { appendRuntimeEvent(record, event) }
+    append(runtimeStepEvent(record, step, 'authorized', promptHash, authorization?.id, inputHash, [], 0, 0))
+    const adapter = this.adapters.get(step.adapterId)
+    if (!adapter) {
+      append(runtimeStepEvent(record, step, 'failed', promptHash, authorization?.id, inputHash, [], 0, 0, undefined, 'ADAPTER_NOT_REGISTERED'))
+      return { terminal: 'failed', outcome: 'failure' }
+    }
+    const remote = requiredRemoteStep(step)
+    let attempts = 0
+    let retries = 0
+    let spentCost = 0
+    let spentBytes = 0
+    let terminal: StepEventState = 'failed'
+    let terminalResult: MockStepExecutionResult | undefined
+    while (attempts < step.budget.maximumCalls) {
+      attempts += 1
+      if (remote) append(runtimeStepEvent(record, step, 'submitted', promptHash, authorization?.id, inputHash, [], attempts, retries))
+      let result: MockStepExecutionResult
+      try {
+        let renderedRequestId: string | undefined
+        if (attempts === 1 && step.type === 'generate' && adapterCanRender(adapter)) {
+          const promptIR = 'candidateHash' in input.promptArtifact ? input.promptGuardResult?.deterministicFallback : input.promptArtifact
+          if (!promptIR) result = { status: 'failed', outputArtifacts: [], metadata: { offline: true, virtual: true, adapterId: adapter.id }, failureCode: 'PROMPT_RENDER_INPUT_MISSING', actualCost: 0 }
+          else {
+            const rendered = adapter.render(createProviderRenderRequest({ promptIR, candidate: 'candidateHash' in input.promptArtifact ? input.promptArtifact : undefined, guardResult: input.promptGuardResult, caseId: input.pipelinePlan.caseId, caseRevision: input.pipelinePlan.caseRevision, contextHash: input.contextHash, pipelinePlanHash: input.pipelinePlan.planHash }))
+            if (rendered.status !== 'ok') result = { status: rendered.status === 'submission_unknown' ? 'submission_unknown' : 'failed', outputArtifacts: [], metadata: { offline: true, virtual: true, adapterId: adapter.id }, providerRequestId: rendered.providerRequestId, failureCode: rendered.failureCode ?? 'PROMPT_RENDER_FAILED', actualCost: 0 }
+            else {
+              renderedRequestId = rendered.providerRequestId
+              result = adapter.executeStep({ runId: record.run.id, step, promptArtifactHash: promptHash, referencePlanHash: input.referencePlan.planHash, outputContract: input.outputContract, attempt: attempts, options })
+              if (!result.providerRequestId && renderedRequestId) result = { ...result, providerRequestId: renderedRequestId }
+            }
+          }
+        } else result = adapter.executeStep({ runId: record.run.id, step, promptArtifactHash: promptHash, referencePlanHash: input.referencePlan.planHash, outputContract: input.outputContract, attempt: attempts, options })
+      } catch {
+        result = { status: 'failed', outputArtifacts: [], metadata: { offline: true, virtual: true, adapterId: adapter.id }, failureCode: 'MOCK_ADAPTER_EXCEPTION', actualCost: 0 }
+      }
+      terminalResult = result
+      const rawCost = result.actualCost ?? 0
+      const rawBytes = result.actualBytes ?? 0
+      const invalidUsage = !Number.isFinite(rawCost) || rawCost < 0 || !Number.isInteger(rawBytes) || rawBytes < 0
+      const cost = Number.isFinite(rawCost) && rawCost >= 0 ? rawCost : 0
+      const bytes = Number.isInteger(rawBytes) && rawBytes >= 0 ? rawBytes : 0
+      spentCost += cost
+      spentBytes += bytes
+      const budgetViolation = invalidUsage || (step.budget.maximumCost !== undefined && spentCost > step.budget.maximumCost) || (step.budget.maximumBytes !== undefined && spentBytes > step.budget.maximumBytes) || (step.dataTransfer.maximumBytes !== undefined && spentBytes > step.dataTransfer.maximumBytes)
+      if (budgetViolation) {
+        result = { ...result, status: 'failed', outputArtifacts: [], failureCode: invalidUsage ? 'USAGE_ACCOUNTING_INVALID' : (step.budget.maximumBytes !== undefined || step.dataTransfer.maximumBytes !== undefined) && spentBytes > (step.budget.maximumBytes ?? step.dataTransfer.maximumBytes ?? Number.MAX_SAFE_INTEGER) ? 'BYTES_BUDGET_EXCEEDED' : 'COST_BUDGET_EXCEEDED' }
+        terminalResult = result
+      }
+      if (result.status === 'submission_unknown') {
+        terminal = 'submission_unknown'
+        append(runtimeStepEvent(record, step, terminal, promptHash, authorization?.id, inputHash, [], attempts, retries, result.providerRequestId, result.failureCode ?? 'REMOTE_SUBMISSION_UNKNOWN', spentCost, spentBytes))
+        return { terminal, terminalResult, outcome: 'unknown' }
+      }
+      if (result.status === 'cancelled') {
+        terminal = 'cancelled'
+        append(runtimeStepEvent(record, step, terminal, promptHash, authorization?.id, inputHash, [], attempts, retries, result.providerRequestId, result.failureCode ?? 'CANCELLED', spentCost, spentBytes))
+        return { terminal, terminalResult, outcome: 'cancel' }
+      }
+      if (result.status === 'succeeded' && !budgetViolation) {
+        const artifacts = outputArtifactsForResult(result)
+        const outputHashes = artifacts.map((artifact) => artifact.contentHash)
+        if (remote) append(runtimeStepEvent(record, step, 'acknowledged', promptHash, authorization?.id, inputHash, outputHashes, attempts, retries, result.providerRequestId, undefined, spentCost, spentBytes))
+        append(runtimeStepEvent(record, step, 'succeeded', promptHash, authorization?.id, inputHash, outputHashes, attempts, retries, result.providerRequestId, undefined, spentCost, spentBytes))
+        record.run.outputArtifacts.push(...artifacts)
+        return { terminal: 'succeeded', terminalResult, outcome: 'success' }
+      }
+      const failureCode = result.failureCode ?? 'STEP_FAILED'
+      append(runtimeStepEvent(record, step, 'failed', promptHash, authorization?.id, inputHash, [], attempts, retries, result.providerRequestId, failureCode, spentCost, spentBytes))
+      terminal = 'failed'
+      const retryAllowed = options.retryableFailureStepIds.includes(step.id) && retries < step.budget.maximumRetries && attempts < step.budget.maximumCalls
+      if (retryAllowed) { retries += 1; continue }
+      return { terminal, terminalResult, outcome: 'failure' }
+    }
+    return { terminal, terminalResult, outcome: 'failure' }
   }
 
   execute(input: OfflineExecutionInput): OfflineExecutionResult {
@@ -1919,6 +2126,7 @@ export class OfflineExecutionRuntime {
     } catch {
       reasons.push('DISPATCH_PREFLIGHT_INPUT_INVALID')
     }
+    reasons.push(...adapterRegistrationReasons(safeInput.pipelinePlan?.steps ?? [], this.adapters))
     const uniqueReasons = sortedStrings(reasons)
     if (uniqueReasons.length || preflight?.status !== 'authorized') return blockedExecutionResult('EXECUTION_NOT_AUTHORIZED', uniqueReasons.length ? uniqueReasons : ['EXECUTION_NOT_AUTHORIZED'])
 
@@ -1960,7 +2168,7 @@ export class OfflineExecutionRuntime {
       }
       const authorization = authorizations.get(step.id)
       append(runtimeStepEvent(record, step, 'authorized', promptArtifactHash(safeInput.promptArtifact), authorization?.id, inputHash, [], 0, 0))
-      const adapter = this.adapters.get(step.adapterId) ?? this.defaultAdapter
+      const adapter = this.adapters.get(step.adapterId)!
       let attempts = 0
       let retries = 0
       let spentCost = 0
@@ -2119,33 +2327,107 @@ export class OfflineExecutionRuntime {
   reconcile(runId: string, state: 'running'|'validating'|'completed'|'failed'|'cancelled'): OfflineExecutionResult {
     const record = this.records.get(runId)
     if (!record) return blockedExecutionResult('RUN_NOT_FOUND', ['RUN_NOT_FOUND'])
-    if (record.run.state !== 'submission_unknown') return resultForRecord(record, 'RECONCILIATION_NOT_REQUIRED')
+    if (!['submission_unknown', 'reconciling', 'running', 'validating'].includes(record.run.state)) return resultForRecord(record, 'RECONCILIATION_NOT_REQUIRED')
     const unknown = [...record.events].reverse().find((event) => event.state === 'submission_unknown')
     const step = record.input.pipelinePlan.steps.find((candidate) => candidate.id === unknown?.stepId)
     if (!unknown || !step) return resultForRecord(record, 'RECONCILIATION_INPUT_INVALID', ['RECONCILIATION_INPUT_INVALID'])
     const authorizationId = unknown.authorizationId
-    const inputHash = unknown.inputHash
-    appendRuntimeEvent(record, runtimeStepEvent(record, step, 'reconciling', promptArtifactHash(record.input.promptArtifact), authorizationId, inputHash, [], unknown.attempt, unknown.retriesUsed, unknown.providerRequestId, 'EXPLICIT_RECONCILIATION'))
-    const terminalState: StepEventState = state === 'cancelled' ? 'cancelled' : state === 'failed' ? 'failed' : state === 'completed' ? 'succeeded' : 'acknowledged'
-    appendRuntimeEvent(record, runtimeStepEvent(record, step, terminalState, promptArtifactHash(record.input.promptArtifact), authorizationId, inputHash, [], unknown.attempt, unknown.retriesUsed, unknown.providerRequestId, `RECONCILED_${state.toUpperCase()}`))
-    const receipt = record.receipts.find((candidate) => candidate.stepId === step.id)
-    const newEvents = record.events.filter((event) => event.stepId === step.id)
-    if (receipt) {
-      receipt.eventIds = newEvents.map((event) => event.id)
-      receipt.state = terminalState
-      receipt.lastSequence = newEvents.at(-1)?.sequence ?? receipt.lastSequence
-      receipt.providerRequestId = unknown.providerRequestId
-      record.receipts[record.receipts.indexOf(receipt)] = updateStepReceiptHash(receipt)
+    const promptHash = promptArtifactHash(record.input.promptArtifact)
+    const inputHash = unknown.inputHash ?? computeExecutionStepInputHash(step, record.input.contextHash, record.input.pipelinePlan.planHash, record.input.referencePlan.planHash, promptHash, record.input.referencePlan.ordered.map((reference) => reference.contentHash))
+    appendRuntimeEvent(record, runtimeStepEvent(record, step, 'reconciling', promptHash, authorizationId, inputHash, [], unknown.attempt, unknown.retriesUsed, unknown.providerRequestId, 'EXPLICIT_RECONCILIATION'))
+
+    if (state === 'running' || state === 'validating') {
+      record.run.state = state
+      record.run.technicalOutcome = 'pending'
+      record.run.updatedAt = record.options.now
+      refreshReconciledReceipts(record, pipelineExecutionOrder(record.input.pipelinePlan.steps))
+      return resultForRecord(record, `RECONCILED_${state.toUpperCase()}`, ['RECONCILIATION_IN_PROGRESS'])
     }
-    const remote = record.remoteCallRuns.find((candidate) => candidate.stepId === step.id)
-    if (remote) {
-      remote.state = terminalState
-      record.remoteCallRuns[record.remoteCallRuns.indexOf(remote)] = updateRemoteCallRunHash(remote)
+
+    const completed = new Set<string>(record.input.pipelinePlan.steps.filter((candidate) => record.events.filter((event) => event.stepId === candidate.id).at(-1)?.state === 'succeeded').map((candidate) => candidate.id))
+    const failed = new Set<string>(record.input.pipelinePlan.steps.filter((candidate) => ['failed', 'cancelled', 'skipped'].includes(record.events.filter((event) => event.stepId === candidate.id).at(-1)?.state ?? '')).map((candidate) => candidate.id))
+    let outcome: 'success'|'failure'|'cancel'|'unknown'
+
+    if (state === 'failed' || state === 'cancelled') {
+      const terminalState: StepEventState = state === 'cancelled' ? 'cancelled' : 'failed'
+      appendRuntimeEvent(record, runtimeStepEvent(record, step, terminalState, promptHash, authorizationId, inputHash, [], unknown.attempt, unknown.retriesUsed, unknown.providerRequestId, `RECONCILED_${state.toUpperCase()}`))
+      outcome = state === 'cancelled' ? 'cancel' : 'failure'
+      failed.add(step.id)
+    } else {
+      const adapter = this.adapters.get(step.adapterId)
+      let recovery: MockStepExecutionResult | undefined
+      try {
+        recovery = adapter?.reconcileStep?.({ runId: record.run.id, step, promptArtifactHash: promptHash, referencePlanHash: record.input.referencePlan.planHash, outputContract: record.input.outputContract, attempt: unknown.attempt, options: record.options })
+      } catch {
+        recovery = undefined
+      }
+      const recoveredArtifacts = recovery?.status === 'succeeded' ? outputArtifactsForResult(recovery) : []
+      const missingRoles = step.outputArtifactRoles.filter((role) => !recoveredArtifacts.some((artifact) => artifact.role === role))
+      if (!recovery || recovery.status !== 'succeeded' || missingRoles.length > 0) {
+        record.run.state = 'needs_review'
+        record.run.technicalOutcome = 'unknown'
+        record.evaluation = evaluationForRun(record.run.id, record.run.outputArtifacts, true, 'unknown')
+        record.run.updatedAt = record.options.now
+        refreshReconciledReceipts(record, pipelineExecutionOrder(record.input.pipelinePlan.steps))
+        return resultForRecord(record, 'RECONCILIATION_ARTIFACTS_UNAVAILABLE', ['RECONCILIATION_ARTIFACTS_UNAVAILABLE'])
+      }
+      const recoveredHashes = recoveredArtifacts.map((artifact) => artifact.contentHash)
+      const providerRequestId = recovery.providerRequestId ?? unknown.providerRequestId
+      if (requiredRemoteStep(step)) appendRuntimeEvent(record, runtimeStepEvent(record, step, 'acknowledged', promptHash, authorizationId, inputHash, recoveredHashes, unknown.attempt, unknown.retriesUsed, providerRequestId, undefined, recovery.actualCost ?? 0, recovery.actualBytes ?? 0))
+      appendRuntimeEvent(record, runtimeStepEvent(record, step, 'succeeded', promptHash, authorizationId, inputHash, recoveredHashes, unknown.attempt, unknown.retriesUsed, providerRequestId, 'RECONCILED_COMPLETED', recovery.actualCost ?? 0, recovery.actualBytes ?? 0))
+      record.run.outputArtifacts.push(...recoveredArtifacts)
+      completed.add(step.id)
+      outcome = 'success'
+
+      const steps = pipelineExecutionOrder(record.input.pipelinePlan.steps)
+      const unknownIndex = steps.findIndex((candidate) => candidate.id === step.id)
+      const authorizations = new Map(record.input.remoteCallAuthorizations.map((authorization) => [authorization.stepId, authorization]))
+      for (const downstream of steps.slice(unknownIndex + 1)) {
+        const latest = record.events.filter((event) => event.stepId === downstream.id).at(-1)
+        if (latest?.state === 'succeeded') {
+          completed.add(downstream.id)
+          continue
+        }
+        if (downstream.dependsOn.some((dependency) => !completed.has(dependency))) {
+          failed.add(downstream.id)
+          outcome = 'failure'
+          break
+        }
+        appendRuntimeEvent(record, runtimeStepEvent(record, downstream, 'reconciling', promptHash, authorizations.get(downstream.id)?.id, computeExecutionStepInputHash(downstream, record.input.contextHash, record.input.pipelinePlan.planHash, record.input.referencePlan.planHash, promptHash, record.input.referencePlan.ordered.map((reference) => reference.contentHash)), [], 0, 0, undefined, 'RESUME_AFTER_RECONCILIATION'))
+        const stepResult = this.executeRegisteredStep(record, downstream, authorizations.get(downstream.id))
+        if (stepResult.terminalResult && requiredRemoteStep(downstream) && authorizations.get(downstream.id)) {
+          const stepEvents = record.events.filter((event) => event.stepId === downstream.id)
+          const placeholder = makeStepReceipt(record.run.id, downstream, stepEvents, 'pending')
+          record.remoteCallRuns.push(makeRemoteCallRun(record, downstream, authorizations.get(downstream.id)!, placeholder))
+        }
+        if (stepResult.outcome === 'success') completed.add(downstream.id)
+        else {
+          if (stepResult.outcome === 'unknown') outcome = 'unknown'
+          else if (stepResult.outcome === 'cancel') outcome = 'cancel'
+          else outcome = 'failure'
+          failed.add(downstream.id)
+          break
+        }
+      }
     }
-    record.run.state = state
-    record.run.technicalOutcome = state === 'cancelled' ? 'cancelled' : state === 'failed' ? 'failed' : state === 'completed' ? 'succeeded' : 'pending'
+
+    const steps = pipelineExecutionOrder(record.input.pipelinePlan.steps)
+    const needsReview = outcome === 'success' && steps.some((candidate) => candidate.type === 'semantic_review' && completed.has(candidate.id))
+    const finalStatus = executionOutcomeStatus(outcome, needsReview)
+    record.run.state = finalStatus.state
+    record.run.technicalOutcome = finalStatus.technicalOutcome
+    record.run.outputArtifacts = [...new Map(record.run.outputArtifacts.map((artifact) => [artifact.id, artifact])).values()].sort((left, right) => compareCodeUnits(left.id, right.id))
+    record.evaluation = evaluationForRun(record.run.id, record.run.outputArtifacts, needsReview, outcome)
+    if (needsReview && !record.humanAcceptance) record.humanAcceptance = humanAcceptanceForRun(record.run.id, record.run.outputArtifacts)
+    appendReconciliationCleanup(record, outcome, false)
+    appendReconciliationCompensation(record, outcome, false, completed, failed)
+    const cleanupFailed = record.cleanupReceipts.some((receipt) => receipt.status === 'cleanup_failed') || record.compensationReceipts.some((receipt) => receipt.status === 'cleanup_failed')
+    refreshReconciledReceipts(record, steps)
+    record.run.cleanupStatus = cleanupFailed ? 'cleanup_failed' : 'completed'
     record.run.updatedAt = record.options.now
-    return resultForRecord(record, `RECONCILED_${state.toUpperCase()}`)
+    const code = cleanupFailed ? 'CLEANUP_FAILED' : outcome === 'unknown' ? 'SUBMISSION_UNKNOWN_RECONCILIATION_REQUIRED' : outcome === 'cancel' ? 'EXECUTION_CANCELLED' : outcome === 'failure' ? 'EXECUTION_FAILED' : needsReview ? 'HUMAN_ACCEPTANCE_REQUIRED' : 'EXECUTION_COMPLETED'
+    const reasons = cleanupFailed ? ['CLEANUP_FAILED'] : outcome === 'unknown' ? ['SUBMISSION_UNKNOWN_RECONCILIATION_REQUIRED'] : []
+    return resultForRecord(record, code, reasons)
   }
 
   cancel(runId: string): OfflineExecutionResult {
@@ -2188,10 +2470,25 @@ export function createOfflineExecutionRuntime(adapter: OfflineStepAdapter = new 
   return new OfflineExecutionRuntime(adapter, adapters)
 }
 
+export function createMockRuntimeForPlan(plan: PipelinePlan, options: MockProviderAdapterOptions = {}): OfflineExecutionRuntime {
+  const adapters = new Map<string, OfflineStepAdapter>()
+  for (const step of plan.steps) {
+    const existing = adapters.get(step.adapterId)
+    if (existing && existing.version.digest === step.adapterVersion.digest && existing.profileDigest === step.profileVersion.digest) continue
+    adapters.set(step.adapterId, new MockProviderAdapter({
+      ...options,
+      version: clone(step.adapterVersion),
+      digest: step.adapterVersion.digest,
+      profileDigest: step.profileVersion.digest,
+    }, step.adapterId))
+  }
+  return new OfflineExecutionRuntime(undefined, [...adapters.values()])
+}
+
 export const OfflineExecutionEngine = OfflineExecutionRuntime
 
-export function executeOffline(input: OfflineExecutionInput, runtime = new OfflineExecutionRuntime()): OfflineExecutionResult {
-  return runtime.execute(input)
+export function executeOffline(input: OfflineExecutionInput, runtime?: OfflineExecutionRuntime): OfflineExecutionResult {
+  return (runtime ?? createMockRuntimeForPlan(input.pipelinePlan)).execute(input)
 }
 
 export const executePipeline = executeOffline

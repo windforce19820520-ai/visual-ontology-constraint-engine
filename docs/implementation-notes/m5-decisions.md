@@ -17,9 +17,14 @@ This note records the implementation-level decisions for the Prompt IR, Prompt G
 ## Offline adapters and execution
 
 - Mock adapters return hash-addressed virtual `ArtifactHandle` metadata only. They do not make network calls, download URLs, create image bytes, or invoke paid providers. The native-transparent and JPEG-plus-background-removal plans use the same provider-neutral adapter port.
+- Offline execution is fail-closed on explicit adapter registration: adapter ID, version/digest, and any supplied profile digest must match each `PipelineStep`; `createMockRuntimeForPlan` is the fixture-only helper that registers exact mock implementations.
 - Execution calls M4 `dispatchPreflight` with an exact snapshot of the current context, plans, prompt artifact, adapters/profiles, destinations, data-transfer digest, budget digest, and bound remote authorizations. Remote mock steps use the same authorization and receipt structure as live-semantic steps.
-- Events are append-only and hashes exclude only their own identity/volatile timestamp fields. `submission_unknown` is terminal until explicit reconciliation; it is never automatically resubmitted. Run retries are bounded by the step budget and never cross a terminal run boundary.
+- Remote authorization binding includes destination, region, data categories, model fields, and the other M4 snapshot fields. Events are append-only and hashes exclude only their own identity/volatile timestamp fields. `submission_unknown` is terminal until explicit reconciliation; it is never automatically resubmitted. A completed reconciliation must recover safe mock outputs and resume downstream steps in the same run; unavailable recovery remains `needs_review`. Run retries are bounded by the step budget and never cross a terminal run boundary.
 - Finally cleanup and compensation receipts are emitted for success, failure, cancellation, uncertain submission, and worker restart conditions. Cleanup failure is visible in receipts and the result code without pretending that a human decline or cleanup failure is a provider execution failure.
+
+## Declared suggestions
+
+- A new suggestion section is accepted only when a PromptIR-declared suggestion slot and matching `suggestion`/`add_suggestion`/`declared_suggestion` transformation provide optimizer provenance and `declared_suggestion` proof. Otherwise Guard blocks it as unauthorized or unverifiable.
 
 ## Replay and trace
 
