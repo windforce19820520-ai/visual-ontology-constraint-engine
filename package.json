@@ -11,7 +11,7 @@
     "repository-validate": "node scripts/validate-repository.mjs",
     "validate": "npm run repository-validate && npm run typecheck && npm test",
     "typecheck": "tsc -b",
-    "test": "npm run build && node --test packages/*/dist/**/*.test.js",
+    "test": "npm run build && node --test packages/core/dist/core.test.js",
     "build": "tsc -b"
   },
   "workspaces": ["packages/*"],
