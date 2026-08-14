@@ -463,13 +463,24 @@ function safeResponse(response: ProviderResponseEnvelope): ProviderResponseEnvel
 }
 
 function publicResponseReceipt(response: ProviderResponseEnvelope): ProviderResponseEnvelope {
+  const safeError = response.error === undefined ? undefined : (() => {
+    const errorBase: Omit<ProviderError, 'errorHash'> = {
+      schemaVersion: PROVIDER_ERROR_SCHEMA_VERSION,
+      code: response.error.code,
+      message: safeMessage(response.error.message),
+      retryable: response.error.retryable,
+      submissionUnknown: response.error.submissionUnknown,
+      ...(response.error.safeDetails === undefined ? {} : { safeDetails: safeJson(response.error.safeDetails) as JsonObject }),
+    }
+    return { ...errorBase, errorHash: computeProviderErrorHash(errorBase as ProviderError) }
+  })()
   const base: Omit<ProviderResponseEnvelope, 'responseHash'> = {
     schemaVersion: PROVIDER_RESPONSE_ENVELOPE_SCHEMA_VERSION,
     requestHash: response.requestHash,
     status: response.status,
     ...(response.providerRequestId === undefined ? {} : { providerRequestId: response.providerRequestId }),
     outputArtifactIds: sortedStrings(response.outputArtifactIds),
-    ...(response.error === undefined ? {} : { error: clone({ ...response.error, message: safeMessage(response.error.message), ...(response.error.safeDetails === undefined ? {} : { safeDetails: safeJson(response.error.safeDetails) as JsonObject }) }) }),
+    ...(safeError === undefined ? {} : { error: safeError }),
   }
   return clone({ ...base, responseHash: computeProviderResponseEnvelopeHash(base as ProviderResponseEnvelope) })
 }
@@ -583,6 +594,7 @@ function validateAdapterConfig(config: Pick<SeedreamAdapterConfig, 'endpoint'|'c
   if (!config.adapter?.id || !isHash(config.adapter.digest)) throw new ProviderTransportError('ADAPTER_VERSION_INVALID', 'Adapter version or digest is invalid.')
   if (!config.profile?.id || !isHash(config.profile.digest)) throw new ProviderTransportError('ADAPTER_PROFILE_INVALID', 'Provider profile or digest is invalid.')
   if (!config.destination) throw new ProviderTransportError('ADAPTER_DESTINATION_MISSING', 'Provider destination is missing.')
+  if (config.destination !== config.endpoint) throw new ProviderTransportError('ADAPTER_DESTINATION_ENDPOINT_MISMATCH', 'Provider destination must be the exact configured endpoint used by the transport.')
 }
 
 function imageInputs(value: SeedreamImageInput | SeedreamImageInput[] | undefined): SeedreamImageInput[] {
@@ -683,7 +695,7 @@ function validateSeedreamInput(input: SeedreamGenerateInput): SeedreamImageInput
 export function validateSeedreamConfig(config: SeedreamAdapterConfig): void { validateAdapterConfig(config) }
 
 async function resolveSeedreamInput(input: SeedreamGenerateInput, config: SeedreamAdapterConfig): Promise<SeedreamGenerateInput> {
-  const references = input.referenceArtifacts ?? []
+  const references = (input.referenceArtifacts ?? []).map((item) => ({ artifact: clone(item.artifact), ...(item.bytes === undefined ? {} : { bytes: new Uint8Array(item.bytes) }) }))
   const images = imageInputs(input.image)
   const resolved = await Promise.all(images.map(async (image): Promise<SeedreamImageInput> => {
     if (!(image && typeof image === 'object' && !(image instanceof Uint8Array) && 'contentHash' in image)) return image
@@ -694,7 +706,10 @@ async function resolveSeedreamInput(input: SeedreamGenerateInput, config: Seedre
     if (binarySha256(bytes) !== image.contentHash) throw new ProviderTransportError('ARTIFACT_HASH_MISMATCH', 'Seedream reference bytes do not match the ArtifactHandle content hash.')
     const actualMediaType = mediaTypeOf(bytes, [])
     if (!actualMediaType || actualMediaType !== image.mediaType) throw new ProviderTransportError('SEEDREAM_ARTIFACT_MEDIA_TYPE_MISMATCH', 'Seedream reference bytes do not match the ArtifactHandle media type.')
-    return new Uint8Array(bytes)
+    const existing = references.find((item) => item.artifact.id === image.id)
+    if (existing) existing.bytes = new Uint8Array(bytes)
+    else references.push({ artifact: clone(image), bytes: new Uint8Array(bytes) })
+    return clone(image)
   }))
   return { ...input, ...(input.image === undefined ? {} : { image: Array.isArray(input.image) ? resolved : resolved[0] }), referenceArtifacts: references }
 }
@@ -711,7 +726,6 @@ export function buildSeedreamRequest(input: SeedreamGenerateInput, config: Seedr
   const artifactHashes = sortedStrings([
     ...images.filter((value): value is ArtifactHandle => Boolean(value && typeof value === 'object' && !(value instanceof Uint8Array) && 'contentHash' in value)).map((value) => value.contentHash),
     ...(input.referenceArtifacts ?? []).filter((item) => images.some((value) => typeof value === 'object' && !(value instanceof Uint8Array) && value.id === item.artifact.id)).map((item) => item.artifact.contentHash),
-    ...(input.referenceArtifacts ?? []).map((item) => item.artifact.contentHash),
   ])
   artifactHashes.forEach((hash) => assertHash(hash, 'SEEDREAM_ARTIFACT_HASH_INVALID'))
   const inputHash = authorization?.inputHash ?? sha256(jsonReady({ adapter: config.adapter, profile: config.profile, model: config.model, input: jsonReady({ ...input, referenceArtifacts: (input.referenceArtifacts ?? []).map((item) => item.artifact) }) }))
@@ -804,7 +818,7 @@ export class SeedreamAdapter {
       requestHash = request.requestHash
       if (!context.credential || context.credential.ref !== this.config.credentialRef || !context.credential.value) throw new ProviderTransportError('ADAPTER_CREDENTIAL_MISSING', 'Host credential injection is missing or does not match the configured reference.')
       const transportContext: ProviderTransportContext = { ...context, authorization }
-      const response = await this.transport.send(request, transportContext)
+      const response = safeResponse(await this.transport.send(request, transportContext))
       if (response.requestHash !== request.requestHash) throw new ProviderTransportError('PROVIDER_RESPONSE_REQUEST_MISMATCH', 'Provider response did not match the request.')
       if (response.status === 'submission_unknown' || response.status === 'processing') return { status: 'submission_unknown', artifacts: [], response: publicResponseReceipt(response), lookup: createProviderSubmissionLookup(request, response.providerRequestId), failureCode: 'REMOTE_SUBMISSION_UNKNOWN' }
       if (response.status === 'failed') return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), failureCode: response.error?.code ?? 'PROVIDER_FAILED' }
@@ -822,7 +836,7 @@ export class SeedreamAdapter {
     if (lookup.adapterId !== this.id || lookup.adapterDigest !== this.digest || lookup.profileId !== this.config.profile.id || lookup.profileDigest !== this.profileDigest || lookup.purpose !== 'generation' || lookup.modelId !== this.config.model || lookup.modelVersion !== this.config.modelVersion) throw new ProviderTransportError('PROVIDER_LOOKUP_SCOPE_MISMATCH', 'Submission lookup identity does not match the adapter.')
     if (!context.credential || context.credential.ref !== this.config.credentialRef || !context.credential.value) throw new ProviderTransportError('ADAPTER_CREDENTIAL_MISSING', 'Host credential injection is missing or does not match the configured reference.')
     try {
-      const response = await this.transport.lookup(lookup, { ...context, authorization })
+      const response = safeResponse(await this.transport.lookup(lookup, { ...context, authorization }))
       if (response.requestHash !== lookup.requestHash) throw new ProviderTransportError('PROVIDER_LOOKUP_REQUEST_MISMATCH', 'Submission lookup response did not match the original request.')
       if (response.status === 'submission_unknown' || response.status === 'processing') return { status: 'submission_unknown', artifacts: [], response: publicResponseReceipt(response), lookup: clone(lookup), failureCode: 'REMOTE_SUBMISSION_UNKNOWN' }
       if (response.status === 'failed') return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), lookup: clone(lookup), failureCode: response.error?.code ?? 'PROVIDER_FAILED' }
@@ -870,6 +884,7 @@ function validateVeConfig(config: VeImageXAdapterConfig): void {
   if (!config.adapter?.id || !isHash(config.adapter.digest)) throw new ProviderTransportError('ADAPTER_VERSION_INVALID', 'Postprocessor adapter version is invalid.')
   if (!config.profile?.id || !isHash(config.profile.digest)) throw new ProviderTransportError('ADAPTER_PROFILE_INVALID', 'Postprocessor profile is invalid.')
   if (!config.destination) throw new ProviderTransportError('ADAPTER_DESTINATION_MISSING', 'Postprocessor destination is missing.')
+  if (config.destination !== config.endpoint) throw new ProviderTransportError('ADAPTER_DESTINATION_ENDPOINT_MISMATCH', 'Postprocessor destination must be the exact configured endpoint used by the transport.')
 }
 
 function buildVeRequest(input: BackgroundRemovalInput, config: VeImageXAdapterConfig, authorization?: RemoteCallAuthorization): ProviderRequestEnvelope {
@@ -945,7 +960,7 @@ export class VeImageXBackgroundRemovalAdapter {
       const bytes = input.bytes ?? (this.config.resolver ? await this.config.resolver(input.artifact) : this.config.assetSink.resolve ? await this.config.assetSink.resolve(input.artifact) : undefined)
       if (!bytes) return { status: 'failed', artifacts: [], response: errorResponse(request.requestHash, 'ARTIFACT_UNAVAILABLE', 'Input artifact could not be resolved.'), failureCode: 'ARTIFACT_UNAVAILABLE' }
       if (binarySha256(bytes) !== input.artifact.contentHash) return { status: 'failed', artifacts: [], response: errorResponse(request.requestHash, 'ARTIFACT_HASH_MISMATCH', 'Input artifact hash does not match supplied bytes.'), failureCode: 'ARTIFACT_HASH_MISMATCH' }
-      const response = await this.transport.send(request, { ...context, authorization })
+      const response = safeResponse(await this.transport.send(request, { ...context, authorization }))
       if (response.requestHash !== request.requestHash) throw new ProviderTransportError('PROVIDER_RESPONSE_REQUEST_MISMATCH', 'Provider response did not match the request.')
       if (response.status === 'submission_unknown' || response.status === 'processing') return { status: 'submission_unknown', artifacts: [], response: publicResponseReceipt(response), lookup: createProviderSubmissionLookup(request, response.providerRequestId), failureCode: 'REMOTE_SUBMISSION_UNKNOWN' }
       if (response.status === 'failed') return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), failureCode: response.error?.code ?? 'POSTPROCESSING_FAILED' }
@@ -965,7 +980,7 @@ export class VeImageXBackgroundRemovalAdapter {
     if (lookup.adapterId !== this.id || lookup.adapterDigest !== this.digest || lookup.profileId !== this.config.profile.id || lookup.profileDigest !== this.profileDigest || lookup.purpose !== 'postprocessing' || lookup.modelId !== undefined || lookup.modelVersion !== undefined) throw new ProviderTransportError('PROVIDER_LOOKUP_SCOPE_MISMATCH', 'Submission lookup identity does not match the postprocessor.')
     if (!context.credential || context.credential.ref !== this.config.credentialRef || !context.credential.value) throw new ProviderTransportError('ADAPTER_CREDENTIAL_MISSING', 'Host credential injection is missing or does not match the configured reference.')
     try {
-      const response = await this.transport.lookup(lookup, { ...context, authorization })
+      const response = safeResponse(await this.transport.lookup(lookup, { ...context, authorization }))
       if (response.requestHash !== lookup.requestHash) throw new ProviderTransportError('PROVIDER_LOOKUP_REQUEST_MISMATCH', 'Submission lookup response did not match the original request.')
       if (response.status === 'submission_unknown' || response.status === 'processing') return { status: 'submission_unknown', artifacts: [], response: publicResponseReceipt(response), lookup: clone(lookup), failureCode: 'REMOTE_SUBMISSION_UNKNOWN' }
       if (response.status === 'failed') return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), lookup: clone(lookup), failureCode: response.error?.code ?? 'POSTPROCESSING_FAILED' }

@@ -6,7 +6,11 @@ import type {
   Budget,
   HumanAcceptanceDecision,
   JsonObject,
+  ProviderRequestEnvelope,
   ProviderResponseEnvelope,
+  ProviderSubmissionLookup,
+  ProviderTransport,
+  ProviderTransportContext,
   RemoteCallAuthorization,
   SemanticReviewRequest,
   SemanticReviewReport,
@@ -268,6 +272,8 @@ test('provider hashes bind sensitive bytes and URLs without exposing them', asyn
   transport.enqueue({ ...failedBase, responseHash: computeProviderResponseEnvelopeHash(failedBase as ProviderResponseEnvelope) })
   const failedResult = await instance.generate({ prompt: 'hash-error' }, errorAuth, { credential })
   assert.doesNotMatch(JSON.stringify(failedResult.response), /secret-token|Bearer secret|A{80}/)
+  assert.ok(failedResult.response.error)
+  assert.equal(computeProviderErrorHash(failedResult.response.error), failedResult.response.error.errorHash)
 })
 
 test('Seedream resolves ArtifactHandle bytes and validates endpoint profile and native format', async () => {
@@ -281,10 +287,38 @@ test('Seedream resolves ArtifactHandle bytes and validates endpoint profile and 
   assert.notEqual(request.payload.image, artifactHandle.id)
   assert.throws(() => new SeedreamAdapter({ ...seedreamConfig(transport, sink), endpointProfile: 'domestic', endpoint: 'https://api.bytepluses.com' }), /ADAPTER_ENDPOINT_PROFILE_MISMATCH/)
   assert.throws(() => new SeedreamAdapter({ ...seedreamConfig(transport, sink), endpointProfile: 'overseas', endpoint: 'https://api.volces.com' }), /ADAPTER_ENDPOINT_PROFILE_MISMATCH/)
+  assert.throws(() => new SeedreamAdapter({ ...seedreamConfig(transport, sink), endpoint: 'https://other.example.test' }), /ADAPTER_DESTINATION_ENDPOINT_MISMATCH/)
   const webp = { prompt: 'webp', output_format: 'webp' } as unknown as Parameters<SeedreamAdapter['generate']>[0]
   const result = await instance.generate(webp, auth({ stepId: 'webp', purpose: 'generation', inputHash: sha256({ webp: 1 }), adapter, profileDigest: profile.digest }), { credential })
   assert.equal(result.status, 'failed')
   assert.equal(transport.calls.length, 0)
+})
+
+test('Seedream resolver preserves ArtifactHandle authorization and adapters reject forged transport responses', async () => {
+  const sink = new TestAssetSink()
+  const transport = new RecordingMockTransport()
+  const artifactHandle: ArtifactHandle = { id: 'resolver-reference', storeId: 'fixture', contentHash: computeArtifactBytesHash(ALPHA_PNG), mediaType: 'image/png', byteLength: ALPHA_PNG.length, role: 'reference', resolverId: 'fixture', availability: 'available', retentionClass: 'fixture', redactionPolicy: 'safe-hash-only' }
+  const instance = new SeedreamAdapter({ ...seedreamConfig(transport, sink), resolver: async (artifact) => artifact.id === artifactHandle.id ? new Uint8Array(ALPHA_PNG) : undefined })
+  const authorization = auth({ stepId: 'resolver-input', purpose: 'generation', inputHash: sha256({ resolver: 1 }), adapter, profileDigest: profile.digest, artifactHashes: [artifactHandle.contentHash], dataCategories: ['prompt', 'reference_image'] })
+  transport.enqueue(response('', { data: [{ b64_json: Buffer.from(JPEG).toString('base64'), mediaType: 'image/jpeg' }] }))
+  const result = await instance.generate({ prompt: 'resolver', image: artifactHandle, output_format: 'jpeg' }, authorization, { credential })
+  assert.equal(result.status, 'succeeded')
+  assert.equal(transport.calls.length, 1)
+
+  const forgedTransport: ProviderTransport = {
+    id: 'forged-response-transport',
+    mode: 'offline',
+    async send(request: ProviderRequestEnvelope, _context: ProviderTransportContext): Promise<ProviderResponseEnvelope> {
+      return { ...response(request.requestHash, { data: [{ b64_json: Buffer.from(JPEG).toString('base64'), mediaType: 'image/jpeg' }] }), responseHash: sha256({ forged: true }) }
+    },
+    async lookup(_request: ProviderSubmissionLookup, _context: ProviderTransportContext): Promise<ProviderResponseEnvelope> {
+      throw new Error('not used')
+    },
+  }
+  const forgedInstance = new SeedreamAdapter({ ...seedreamConfig(new RecordingMockTransport(), new TestAssetSink()), transport: forgedTransport })
+  const forgedResult = await forgedInstance.generate({ prompt: 'forged response' }, auth({ stepId: 'forged-response', purpose: 'generation', inputHash: sha256({ forgedResponse: 1 }), adapter, profileDigest: profile.digest }), { credential })
+  assert.equal(forgedResult.status, 'failed')
+  assert.equal(forgedResult.failureCode, 'PROVIDER_RESPONSE_HASH_MISMATCH')
 })
 
 test('lookup reconciliation is original-request bound, bounded, and returns only persisted safe results', async () => {
