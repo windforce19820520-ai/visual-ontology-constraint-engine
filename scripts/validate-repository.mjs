@@ -23,6 +23,37 @@ const requiredFiles = [
   'docs/zh-CN/scenario-pack-contract.md',
   'docs/system-design.md',
   'docs/zh-CN/system-design.md',
+  'docs/implementation-notes/m3-decisions.md',
+]
+
+const requiredContractSchemas = [
+  'packages/contracts/schemas/ArtifactHandle.schema.json',
+  'packages/contracts/schemas/BindingDecision.schema.json',
+  'packages/contracts/schemas/CaseSpec.schema.json',
+  'packages/contracts/schemas/ChangeIntent.schema.json',
+  'packages/contracts/schemas/Conflict.schema.json',
+  'packages/contracts/schemas/DecisionTrace.schema.json',
+  'packages/contracts/schemas/EffectiveScenario.schema.json',
+  'packages/contracts/schemas/EvidenceAndSourceResolverInput.schema.json',
+  'packages/contracts/schemas/EvidenceAndSourceResolverResult.schema.json',
+  'packages/contracts/schemas/EvidenceRegion.schema.json',
+  'packages/contracts/schemas/ManualObservationDeclaration.schema.json',
+  'packages/contracts/schemas/Observation.schema.json',
+  'packages/contracts/schemas/ObservationDecision.schema.json',
+  'packages/contracts/schemas/OntologyFact.schema.json',
+  'packages/contracts/schemas/OntologyInstance.schema.json',
+  'packages/contracts/schemas/PackResolutionReport.schema.json',
+  'packages/contracts/schemas/Question.schema.json',
+  'packages/contracts/schemas/ReferenceInterpreterInput.schema.json',
+  'packages/contracts/schemas/ReferenceInterpreterResult.schema.json',
+  'packages/contracts/schemas/RequestedScopePlan.schema.json',
+  'packages/contracts/schemas/ScenarioCompositionLock.schema.json',
+  'packages/contracts/schemas/ScenarioPackCatalogSnapshot.schema.json',
+  'packages/contracts/schemas/ScenarioPackManifest.schema.json',
+  'packages/contracts/schemas/ScenarioPackSelection.schema.json',
+  'packages/contracts/schemas/SourceBinding.schema.json',
+  'packages/contracts/schemas/TargetDirective.schema.json',
+  'packages/contracts/schemas/UnresolvedItem.schema.json',
 ]
 
 const repositoryRoot = new URL('../', import.meta.url)
@@ -70,6 +101,28 @@ for (const file of requiredFiles) {
   const url = new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot)
   await access(url)
   requiredFileContents[file] = markdownFileContents[file] ?? fatalUtf8Decoder.decode(await readFile(url))
+}
+
+const schemaIds = new Set()
+for (const file of requiredContractSchemas) {
+  const url = new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot)
+  let schema
+  try {
+    schema = JSON.parse(await readFile(url, 'utf8'))
+  } catch {
+    throw new Error(`CONTRACT_SCHEMA_INVALID_JSON:${file}`)
+  }
+  if (!schema || schema.$schema !== 'https://json-schema.org/draft/2020-12/schema' || typeof schema.$id !== 'string' || schemaIds.has(schema.$id)) {
+    throw new Error(`CONTRACT_SCHEMA_METADATA_INVALID:${file}`)
+  }
+  schemaIds.add(schema.$id)
+  if (!schema.type && !schema.oneOf) throw new Error(`CONTRACT_SCHEMA_ROOT_INVALID:${file}`)
+}
+
+for (const [file, expectedVersion] of [['fixtures/observation-unconfirmed.json', 'voce.observation/v1alpha1'], ['fixtures/product-shot-case.json', 'voce.case-spec/v1alpha1']]) {
+  const url = new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot)
+  const value = JSON.parse(await readFile(url, 'utf8'))
+  if (value.schemaVersion !== expectedVersion) throw new Error(`M3_FIXTURE_SCHEMA_VERSION_MISSING:${file}`)
 }
 
 const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')

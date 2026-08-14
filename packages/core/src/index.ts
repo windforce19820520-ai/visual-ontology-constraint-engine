@@ -7,8 +7,10 @@ import type {
   ScenarioPackSelection,
 } from '@voce/contracts'
 import { valid as semverValid, validRange as semverValidRange, satisfies as semverSatisfies } from 'semver'
+import { canonicalize, hashWithoutSelf, sha256 } from './canonical.js'
 
 export type { JsonValue } from '@voce/contracts'
+export { canonicalize, hashWithoutSelf, sha256 } from './canonical.js'
 
 export const RESOLVER_VERSION = 'voce.scenario-pack-resolver/v1alpha1'
 const CONTRACT_VERSION = 'voce.scenario-pack/v1alpha1'
@@ -55,26 +57,6 @@ function cloneData<T>(value: T): T {
     return result as T
   }
   return value
-}
-
-export function canonicalize(value: JsonValue): string {
-  if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value)
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error('CANONICAL_JSON_NUMBER_INVALID')
-    return JSON.stringify(value)
-  }
-  if (Array.isArray(value)) return `[${value.map(canonicalize).join(',')}]`
-  return `{${Object.keys(value).sort(compareCodeUnits).map((key) => `${JSON.stringify(key)}:${canonicalize(value[key])}`).join(',')}}`
-}
-
-export function sha256(value: JsonValue): string {
-  return `sha256:${createHash('sha256').update(canonicalize(value)).digest('hex')}`
-}
-
-export function hashWithoutSelf<T extends Record<string, unknown>>(value: T, field: string): string {
-  const copy = { ...value }
-  delete copy[field]
-  return sha256(json(copy))
 }
 
 function validateManifestBase(value: unknown): asserts value is ScenarioPackManifest {
@@ -542,3 +524,5 @@ export class MemoryScenarioPackRegistry implements ScenarioPackRegistry {
 export function createScenarioPackRegistry(): ScenarioPackRegistry {
   return new MemoryScenarioPackRegistry()
 }
+
+export * from './evidence.js'
