@@ -12,12 +12,33 @@
       ] }
     ],
     "interpretationScopes": [
-      { "id": "virtual-tryon.reference-scopes", "value": { "assetId": "ref-01", "paths": ["person.identity", "person.hair", "person.expression", "person.pose", "wardrobe", "environment.background", "camera"] } }
+      { "id": "virtual-tryon.scope.identity", "ontologyPath": "person.identity", "assetId": "ref-01" },
+      { "id": "virtual-tryon.scope.hair", "ontologyPath": "person.hair", "assetId": "ref-01" },
+      { "id": "virtual-tryon.scope.expression", "ontologyPath": "expression", "assetId": "ref-01" },
+      { "id": "virtual-tryon.scope.pose", "ontologyPath": "pose", "assetId": "ref-01" },
+      { "id": "virtual-tryon.scope.wardrobe", "ontologyPath": "wardrobe", "assetId": "ref-01" },
+      { "id": "virtual-tryon.scope.background", "ontologyPath": "environment.background", "assetId": "ref-01" },
+      { "id": "virtual-tryon.scope.camera", "ontologyPath": "camera", "assetId": "ref-01" }
     ]
   },
   "fixtures": [
-    { "id": "virtual-tryon.offline", "cases": [
-      { "id": "case-virtual-tryon-001", "profileId": "mock-jpeg-plus-removal", "expectedStatus": "completed", "semanticReview": true, "humanPending": true }
+      { "id": "virtual-tryon.offline", "cases": [
+      { "id": "case-virtual-tryon-001", "profileId": "mock-jpeg-plus-removal", "expectedStatus": "completed", "semanticReview": true, "humanPending": true,
+        "scopePaths": ["person.identity", "person.hair", "expression", "pose", "wardrobe.top", "environment.background", "camera.framing"],
+        "expectedAssertions": [
+          { "id": "vtryon-reference-multi-scope", "phase": "compile", "target": "reference.observationCount", "operator": "gte", "expected": 2 },
+          { "id": "vtryon-reference-single-asset", "phase": "compile", "target": "reference.observationAssetIds", "operator": "includes", "expected": "ref-01" },
+          { "id": "vtryon-prompt-guard", "phase": "compile", "target": "compile.promptGuard", "operator": "equals", "expected": "accepted" },
+          { "id": "vtryon-constraint-hash", "phase": "compile", "target": "compile.constraintHash", "operator": "sha256" },
+          { "id": "vtryon-reference-plan-hash", "phase": "compile", "target": "compile.referencePlanHash", "operator": "sha256" },
+          { "id": "vtryon-jpeg-artifact", "phase": "run", "target": "run.artifactMediaTypes", "operator": "includes", "expected": "image/jpeg" },
+          { "id": "vtryon-alpha-png", "phase": "run", "target": "run.alphaArtifactCount", "operator": "gte", "expected": 1 },
+          { "id": "vtryon-background-removal-receipt", "phase": "run", "target": "run.receiptAdapters", "operator": "includes", "expected": "voce.background-removal" },
+          { "id": "vtryon-structural-evidence", "phase": "run", "target": "run.structuralStatus", "operator": "exists" },
+          { "id": "vtryon-semantic-proposal", "phase": "run", "target": "run.semanticStatus", "operator": "equals", "expected": "proposal" },
+          { "id": "vtryon-human-pending", "phase": "run", "target": "run.humanStatus", "operator": "equals", "expected": "pending" },
+          { "id": "vtryon-static-trace", "phase": "run", "target": "run.traceModelHash", "operator": "sha256" }
+        ] }
     ] }
   ]
 }

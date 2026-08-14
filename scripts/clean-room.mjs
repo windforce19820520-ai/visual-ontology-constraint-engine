@@ -35,7 +35,7 @@ const localDependencies = { '@voce/contracts': `file:${tarballFor('contracts')}`
 await writeFile(path.join(app, 'package.json'), JSON.stringify({ name: 'voce-clean-room', private: true, type: 'module', dependencies: localDependencies }, null, 2) + '\n')
 await writeFile(path.join(app, 'pnpm-workspace.yaml'), `overrides:\n${Object.entries(localDependencies).map(([name, value]) => `  '${name}': '${value}'`).join('\n')}\n`)
 let installMode = 'local-tarballs-offline'
-try { run(pnpm, ['install', '--ignore-scripts', '--offline'], app) } catch { installMode = 'local-tarballs-plus-open-source-dependencies'; run(pnpm, ['install', '--ignore-scripts'], app) }
+try { run(pnpm, ['install', '--ignore-scripts', '--package-import-method', 'copy', '--offline'], app) } catch { installMode = 'local-tarballs-plus-open-source-dependencies'; run(pnpm, ['install', '--ignore-scripts', '--package-import-method', 'copy'], app) }
 for (const name of ['contracts', 'core', 'testkit', 'cli']) {
   const dependencyPath = path.join(app, 'node_modules', '@voce', name); const metadata = await lstat(dependencyPath); const resolved = await realpath(dependencyPath)
   if (!resolved.startsWith(room + path.sep) || (metadata.isSymbolicLink() && resolved.includes(`${path.sep}packages${path.sep}`))) fail(`Clean-room dependency ${name} is outside the controlled tarball install or points to the workspace.`)

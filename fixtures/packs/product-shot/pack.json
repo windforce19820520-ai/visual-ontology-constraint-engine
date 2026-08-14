@@ -7,17 +7,36 @@
   "contributions": {
     "rulePacks": [
       { "id": "product-shot.rules", "namespace": "voce.fixture.product-shot", "rules": [
-        { "id": "zero-person-assumption", "kind": "subject-agnostic", "people": "not-required" },
-        { "id": "product-fidelity", "kind": "preservation", "importance": "required" }
+        { "id": "zero-person-assumption", "kind": "incompatibility", "leftPaths": ["product.geometry"], "rightPaths": ["person.identity"], "importance": "hard", "code": "PRODUCT_ZERO_PERSON", "reasonCode": "PRODUCT_ZERO_PERSON", "message": "Product fixtures do not introduce person identity constraints." },
+        { "id": "product-fidelity", "kind": "incompatibility", "leftPaths": ["product.material"], "rightPaths": ["environment.background"], "importance": "required", "code": "PRODUCT_FIDELITY", "reasonCode": "PRODUCT_FIDELITY", "message": "Product material and background are compiled as separate declarative requirements." }
       ] }
     ],
     "interpretationScopes": [
-      { "id": "product-shot.reference-scopes", "value": { "paths": ["product.geometry", "product.material", "environment.background", "camera", "lighting"] } }
+      { "id": "product-shot.scope.geometry", "ontologyPath": "product.geometry", "assetId": "ref-01" },
+      { "id": "product-shot.scope.material", "ontologyPath": "product.material", "assetId": "ref-01" },
+      { "id": "product-shot.scope.background", "ontologyPath": "environment.background", "assetId": "ref-01" },
+      { "id": "product-shot.scope.camera", "ontologyPath": "camera", "assetId": "ref-01" },
+      { "id": "product-shot.scope.lighting", "ontologyPath": "lighting", "assetId": "ref-01" }
     ]
   },
   "fixtures": [
     { "id": "product-shot.offline", "cases": [
-      { "id": "case-product-shot-001", "profileId": "mock-native-transparent", "expectedStatus": "completed", "semanticReview": false, "humanPending": false, "peopleRequired": false }
+      { "id": "case-product-shot-001", "profileId": "mock-native-transparent", "expectedStatus": "completed", "semanticReview": false, "humanPending": false,
+        "scopePaths": ["product.geometry", "product.material", "environment.background", "camera.framing"],
+        "coreProbes": [
+          { "id": "product-zero-person", "intents": [
+            { "id": "product-geometry", "operation": "create", "targetPath": "product.geometry", "requestedValue": "box", "importance": "required" },
+            { "id": "product-material", "operation": "preserve", "targetPath": "product.material", "requestedValue": "metal", "importance": "required" }
+          ] }
+        ],
+        "expectedAssertions": [
+          { "id": "product-no-person-observations", "phase": "compile", "target": "reference.personObservationCount", "operator": "equals", "expected": 0 },
+          { "id": "product-no-person-intents", "phase": "compile", "target": "coreProbes.product-zero-person.personIntentCount", "operator": "equals", "expected": 0 },
+          { "id": "product-core-success", "phase": "compile", "target": "coreProbes.product-zero-person.status", "operator": "equals", "expected": "ok" },
+          { "id": "product-constraint-hash", "phase": "compile", "target": "coreProbes.product-zero-person.constraintHash", "operator": "sha256" },
+          { "id": "product-execution", "phase": "run", "target": "run.executionStatus", "operator": "equals", "expected": "completed" },
+          { "id": "product-trace", "phase": "run", "target": "run.traceModelHash", "operator": "sha256" }
+        ] }
     ] }
   ]
 }

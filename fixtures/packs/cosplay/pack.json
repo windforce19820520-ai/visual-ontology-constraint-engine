@@ -7,17 +7,49 @@
   "contributions": {
     "rulePacks": [
       { "id": "cosplay.rules", "namespace": "voce.fixture.cosplay", "rules": [
-        { "id": "identity-costume-conflict", "kind": "hard_required_conflict", "outcomes": ["clarification", "waiver", "block", "degrade"] },
-        { "id": "no-last-wins", "kind": "conservative-resolution", "outcome": "block" }
+        { "id": "cosplay-hard-identity", "kind": "incompatibility", "leftPaths": ["person.identity"], "rightPaths": ["face.coverage"], "rightTokens": ["full_face"], "importance": "hard", "code": "COSPLAY_HARD_IDENTITY", "reasonCode": "COSPLAY_HARD_IDENTITY", "message": "Identity preservation and full-face coverage require an explicit hard block." },
+        { "id": "cosplay-required-costume", "kind": "incompatibility", "leftPaths": ["person.identity"], "rightPaths": ["wardrobe.costume"], "rightTokens": ["costume"], "importance": "required", "code": "COSPLAY_REQUIRED_COSTUME", "reasonCode": "COSPLAY_REQUIRED_COSTUME", "message": "Identity preservation and the costume requirement need an explicit waiver or block." },
+        { "id": "cosplay-preferred-wig", "kind": "incompatibility", "leftPaths": ["person.identity"], "rightPaths": ["hair.style"], "rightTokens": ["wig"], "importance": "preferred", "code": "COSPLAY_PREFERRED_WIG", "reasonCode": "COSPLAY_PREFERRED_WIG", "message": "A preferred wig request may be degraded deterministically when it conflicts with identity." },
+        { "id": "cosplay-no-last-wins", "kind": "resource", "leftPaths": ["accessories.hand"], "rightPaths": ["props"], "rightTokens": ["held"], "importance": "required", "resourceId": "hand", "code": "COSPLAY_NO_LAST_WINS", "reasonCode": "COSPLAY_NO_LAST_WINS", "message": "Hand resource conflicts remain explicit; neither side silently wins." }
       ] }
     ],
     "interpretationScopes": [
-      { "id": "cosplay.reference-scopes", "value": { "paths": ["person.identity", "wardrobe", "hair", "makeup", "props"] } }
+      { "id": "cosplay.scope.identity", "ontologyPath": "person.identity", "assetId": "ref-01" },
+      { "id": "cosplay.scope.hair", "ontologyPath": "person.hair", "assetId": "ref-01" },
+      { "id": "cosplay.scope.wardrobe", "ontologyPath": "wardrobe", "assetId": "ref-01" }
     ]
   },
   "fixtures": [
     { "id": "cosplay.offline", "cases": [
-      { "id": "case-cosplay-001", "profileId": "mock-native-transparent", "expectedStatus": "completed", "conflictOutcomes": ["clarification", "waiver", "block", "degrade"] }
+      { "id": "case-cosplay-001", "profileId": "mock-native-transparent", "expectedStatus": "completed",
+        "scopePaths": ["person.identity", "person.hair", "wardrobe.top"],
+        "coreProbes": [
+          { "id": "cosplay-clarification", "unknownPaths": ["person.identity"] },
+          { "id": "cosplay-hard", "intents": [
+            { "id": "identity-hard", "operation": "preserve", "targetPath": "person.identity", "requestedValue": "identity", "importance": "hard" },
+            { "id": "mask-hard", "operation": "create", "targetPath": "face.coverage", "requestedValue": "full_face", "importance": "hard" }
+          ] },
+          { "id": "cosplay-waiver", "waiverTarget": "COSPLAY_REQUIRED_COSTUME", "intents": [
+            { "id": "identity-required", "operation": "preserve", "targetPath": "person.identity", "requestedValue": "identity", "importance": "required" },
+            { "id": "costume-required", "operation": "create", "targetPath": "wardrobe.costume", "requestedValue": "costume", "importance": "required" }
+          ] },
+          { "id": "cosplay-preferred", "intents": [
+            { "id": "identity-preferred", "operation": "preserve", "targetPath": "person.identity", "requestedValue": "identity", "importance": "preferred" },
+            { "id": "wig-preferred", "operation": "create", "targetPath": "hair.style", "requestedValue": "wig", "importance": "preferred" }
+          ] }
+        ],
+        "expectedAssertions": [
+          { "id": "cosplay-clarification", "phase": "compile", "target": "coreProbes.cosplay-clarification.reviewReasons", "operator": "includes", "expected": "ONTOLOGY_PATH_UNKNOWN" },
+          { "id": "cosplay-hard-block", "phase": "compile", "target": "coreProbes.cosplay-hard.status", "operator": "equals", "expected": "blocked" },
+          { "id": "cosplay-hard-conflict", "phase": "compile", "target": "coreProbes.cosplay-hard.blockingConflictCount", "operator": "gte", "expected": 1 },
+          { "id": "cosplay-required-waiver", "phase": "compile", "target": "coreProbes.cosplay-waiver.status", "operator": "equals", "expected": "ok" },
+          { "id": "cosplay-waiver-warning", "phase": "compile", "target": "coreProbes.cosplay-waiver.waivedWarnings", "operator": "includes", "expected": "REQUIRED_CONFLICT_WAIVED" },
+          { "id": "cosplay-preferred-degrade", "phase": "compile", "target": "coreProbes.cosplay-preferred.status", "operator": "equals", "expected": "ok" },
+          { "id": "cosplay-degradation", "phase": "compile", "target": "coreProbes.cosplay-preferred.degradationCount", "operator": "gte", "expected": 1 },
+          { "id": "cosplay-trace-hash", "phase": "compile", "target": "coreProbes.cosplay-preferred.constraintHash", "operator": "sha256" },
+          { "id": "cosplay-execution", "phase": "run", "target": "run.executionStatus", "operator": "equals", "expected": "completed" },
+          { "id": "cosplay-static-trace", "phase": "run", "target": "run.traceModelHash", "operator": "sha256" }
+        ] }
     ] }
   ]
 }
