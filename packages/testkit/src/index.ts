@@ -133,3 +133,5 @@ export function confirmBinding(binding: Parameters<typeof createSourceBinding>[0
     }),
   }
 }
+
+export * from './m4.js'
