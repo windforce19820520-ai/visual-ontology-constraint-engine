@@ -25,7 +25,7 @@ async function pathExists(target) {
 }
 
 const base = path.join(temp, 'base')
-const compile = parseJsonLine(run(process.execPath, [cli, 'case', 'compile', '--case', path.join(ROOT, 'fixtures', 'cases', 'product-shot.json'), '--scenario', path.join(ROOT, 'fixtures', 'packs', 'product-shot'), '--profile', path.join(ROOT, 'fixtures', 'profiles', 'mock-native-transparent.json'), '--out', base, '--json']))
+const compile = parseJsonLine(run(process.execPath, [cli, 'case', 'compile', '--case', path.join(ROOT, 'fixtures', 'cases', 'product-shot.json'), '--scenario', path.join(ROOT, 'fixtures', 'packs', 'product-shot'), '--profile', path.join(ROOT, 'fixtures', 'profiles', 'mock-image.json'), '--out', base, '--json']))
 if (compile.status !== 'ok') fail('M8_SECURITY_BASE_COMPILE_FAILED')
 const results = []
 for (const item of corpus.cases) {
@@ -58,7 +58,7 @@ for (const item of corpus.cases) {
   } else if (item.mutation === 'hash-tamper') {
     await writeFile(payload, '{}', 'utf8'); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', runOutput]).json?.code
   } else if (item.mutation === 'output-input-overlap') {
-    observed = invokeAllowFailure(['case', 'compile', '--case', path.join(ROOT, 'fixtures', 'cases', 'product-shot.json'), '--scenario', path.join(ROOT, 'fixtures', 'packs', 'product-shot'), '--profile', path.join(ROOT, 'fixtures', 'profiles', 'mock-native-transparent.json'), '--out', path.join(ROOT, 'fixtures', 'cases', 'product-shot.json')]).json?.code
+    observed = invokeAllowFailure(['case', 'compile', '--case', path.join(ROOT, 'fixtures', 'cases', 'product-shot.json'), '--scenario', path.join(ROOT, 'fixtures', 'packs', 'product-shot'), '--profile', path.join(ROOT, 'fixtures', 'profiles', 'mock-image.json'), '--out', path.join(ROOT, 'fixtures', 'cases', 'product-shot.json')]).json?.code
   } else if (item.mutation === 'scenario-pack-executable') {
     const source = path.join(directory, 'pack.json'); const original = JSON.parse(await readFile(path.join(ROOT, 'fixtures', 'packs', 'third-party-minimal', 'pack.json'), 'utf8')); original.packId = `security.example/${item.id}`; original.declarations = { ...(original.declarations ?? {}), containsExecutableFiles: true }; await writeFile(source, JSON.stringify(original, null, 2), 'utf8')
     observed = invokeAllowFailure(['pack', 'inspect', '--source', directory]).json?.code

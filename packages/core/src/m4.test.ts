@@ -17,9 +17,9 @@ import {
   CapabilityAwarePipelinePlanner,
   ConstraintGraphCompiler,
   FIXED_M4_TIME,
-  MOCK_JPEG_PLUS_REMOVAL_PROFILE,
+  MOCK_IMAGE_PROFILE,
+  MOCK_JPEG_PROFILE,
   MOCK_LIMITED_REFERENCE_PROFILE,
-  MOCK_NATIVE_TRANSPARENT_PROFILE,
   ReferenceBudgetOptimizer,
   computeCompilationContextHash,
   computeConstraintConflictHash,
@@ -81,8 +81,8 @@ function ontology(facts: OntologyFact[] = [], changes: Partial<OntologyInstance>
   return { ...base, instanceHash: computeOntologyInstanceHash({ ...base, instanceHash: '' }) } as OntologyInstance
 }
 
-function output(background: OutputContract['background'] = 'transparent'): OutputContract {
-  return { artifactKind: 'image', dataType: 'image', mediaTypes: ['image/png'], cardinality: { min: 1, max: 1 }, dimensions: { width: 1024, height: 1024 }, background }
+function output(background: OutputContract['background'] = 'opaque'): OutputContract {
+  return { artifactKind: 'image', dataType: 'image', mediaTypes: ['image/png'], cardinality: { min: 1, max: 1 }, dimensions: { width: 1024, height: 1024 }, background, allowAlpha: false }
 }
 
 function intent(id: string, operation: 'preserve'|'replace'|'adjust'|'create'|'remove', targetPath: string, importance: 'hard'|'required'|'preferred', requestedValue?: JsonValue) {
@@ -114,7 +114,7 @@ function artifact(id: string, byteLength?: number, mediaType = 'image/png'): Art
   return { id, storeId: 'm4-store', contentHash: sha256({ artifact: id }), mediaType, ...(byteLength === undefined ? {} : { byteLength }), role: 'reference', resolverId: 'm4-resolver', availability: 'available', retentionClass: 'fixture', redactionPolicy: 'hash-only' }
 }
 
-function candidate(id: string, importance: ReferenceCandidate['importance'] = 'preferred', byteLength?: number, profile: ProviderCapabilityProfile = MOCK_NATIVE_TRANSPARENT_PROFILE): ReferenceCandidate {
+function candidate(id: string, importance: ReferenceCandidate['importance'] = 'preferred', byteLength?: number, profile: ProviderCapabilityProfile = MOCK_IMAGE_PROFILE): ReferenceCandidate {
   const handle = artifact(id, byteLength, profile.allowedReferenceMediaTypes?.[0] ?? 'image/png')
   const base: ReferenceCandidate = { schemaVersion: 'voce.reference-candidate/v1alpha1', id, assetId: id, artifact: handle, contentHash: handle.contentHash, mediaType: handle.mediaType, ...(byteLength === undefined ? {} : { byteLength }), role: 'detail', ontologyScopes: [`scope.${id}`], importance, constraintIds: [], sourceBindingIds: [], goalIds: [] }
   return { ...base, candidateHash: computeReferenceCandidateHash(base) }
@@ -198,7 +198,7 @@ test('reference plan counts one asset once while retaining multiple scopes', () 
   const same = candidate('shared', 'required', 200_000)
   same.ontologyScopes = ['person.identity', 'person.hair', 'wardrobe.top']
   same.candidateHash = computeReferenceCandidateHash(same)
-  const plan = refPlan(MOCK_NATIVE_TRANSPARENT_PROFILE, [same])
+  const plan = refPlan(MOCK_IMAGE_PROFILE, [same])
   assert.equal(plan.status, 'ok')
   assert.equal(plan.selected.length, 1)
   assert.equal(plan.budget.usedReferenceCount, 1)
@@ -237,20 +237,18 @@ test('unknown byte length never pretends to satisfy a finite total-byte budget',
 })
 
 test('reference plan hashes and trace order do not depend on input insertion order', () => {
-  const one = refPlan(MOCK_NATIVE_TRANSPARENT_PROFILE, [candidate('b', 'preferred', 100), candidate('a', 'required', 100)])
-  const two = refPlan(MOCK_NATIVE_TRANSPARENT_PROFILE, [candidate('a', 'required', 100), candidate('b', 'preferred', 100)])
+  const one = refPlan(MOCK_IMAGE_PROFILE, [candidate('b', 'preferred', 100), candidate('a', 'required', 100)])
+  const two = refPlan(MOCK_IMAGE_PROFILE, [candidate('a', 'required', 100), candidate('b', 'preferred', 100)])
   assert.equal(two.planHash, one.planHash)
   assert.deepEqual(explainReferencePlan(two), explainReferencePlan(one))
 })
 
-test('native transparent and JPEG plus removal profiles produce bounded acyclic plans', () => {
-  const nativePlan = refPlan(MOCK_NATIVE_TRANSPARENT_PROFILE)
-  const jpegPlan = refPlan(MOCK_JPEG_PLUS_REMOVAL_PROFILE, [candidate('ref-01', 'required', 100_000, MOCK_JPEG_PLUS_REMOVAL_PROFILE)])
-  const native = new CapabilityAwarePipelinePlanner().plan({ schemaVersion: 'voce.pipeline-planning-input/v1alpha1', caseId: CASE_ID, caseRevision: REVISION, contextHash: nativePlan.contextHash, outputContract: output(), constraintIR: compile(), referencePlan: nativePlan, profile: MOCK_NATIVE_TRANSPARENT_PROFILE })
-  const jpeg = new CapabilityAwarePipelinePlanner().plan({ schemaVersion: 'voce.pipeline-planning-input/v1alpha1', caseId: CASE_ID, caseRevision: REVISION, contextHash: jpegPlan.contextHash, outputContract: output(), constraintIR: compile(), referencePlan: jpegPlan, profile: MOCK_JPEG_PLUS_REMOVAL_PROFILE })
+test('standard image and JPEG normalization profiles produce bounded acyclic plans', () => {
+  const nativePlan = refPlan(MOCK_IMAGE_PROFILE)
+  const jpegPlan = refPlan(MOCK_JPEG_PROFILE, [candidate('ref-01', 'required', 100_000, MOCK_JPEG_PROFILE)])
+  const native = new CapabilityAwarePipelinePlanner().plan({ schemaVersion: 'voce.pipeline-planning-input/v1alpha1', caseId: CASE_ID, caseRevision: REVISION, contextHash: nativePlan.contextHash, outputContract: output(), constraintIR: compile(), referencePlan: nativePlan, profile: MOCK_IMAGE_PROFILE })
+  const jpeg = new CapabilityAwarePipelinePlanner().plan({ schemaVersion: 'voce.pipeline-planning-input/v1alpha1', caseId: CASE_ID, caseRevision: REVISION, contextHash: jpegPlan.contextHash, outputContract: output(), constraintIR: compile(), referencePlan: jpegPlan, profile: MOCK_JPEG_PROFILE })
   assert.equal(native.status, 'ok'); assert.equal(jpeg.status, 'ok')
-  assert.equal(native.pipelinePlan?.steps.some((step) => step.type === 'background_removal'), false)
-  assert.equal(jpeg.pipelinePlan?.steps.some((step) => step.type === 'background_removal'), true)
   assert.equal(jpeg.pipelinePlan?.steps.some((step) => step.type === 'normalize'), true)
   for (const plan of [native.pipelinePlan!, jpeg.pipelinePlan!]) {
     assert.ok(plan.steps.every((step) => step.destination && step.cleanupObligationIds.length > 0))
@@ -260,19 +258,19 @@ test('native transparent and JPEG plus removal profiles produce bounded acyclic 
   assert.ok(explainPipelinePlan(native.pipelinePlan!).entries.length > 0)
 })
 
-test('transparent output blocks before generation when postprocessing capability is absent', () => {
-  const profileWithHash = { ...MOCK_JPEG_PLUS_REMOVAL_PROFILE, profileHash: computeProviderCapabilityProfileHash(MOCK_JPEG_PLUS_REMOVAL_PROFILE) }
+test('transparent output blocks when the selected provider does not support it natively', () => {
+  const profileWithHash = { ...MOCK_JPEG_PROFILE, profileHash: computeProviderCapabilityProfileHash(MOCK_JPEG_PROFILE) }
   const referencePlan = refPlan(profileWithHash, [candidate('ref-01', 'required', 100_000, profileWithHash)])
   const ir = compile()
   const generator = { id: 'generator', type: 'generate' as const, capability: 'image_generation', adapterId: profileWithHash.adapterId, adapterVersion: { id: profileWithHash.adapterId, version: profileWithHash.version, digest: profileWithHash.adapterDigest! }, adapterDigest: profileWithHash.adapterDigest, profileVersion: { id: profileWithHash.id, version: profileWithHash.version, digest: profileWithHash.profileHash! }, outputMediaTypes: ['image/jpeg'], destination: profileWithHash.destination, dataCategories: ['reference_image'], mayCreateChargedSubmission: true }
   const validator = { id: 'validator', type: 'structural_validate' as const, capability: 'structural_validation', adapterId: 'validator', adapterVersion: { id: 'validator', version: '1.0.0', digest: sha256({ validator: 1 }) }, adapterDigest: sha256({ validator: 1 }), destination: 'local', dataCategories: ['output_metadata'], mayCreateChargedSubmission: false }
-  const result = new CapabilityAwarePipelinePlanner().plan({ schemaVersion: 'voce.pipeline-planning-input/v1alpha1', caseId: CASE_ID, caseRevision: REVISION, contextHash: ir.contextHash, outputContract: output(), constraintIR: ir, referencePlan, profile: profileWithHash, registeredCapabilities: [generator, validator] })
+  const result = new CapabilityAwarePipelinePlanner().plan({ schemaVersion: 'voce.pipeline-planning-input/v1alpha1', caseId: CASE_ID, caseRevision: REVISION, contextHash: ir.contextHash, outputContract: output('transparent'), constraintIR: ir, referencePlan, profile: profileWithHash, registeredCapabilities: [generator, validator] })
   assert.equal(result.status, 'blocked')
   assert.ok(result.blockedReasons.includes('TRANSPARENT_OUTPUT_UNSATISFIABLE'))
 })
 
 test('authorization preflight fails closed on any bound plan or destination change', () => {
-  const remote = createRemoteCallAuthorization({ schemaVersion: 'voce.remote-call-authorization/v1alpha1', id: 'auth-remote', caseId: CASE_ID, caseRevision: REVISION, contextHash: context().contextHash, stepId: 'generate', purpose: 'generation', inputHash: sha256({ input: 1 }), permittedArtifactHashes: [], permittedScopeIds: [], constraintIds: [], adapterId: 'mock.image-generator', adapterDigest: MOCK_NATIVE_TRANSPARENT_PROFILE.adapterDigest!, profileDigest: MOCK_NATIVE_TRANSPARENT_PROFILE.profileHash, destination: MOCK_NATIVE_TRANSPARENT_PROFILE.destination!, dataCategories: ['reference_image'], maximumCalls: 1, maximumRetries: 0, timeoutMs: 120_000, idempotencyKey: 'idempotency-1', authority: 'fixture-authority', authorizedBy: 'fixture-user', authorizedAt: FIXED_M4_TIME })
+  const remote = createRemoteCallAuthorization({ schemaVersion: 'voce.remote-call-authorization/v1alpha1', id: 'auth-remote', caseId: CASE_ID, caseRevision: REVISION, contextHash: context().contextHash, stepId: 'generate', purpose: 'generation', inputHash: sha256({ input: 1 }), permittedArtifactHashes: [], permittedScopeIds: [], constraintIds: [], adapterId: 'mock.image-generator', adapterDigest: MOCK_IMAGE_PROFILE.adapterDigest!, profileDigest: MOCK_IMAGE_PROFILE.profileHash, destination: MOCK_IMAGE_PROFILE.destination!, dataCategories: ['reference_image'], maximumCalls: 1, maximumRetries: 0, timeoutMs: 120_000, idempotencyKey: 'idempotency-1', authority: 'fixture-authority', authorizedBy: 'fixture-user', authorizedAt: FIXED_M4_TIME })
   const snapshot = { kind: 'remote_call' as const, caseId: CASE_ID, caseRevision: REVISION, contextHash: remote.contextHash, stepId: remote.stepId, purpose: remote.purpose, inputHash: remote.inputHash, permittedArtifactHashes: [], permittedScopeIds: [], constraintIds: [], adapterId: remote.adapterId, adapterDigest: remote.adapterDigest, profileDigest: remote.profileDigest, destination: remote.destination, dataCategories: remote.dataCategories, maximumCalls: remote.maximumCalls, maximumRetries: remote.maximumRetries, timeoutMs: remote.timeoutMs, idempotencyKey: remote.idempotencyKey }
   const minimalRemote = preflightDispatch(remote, { kind: 'remote_call', caseId: CASE_ID, caseRevision: REVISION, contextHash: remote.contextHash })
   assert.equal(minimalRemote.code, 'AUTHORIZATION_STALE')
@@ -285,7 +283,7 @@ test('authorization preflight fails closed on any bound plan or destination chan
   assert.ok(incompleteRemoteResult.reasons.includes('AUTHORIZATION_FIELD_MISSING:adapterDigest'))
   const tampered = { ...remote, maximumCalls: 2 }
   assert.equal(preflightDispatch(tampered, snapshot).code, 'EXECUTION_NOT_AUTHORIZED')
-  const execution = createExecutionAuthorization({ schemaVersion: 'voce.execution-authorization/v1alpha1', id: 'auth-execution', caseId: CASE_ID, caseRevision: REVISION, contextHash: remote.contextHash, constraintIRHash: sha256({ ir: 1 }), compilationSignature: sha256({ ir: 1 }), referencePlanHash: sha256({ refs: 1 }), pipelinePlanHash: sha256({ plan: 1 }), outputContractHash: sha256({ output: 1 }), adapterProfileDigests: [MOCK_NATIVE_TRANSPARENT_PROFILE.profileHash!], destinations: [MOCK_NATIVE_TRANSPARENT_PROFILE.destination!], dataTransferDigest: sha256({ transfer: 1 }), budgetDigest: sha256({ budget: 1 }), remoteCallAuthorizationIds: [remote.id], authority: 'fixture-authority', authorizedBy: 'fixture-user', authorizedAt: FIXED_M4_TIME })
+  const execution = createExecutionAuthorization({ schemaVersion: 'voce.execution-authorization/v1alpha1', id: 'auth-execution', caseId: CASE_ID, caseRevision: REVISION, contextHash: remote.contextHash, constraintIRHash: sha256({ ir: 1 }), compilationSignature: sha256({ ir: 1 }), referencePlanHash: sha256({ refs: 1 }), pipelinePlanHash: sha256({ plan: 1 }), outputContractHash: sha256({ output: 1 }), adapterProfileDigests: [MOCK_IMAGE_PROFILE.profileHash!], destinations: [MOCK_IMAGE_PROFILE.destination!], dataTransferDigest: sha256({ transfer: 1 }), budgetDigest: sha256({ budget: 1 }), remoteCallAuthorizationIds: [remote.id], authority: 'fixture-authority', authorizedBy: 'fixture-user', authorizedAt: FIXED_M4_TIME })
   const minimalExecution = preflightDispatch(execution, { kind: 'execution', caseId: CASE_ID, caseRevision: REVISION, contextHash: execution.contextHash })
   assert.equal(minimalExecution.code, 'AUTHORIZATION_STALE')
   assert.ok(minimalExecution.reasons.includes('SNAPSHOT_FIELD_MISSING:constraintIRHash'))

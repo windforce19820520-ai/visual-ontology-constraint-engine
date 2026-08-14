@@ -22,7 +22,7 @@
   },
   "fixtures": [
     { "id": "product-shot.offline", "cases": [
-      { "id": "case-product-shot-001", "profileId": "mock-native-transparent", "expectedStatus": "completed", "semanticReview": false, "humanPending": false,
+      { "id": "case-product-shot-001", "profileId": "mock-image", "expectedStatus": "completed", "semanticReview": false, "humanPending": false,
         "scopePaths": ["product.geometry", "product.material", "environment.background", "camera.framing"],
         "coreProbes": [
           { "id": "product-zero-person", "intents": [

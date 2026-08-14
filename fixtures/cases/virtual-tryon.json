@@ -4,6 +4,6 @@
   "revision": 1,
   "fixtureId": "case-virtual-tryon-001",
   "mode": "manual",
-  "userIntent": "Preserve the identity and scoped reference evidence while replacing the garment and producing a transparent result.",
-  "requestedOutput": { "artifactKind": "image", "dataType": "image", "mediaTypes": ["image/png"], "cardinality": { "min": 1, "max": 1 }, "background": "transparent", "allowAlpha": true }
+  "userIntent": "Preserve the identity and scoped reference evidence while replacing the garment in a complete studio image.",
+  "requestedOutput": { "artifactKind": "image", "dataType": "image", "mediaTypes": ["image/png"], "cardinality": { "min": 1, "max": 1 }, "background": "opaque", "allowAlpha": false }
 }

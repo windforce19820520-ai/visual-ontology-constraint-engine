@@ -5,5 +5,5 @@
   "fixtureId": "case-third-party-001",
   "mode": "manual",
   "userIntent": "Run the smallest third-party declarative fixture through the public path.",
-  "requestedOutput": { "artifactKind": "image", "dataType": "image", "mediaTypes": ["image/png"], "cardinality": { "min": 1, "max": 1 }, "background": "transparent", "allowAlpha": true }
+  "requestedOutput": { "artifactKind": "image", "dataType": "image", "mediaTypes": ["image/png"], "cardinality": { "min": 1, "max": 1 }, "background": "opaque", "allowAlpha": false }
 }

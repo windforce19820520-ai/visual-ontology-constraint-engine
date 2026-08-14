@@ -96,6 +96,8 @@ flowchart LR
 
 宿主应用负责身份验证、用户同意、资产权利、持久化、保留、删除、审核策略、凭据、成本授权和用户界面。VOCE 负责公共语义合同、确定性编译、计划验证、安全执行边界和可移植的评测产物。
 
+具体抠图服务、透明主体生产以及宿主舞台合成都属于 v0.1 仓库之外的产品职责。VOCE 只保留由宿主注册可选后处理步骤的提供方无关能力；仓库不内置抠图 Adapter，第一方场景也不要求该能力。
+
 v0.1 可执行插件是在宿主进程中运行的受信任本地代码。插件 Manifest 会披露网络访问、可能产生的费用、数据目的地、输入/输出 Schema、兼容性和脱敏行为。声明式 ScenarioPack 数据通过独立的纯数据 Registry 注册，不属于可执行插件代码；由宿主单独选择的 `RulePackPlugin` 或自定义 Loader 会跨越受信任插件边界，而且绝不是 ScenarioPack 依赖。进程隔离和公共插件市场将延后实现。
 
 ## 5. 核心术语
@@ -627,7 +629,7 @@ Optimizer 只能根据已声明策略省略 `preferred` 证据。未满足的 `h
 resolve provider-readable assets
 generate source image
 publish a short-lived signed asset when required
-remove background
+run an explicitly registered optional postprocess
 normalize canvas
 validate structure
 prepare semantic review
@@ -1056,7 +1058,7 @@ Run 产物会固定所有相关版本，使报告在项目演进后仍然可以�
 - experimental auto 策略具有不可绕过的高影响门禁；
 - 确定性证据与来源裁决器、约束图编译器、Reference Planner、能力感知执行流水线规划器、提示词编译器和提示词约束门禁；
 - 确定性离线提示词优化器，加一个返回受约束 `PromptCandidateIR` 的可选 LLM 优化器；
-- Mock-first 执行以及可选 Seedream/veImageX Adapter 实现；
+- Mock-first 执行以及可选 Seedream Adapter 实现；
 - 每个 Remote Step 使用本地持久化异步执行，包含持久化事件、Reconciliation、Compensation Cleanup 和 `submission_unknown` 防护；
 - CLI 和只读的本地/静态 HTML Trace Report；
 - 通过与第三方 Pack 相同公共路径注册的第一方 virtual-try-on、cosplay 和 product-shot ScenarioPack；

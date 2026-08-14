@@ -61,6 +61,8 @@ The application translates structured decisions into plain-language target actio
 
 Target actions create `ChangeIntent` records. Source choices create `SourceBinding` records. They are not prompt shortcuts, and `Remove` is not interchangeable with `Ignore as source`.
 
+The v0.1 first-party scenarios request complete opaque images. They do not require background removal, transparent cutouts, or composition onto a host product canvas. A host may add an optional postprocess after VOCE execution, but that product workflow is not part of scenario acceptance.
+
 ## 4. Canonical creator journey (`SCN-001`)
 
 ```mermaid

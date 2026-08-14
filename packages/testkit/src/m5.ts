@@ -23,8 +23,8 @@ import {
   createPromptCandidateIR,
   createRemoteCallAuthorization,
   compilePromptIR,
-  MOCK_JPEG_PLUS_REMOVAL_PROFILE,
-  MOCK_NATIVE_TRANSPARENT_PROFILE,
+  MOCK_IMAGE_PROFILE,
+  MOCK_JPEG_PROFILE,
   planPipeline,
   sha256,
 } from '@voce/core'
@@ -44,18 +44,18 @@ function sorted(values: string[]): string[] {
 }
 
 function profileForPrompt(prompt: PromptIR): ProviderCapabilityProfile {
-  return prompt.targetCapabilityProfile.id === MOCK_JPEG_PLUS_REMOVAL_PROFILE.id ? MOCK_JPEG_PLUS_REMOVAL_PROFILE : MOCK_NATIVE_TRANSPARENT_PROFILE
+  return prompt.targetCapabilityProfile.id === MOCK_JPEG_PROFILE.id ? MOCK_JPEG_PROFILE : MOCK_IMAGE_PROFILE
 }
 
 export function fixtureM5Output(): OutputContract {
-  return fixtureM4Output('transparent')
+  return fixtureM4Output('opaque')
 }
 
 export function fixtureM5Context(overrides: Partial<Omit<CompilationContext, 'contextHash'>> = {}): CompilationContext {
   return fixtureM4Context(overrides)
 }
 
-export function fixtureM5CompilationInput(profile: ProviderCapabilityProfile = MOCK_NATIVE_TRANSPARENT_PROFILE, overrides: Partial<PromptCompilationInput> = {}): PromptCompilationInput {
+export function fixtureM5CompilationInput(profile: ProviderCapabilityProfile = MOCK_IMAGE_PROFILE, overrides: Partial<PromptCompilationInput> = {}): PromptCompilationInput {
   const context = overrides.context ?? fixtureM5Context()
   const constraintIR = overrides.constraintIR ?? fixtureM4ConstraintIR({ context })
   const referencePlan = overrides.referencePlan ?? fixtureM4ReferencePlan(profile)
@@ -78,7 +78,7 @@ export function fixtureM5CompilationInput(profile: ProviderCapabilityProfile = M
   }
 }
 
-export function fixtureM5PromptIR(profile: ProviderCapabilityProfile = MOCK_NATIVE_TRANSPARENT_PROFILE, overrides: Partial<PromptCompilationInput> = {}): PromptIR {
+export function fixtureM5PromptIR(profile: ProviderCapabilityProfile = MOCK_IMAGE_PROFILE, overrides: Partial<PromptCompilationInput> = {}): PromptIR {
   return compilePromptIR(fixtureM5CompilationInput(profile, overrides))
 }
 
@@ -147,7 +147,7 @@ export function fixtureM5RemoteAuthorizations(input: Omit<OfflineExecutionInput,
   }))
 }
 
-export function fixtureM5ExecutionInput(profile: ProviderCapabilityProfile = MOCK_NATIVE_TRANSPARENT_PROFILE, promptArtifact: PromptIR|PromptCandidateIR = fixtureM5PromptIR(profile), options: OfflineExecutionInput['options'] = {}): OfflineExecutionInput {
+export function fixtureM5ExecutionInput(profile: ProviderCapabilityProfile = MOCK_IMAGE_PROFILE, promptArtifact: PromptIR|PromptCandidateIR = fixtureM5PromptIR(profile), options: OfflineExecutionInput['options'] = {}): OfflineExecutionInput {
   const promptHash = 'candidateHash' in promptArtifact ? promptArtifact.candidateHash : computePromptIRHash(promptArtifact)
   const compilation = fixtureM5CompilationInput(profile)
   const base = {

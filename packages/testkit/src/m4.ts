@@ -18,7 +18,7 @@ import {
   computeReferenceCandidateHash,
   compileConstraints,
   createReferenceDependency,
-  MOCK_NATIVE_TRANSPARENT_PROFILE,
+  MOCK_IMAGE_PROFILE,
   planReferences,
   sha256,
 } from '@voce/core'
@@ -77,8 +77,8 @@ export function fixtureM4Ontology(facts: OntologyFact[] = [], contextHash = fixt
   return { ...base, instanceHash: computeOntologyInstanceHash({ ...base, instanceHash: '' }), status } as OntologyInstance
 }
 
-export function fixtureM4Output(background: OutputContract['background'] = 'transparent'): OutputContract {
-  return { artifactKind: 'image', dataType: 'image', mediaTypes: ['image/png'], cardinality: { min: 1, max: 1 }, dimensions: { width: 1024, height: 1024 }, background }
+export function fixtureM4Output(background: OutputContract['background'] = 'opaque'): OutputContract {
+  return { artifactKind: 'image', dataType: 'image', mediaTypes: ['image/png'], cardinality: { min: 1, max: 1 }, dimensions: { width: 1024, height: 1024 }, background, allowAlpha: false }
 }
 
 export function fixtureM4ConstraintInput(overrides: Partial<ConstraintCompilationInput> = {}): ConstraintCompilationInput {
@@ -106,18 +106,18 @@ export function fixtureM4ConstraintIR(overrides: Partial<ConstraintCompilationIn
   return compileConstraints(fixtureM4ConstraintInput(overrides))
 }
 
-export function fixtureM4Candidate(id: string, importance: ReferenceCandidate['importance'] = 'preferred', byteLength?: number, profile: ProviderCapabilityProfile = MOCK_NATIVE_TRANSPARENT_PROFILE): ReferenceCandidate {
+export function fixtureM4Candidate(id: string, importance: ReferenceCandidate['importance'] = 'preferred', byteLength?: number, profile: ProviderCapabilityProfile = MOCK_IMAGE_PROFILE): ReferenceCandidate {
   const artifact = fixtureM4Artifact(id, byteLength, profile.allowedReferenceMediaTypes?.[0] ?? 'image/png')
   const candidate: ReferenceCandidate = { schemaVersion: 'voce.reference-candidate/v1alpha1', id, assetId: id, artifact, contentHash: artifact.contentHash, mediaType: artifact.mediaType, ...(byteLength === undefined ? {} : { byteLength }), role: 'detail', ontologyScopes: [`scope.${id}`], importance, constraintIds: [], sourceBindingIds: [], goalIds: [] }
   return { ...candidate, candidateHash: computeReferenceCandidateHash(candidate) }
 }
 
-export function fixtureM4ReferenceInput(profile: ProviderCapabilityProfile = MOCK_NATIVE_TRANSPARENT_PROFILE, candidates: ReferenceCandidate[] = [fixtureM4Candidate('ref-01', 'required', 100_000, profile)]): ReferencePlanningInput {
+export function fixtureM4ReferenceInput(profile: ProviderCapabilityProfile = MOCK_IMAGE_PROFILE, candidates: ReferenceCandidate[] = [fixtureM4Candidate('ref-01', 'required', 100_000, profile)]): ReferencePlanningInput {
   const constraintIR = fixtureM4ConstraintIR()
   return { schemaVersion: 'voce.reference-planning-input/v1alpha1', caseId: M4_FIXTURE_CASE_ID, caseRevision: M4_FIXTURE_CASE_REVISION, contextHash: constraintIR.contextHash, constraintIR, candidates, dependencies: [], profile }
 }
 
-export function fixtureM4ReferencePlan(profile: ProviderCapabilityProfile = MOCK_NATIVE_TRANSPARENT_PROFILE, candidates?: ReferenceCandidate[]) {
+export function fixtureM4ReferencePlan(profile: ProviderCapabilityProfile = MOCK_IMAGE_PROFILE, candidates?: ReferenceCandidate[]) {
   return planReferences(fixtureM4ReferenceInput(profile, candidates))
 }
 

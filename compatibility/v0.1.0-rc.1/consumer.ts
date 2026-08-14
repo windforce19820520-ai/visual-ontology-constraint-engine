@@ -9,7 +9,7 @@ import type {
 } from '@voce/contracts'
 import { BUNDLE_MANIFEST_SCHEMA_VERSION } from '@voce/contracts'
 import {
-  MOCK_NATIVE_TRANSPARENT_PROFILE,
+  MOCK_IMAGE_PROFILE,
   MockProviderAdapter,
   createMockRuntimeForPlan,
   createScenarioPackRegistry,
@@ -26,7 +26,7 @@ declare const adapter: ProviderAdapter
 declare const bundle: BundleManifest
 
 const registry: ScenarioPackRegistry = createScenarioPackRegistry()
-const mockProfile: ProviderCapabilityProfile = MOCK_NATIVE_TRANSPARENT_PROFILE
+const mockProfile: ProviderCapabilityProfile = MOCK_IMAGE_PROFILE
 const mockAdapter: ProviderAdapter = new MockProviderAdapter()
 const bundleSchema: typeof BUNDLE_MANIFEST_SCHEMA_VERSION = 'voce.bundle-manifest/v1alpha1'
 void [pack, manifest, contribution, profile, adapter, bundle, registry, mockProfile, mockAdapter, bundleSchema, createMockRuntimeForPlan, replayArtifacts, fixtureM4ConstraintInput, fixtureM5ExecutionInput, fixtureM6Artifact, CLI_VERSION, runCli]

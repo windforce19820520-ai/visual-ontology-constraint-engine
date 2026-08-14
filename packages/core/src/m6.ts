@@ -562,7 +562,6 @@ export interface SeedreamGenerateInput {
   image?: SeedreamImageInput | SeedreamImageInput[]
   n?: number
   sequential_image_generation?: unknown
-  background?: 'transparent'|'opaque'|'auto'
   output_format?: 'png'|'jpeg'
   size?: string
   referenceArtifacts?: StructuralValidationArtifactInput[]
@@ -661,12 +660,8 @@ function pngHeader(bytes: Uint8Array): { width: number; height: number; alpha: b
   return { width: view.getUint32(16), height: view.getUint32(20), alpha }
 }
 
-function hasPngAlpha(bytes: Uint8Array | undefined): boolean {
-  return bytes !== undefined && pngHeader(bytes)?.alpha === true
-}
-
 function seedreamAllowedKeys(): Set<string> {
-  return new Set(['prompt', 'image', 'n', 'background', 'output_format', 'size', 'referenceArtifacts'])
+  return new Set(['prompt', 'image', 'n', 'output_format', 'size', 'referenceArtifacts'])
 }
 
 function validateSeedreamInput(input: SeedreamGenerateInput): SeedreamImageInput[] {
@@ -680,14 +675,6 @@ function validateSeedreamInput(input: SeedreamGenerateInput): SeedreamImageInput
   for (const image of images) {
     if (typeof image === 'string' && !SAFE_URL_PATTERN.test(image) && !DATA_URI_DETECTION_PATTERN.test(image)) throw new ProviderTransportError('SEEDREAM_IMAGE_REFERENCE_INVALID', 'Seedream image string must be an http(s) URL or image data URI.')
     if (image instanceof Uint8Array && !mediaTypeOf(image, [])) throw new ProviderTransportError('SEEDREAM_IMAGE_MEDIA_TYPE_UNKNOWN', 'Seedream image bytes do not have a recognized media signature.')
-  }
-  if (input.background === 'transparent') {
-    if (images.length === 0) throw new ProviderTransportError('SEEDREAM_TRANSPARENT_TEXT_TO_IMAGE_FORBIDDEN', 'Transparent output requires one Alpha PNG reference image.')
-    if (images.length !== 1) throw new ProviderTransportError('SEEDREAM_TRANSPARENT_REFERENCE_CARDINALITY_INVALID', 'Transparent output accepts exactly one reference image.')
-    if (input.output_format !== 'png') throw new ProviderTransportError('SEEDREAM_TRANSPARENT_FORMAT_CONFLICT', 'Transparent output requires PNG.')
-    const referenceBytes = imageBytes(images[0], input.referenceArtifacts ?? [])
-    const mediaType = mediaTypeOf(images[0], input.referenceArtifacts ?? [])
-    if (mediaType !== 'image/png' || !hasPngAlpha(referenceBytes)) throw new ProviderTransportError('SEEDREAM_TRANSPARENT_ALPHA_REFERENCE_REQUIRED', 'Transparent output requires a single Alpha PNG reference.')
   }
   return images
 }
@@ -720,7 +707,6 @@ export function buildSeedreamRequest(input: SeedreamGenerateInput, config: Seedr
   const payload: JsonObject = { prompt: input.prompt, n: 1 }
   if (images.length === 1) payload.image = toProviderImage(images[0], input.referenceArtifacts ?? [])
   if (images.length > 1) payload.image = images.map((image) => toProviderImage(image, input.referenceArtifacts ?? []))
-  if (input.background !== undefined) payload.background = input.background
   if (input.output_format !== undefined) payload.output_format = input.output_format
   if (input.size !== undefined) payload.size = input.size
   const artifactHashes = sortedStrings([
@@ -852,153 +838,6 @@ export class SeedreamAdapter {
 }
 
 export function createSeedreamAdapter(config: SeedreamAdapterConfig): SeedreamAdapter { return new SeedreamAdapter(config) }
-
-export interface VeImageXAdapterConfig {
-  endpoint: string
-  credentialRef: string
-  adapter: VersionPin
-  profile: VersionPin
-  destination: string
-  region?: string
-  transport?: ProviderTransport
-  assetSink: AssetSink
-  resolver?: (artifact: ArtifactHandle) => Promise<Uint8Array|undefined>
-}
-
-export interface BackgroundRemovalInput {
-  artifact: ArtifactHandle
-  bytes?: Uint8Array
-}
-
-export interface VeImageXResult {
-  status: 'succeeded'|'failed'|'submission_unknown'
-  artifacts: ArtifactHandle[]
-  response: ProviderResponseEnvelope
-  lookup?: ProviderSubmissionLookup
-  failureCode?: string
-}
-
-function validateVeConfig(config: VeImageXAdapterConfig): void {
-  if (!config.endpoint || !SAFE_URL_PATTERN.test(config.endpoint)) throw new ProviderTransportError('ADAPTER_ENDPOINT_MISSING', 'Postprocessor endpoint is missing or invalid.')
-  if (!config.credentialRef) throw new ProviderTransportError('ADAPTER_CREDENTIAL_MISSING', 'Postprocessor credential reference is missing.')
-  if (!config.adapter?.id || !isHash(config.adapter.digest)) throw new ProviderTransportError('ADAPTER_VERSION_INVALID', 'Postprocessor adapter version is invalid.')
-  if (!config.profile?.id || !isHash(config.profile.digest)) throw new ProviderTransportError('ADAPTER_PROFILE_INVALID', 'Postprocessor profile is invalid.')
-  if (!config.destination) throw new ProviderTransportError('ADAPTER_DESTINATION_MISSING', 'Postprocessor destination is missing.')
-  if (config.destination !== config.endpoint) throw new ProviderTransportError('ADAPTER_DESTINATION_ENDPOINT_MISMATCH', 'Postprocessor destination must be the exact configured endpoint used by the transport.')
-}
-
-function buildVeRequest(input: BackgroundRemovalInput, config: VeImageXAdapterConfig, authorization?: RemoteCallAuthorization): ProviderRequestEnvelope {
-  validateVeConfig(config)
-  assertHash(input.artifact.contentHash, 'ARTIFACT_HANDLE_HASH_INVALID')
-  const inputHash = authorization?.inputHash ?? sha256({ operation: 'background_removal', artifactId: input.artifact.id, contentHash: input.artifact.contentHash })
-  const base: Omit<ProviderRequestEnvelope, 'requestHash'> = {
-    schemaVersion: PROVIDER_REQUEST_ENVELOPE_SCHEMA_VERSION,
-    id: hashId('veimagex-request', { inputHash, idempotencyKey: authorization?.idempotencyKey ?? 'unbound' }),
-    adapterId: config.adapter.id,
-    adapterDigest: config.adapter.digest,
-    profileId: config.profile.id,
-    profileDigest: config.profile.digest,
-    stepId: authorization?.stepId ?? 'unbound-background-removal-step',
-    destination: config.destination,
-    ...(config.region === undefined ? {} : { region: config.region }),
-    purpose: 'postprocessing',
-    inputHash,
-    inputArtifactHashes: [input.artifact.contentHash],
-    dataCategories: ['image'],
-    maximumCalls: authorization?.maximumCalls ?? 1,
-    maximumRetries: authorization?.maximumRetries ?? 0,
-    timeoutMs: authorization?.timeoutMs ?? 60_000,
-    ...(authorization?.maximumBytes === undefined ? {} : { maximumBytes: authorization.maximumBytes }),
-    ...(authorization?.maximumCost === undefined ? {} : { maximumCost: authorization.maximumCost }),
-    idempotencyKey: authorization?.idempotencyKey ?? hashId('veimagex-idempotency', { inputHash }),
-    payload: { operation: 'background_removal', input: { artifactId: input.artifact.id, contentHash: input.artifact.contentHash } },
-  }
-  return { ...base, requestHash: computeProviderRequestEnvelopeHash(base as ProviderRequestEnvelope) }
-}
-
-function isPngWithAlpha(bytes: Uint8Array): boolean {
-  return hasPngAlpha(bytes)
-}
-
-async function resolveStoredArtifact(config: VeImageXAdapterConfig, artifact: ArtifactHandle): Promise<Uint8Array|undefined> {
-  return config.resolver ? config.resolver(artifact) : config.assetSink.resolve ? config.assetSink.resolve(artifact) : undefined
-}
-
-async function validateVeOutputArtifact(config: VeImageXAdapterConfig, artifact: ArtifactHandle): Promise<string|undefined> {
-  if (artifact.mediaType !== 'image/png') return 'POSTPROCESSING_ALPHA_PNG_REQUIRED'
-  const bytes = await resolveStoredArtifact(config, artifact)
-  if (!bytes) return 'ARTIFACT_PERSISTENCE_FAILURE'
-  if (binarySha256(bytes) !== artifact.contentHash) return 'ARTIFACT_HASH_MISMATCH'
-  if (!isPngWithAlpha(bytes)) return 'POSTPROCESSING_ALPHA_PNG_REQUIRED'
-  return undefined
-}
-
-export class VeImageXBackgroundRemovalAdapter {
-  readonly id: string
-  readonly version: VersionPin
-  readonly digest: string
-  readonly profileDigest: string
-  private readonly transport: ProviderTransport
-
-  constructor(readonly config: VeImageXAdapterConfig) {
-    validateVeConfig(config)
-    this.id = config.adapter.id
-    this.version = clone(config.adapter)
-    this.digest = config.adapter.digest
-    this.profileDigest = config.profile.digest
-    this.transport = config.transport ?? new DisabledProviderTransport()
-  }
-
-  buildRequest(input: BackgroundRemovalInput, authorization?: RemoteCallAuthorization): ProviderRequestEnvelope { return buildVeRequest(input, this.config, authorization) }
-
-  async process(input: BackgroundRemovalInput, authorization: RemoteCallAuthorization, context: Omit<ProviderTransportContext, 'authorization'> = {}): Promise<VeImageXResult> {
-    let requestHash = authorization.inputHash
-    try {
-      const request = this.buildRequest(input, authorization)
-      requestHash = request.requestHash
-      if (!context.credential || context.credential.ref !== this.config.credentialRef || !context.credential.value) throw new ProviderTransportError('ADAPTER_CREDENTIAL_MISSING', 'Host credential injection is missing or does not match the configured reference.')
-      const bytes = input.bytes ?? (this.config.resolver ? await this.config.resolver(input.artifact) : this.config.assetSink.resolve ? await this.config.assetSink.resolve(input.artifact) : undefined)
-      if (!bytes) return { status: 'failed', artifacts: [], response: errorResponse(request.requestHash, 'ARTIFACT_UNAVAILABLE', 'Input artifact could not be resolved.'), failureCode: 'ARTIFACT_UNAVAILABLE' }
-      if (binarySha256(bytes) !== input.artifact.contentHash) return { status: 'failed', artifacts: [], response: errorResponse(request.requestHash, 'ARTIFACT_HASH_MISMATCH', 'Input artifact hash does not match supplied bytes.'), failureCode: 'ARTIFACT_HASH_MISMATCH' }
-      const response = safeResponse(await this.transport.send(request, { ...context, authorization }))
-      if (response.requestHash !== request.requestHash) throw new ProviderTransportError('PROVIDER_RESPONSE_REQUEST_MISMATCH', 'Provider response did not match the request.')
-      if (response.status === 'submission_unknown' || response.status === 'processing') return { status: 'submission_unknown', artifacts: [], response: publicResponseReceipt(response), lookup: createProviderSubmissionLookup(request, response.providerRequestId), failureCode: 'REMOTE_SUBMISSION_UNKNOWN' }
-      if (response.status === 'failed') return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), failureCode: response.error?.code ?? 'POSTPROCESSING_FAILED' }
-      const items = responseItems(response.body)
-      if (items.length !== 1) return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), failureCode: 'POSTPROCESSING_OUTPUT_CARDINALITY_INVALID' }
-      const artifact = await persistProviderItem(items[0], this.config.assetSink, 'background-removed-image')
-      const outputFailure = await validateVeOutputArtifact(this.config, artifact)
-      if (outputFailure) return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(request.requestHash, outputFailure, 'Background removal output was not persisted as a valid Alpha PNG.')), failureCode: outputFailure }
-      return { status: 'succeeded', artifacts: [artifact], response: publicResponseReceipt(response) }
-    } catch (error) {
-      if (error instanceof ProviderTransportError) return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(requestHash, error.code, error.message)), failureCode: error.code }
-      return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(requestHash, 'POSTPROCESSING_FAILED', 'Postprocessing failed safely.')), failureCode: 'POSTPROCESSING_FAILED' }
-    }
-  }
-
-  async lookup(lookup: ProviderSubmissionLookup, authorization: RemoteCallAuthorization, context: Omit<ProviderTransportContext, 'authorization'> = {}): Promise<VeImageXResult> {
-    if (lookup.adapterId !== this.id || lookup.adapterDigest !== this.digest || lookup.profileId !== this.config.profile.id || lookup.profileDigest !== this.profileDigest || lookup.purpose !== 'postprocessing' || lookup.modelId !== undefined || lookup.modelVersion !== undefined) throw new ProviderTransportError('PROVIDER_LOOKUP_SCOPE_MISMATCH', 'Submission lookup identity does not match the postprocessor.')
-    if (!context.credential || context.credential.ref !== this.config.credentialRef || !context.credential.value) throw new ProviderTransportError('ADAPTER_CREDENTIAL_MISSING', 'Host credential injection is missing or does not match the configured reference.')
-    try {
-      const response = safeResponse(await this.transport.lookup(lookup, { ...context, authorization }))
-      if (response.requestHash !== lookup.requestHash) throw new ProviderTransportError('PROVIDER_LOOKUP_REQUEST_MISMATCH', 'Submission lookup response did not match the original request.')
-      if (response.status === 'submission_unknown' || response.status === 'processing') return { status: 'submission_unknown', artifacts: [], response: publicResponseReceipt(response), lookup: clone(lookup), failureCode: 'REMOTE_SUBMISSION_UNKNOWN' }
-      if (response.status === 'failed') return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), lookup: clone(lookup), failureCode: response.error?.code ?? 'POSTPROCESSING_FAILED' }
-      const items = responseItems(response.body)
-      if (items.length !== 1) return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), lookup: clone(lookup), failureCode: 'POSTPROCESSING_OUTPUT_CARDINALITY_INVALID' }
-      const artifact = await persistProviderItem(items[0], this.config.assetSink, 'background-removed-image')
-      const outputFailure = await validateVeOutputArtifact(this.config, artifact)
-      if (outputFailure) return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(lookup.requestHash, outputFailure, 'Background removal lookup output was not persisted as a valid Alpha PNG.')), lookup: clone(lookup), failureCode: outputFailure }
-      return { status: 'succeeded', artifacts: [artifact], response: publicResponseReceipt(response), lookup: clone(lookup) }
-    } catch (error) {
-      if (error instanceof ProviderTransportError) return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(lookup.requestHash, error.code, error.message)), lookup: clone(lookup), failureCode: error.code }
-      return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(lookup.requestHash, 'POSTPROCESSING_FAILED', 'Postprocessor lookup failed safely.')), lookup: clone(lookup), failureCode: 'POSTPROCESSING_FAILED' }
-    }
-  }
-}
-
-export const VeImageXAdapter = VeImageXBackgroundRemovalAdapter
-export function createVeImageXBackgroundRemovalAdapter(config: VeImageXAdapterConfig): VeImageXBackgroundRemovalAdapter { return new VeImageXBackgroundRemovalAdapter(config) }
 
 interface ParsedImageHeader { format: 'png'|'jpeg'|'webp'|'unknown'; width?: number; height?: number; alpha?: boolean }
 

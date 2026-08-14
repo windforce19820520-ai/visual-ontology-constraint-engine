@@ -47,7 +47,7 @@ This roadmap is directional. A milestone is complete only when its contracts, te
 
 - at least one multimodal interpreter adapter;
 - Seedream reference adapter;
-- veImageX background-removal adapter;
+- provider-neutral optional postprocessing extension validation;
 - structural image validation;
 - separately authorized semantic review protocol and human-acceptance artifacts;
 - replay, compare, and local HTML reports.
@@ -72,6 +72,7 @@ This roadmap is directional. A milestone is complete only when its contracts, te
 - production multi-tenant queues;
 - interactive Trace Studio;
 - video generation;
+- concrete background-removal services, transparent cutout production, or host-canvas compositing;
 - automated semantic claims without published evidence.
 - dynamic package or global `node_modules` scanning;
 - plugin marketplace, remote discovery, automatic install/update, or implicit activation;

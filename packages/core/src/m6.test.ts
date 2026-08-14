@@ -24,7 +24,6 @@ import {
   FixtureSemanticReviewer,
   RecordingMockTransport,
   SeedreamAdapter,
-  VeImageXBackgroundRemovalAdapter,
   compareSnapshots,
   compileEvaluationReport,
   computeArtifactBytesHash,
@@ -60,8 +59,6 @@ const JPEG = Uint8Array.from([255, 216, 255, 224, 0, 16, 74, 70, 73, 70, 0, 1, 2
 
 const adapter: VersionPin = { id: 'fixture.seedream', version: '1.0.0', digest: sha256({ adapter: 'fixture.seedream' }) }
 const profile: VersionPin = { id: 'fixture.seedream.profile', version: '1.0.0', digest: sha256({ profile: 'fixture.seedream.profile' }) }
-const postAdapter: VersionPin = { id: 'fixture.veimagex', version: '1.0.0', digest: sha256({ adapter: 'fixture.veimagex' }) }
-const postProfile: VersionPin = { id: 'fixture.veimagex.profile', version: '1.0.0', digest: sha256({ profile: 'fixture.veimagex.profile' }) }
 const destination = 'https://provider.example.test'
 const credential = { ref: 'fixture-credential', value: 'injected-only-secret' }
 
@@ -94,7 +91,7 @@ function seedreamConfig(transport: RecordingMockTransport, sink: AssetSink) {
   return { endpoint: destination, credentialRef: credential.ref, model: 'fixture-model', modelVersion: '1.0.0', adapter, profile, destination, transport, assetSink: sink }
 }
 
-test('Seedream blocks unsupported cardinality, fields, reference count, and transparent conflicts before transport', async () => {
+test('Seedream blocks unsupported cardinality, fields, and reference count before transport', async () => {
   const transport = new RecordingMockTransport()
   const adapterInstance = new SeedreamAdapter(seedreamConfig(transport, new TestAssetSink()))
   const cases = [
@@ -102,9 +99,7 @@ test('Seedream blocks unsupported cardinality, fields, reference count, and tran
     { prompt: 'x', sequential_image_generation: false },
     { prompt: 'x', image_urls: ['x'] },
     { prompt: 'x', image: Array.from({ length: 11 }, () => 'data:image/png;base64,AA==') },
-    { prompt: 'x', background: 'transparent' as const, output_format: 'png' as const },
-    { prompt: 'x', image: ['a', 'b'], background: 'transparent' as const, output_format: 'png' as const },
-    { prompt: 'x', image: 'data:image/jpeg;base64,/9j=', background: 'transparent' as const, output_format: 'jpeg' as const },
+    { prompt: 'x', background: 'transparent' as const },
   ]
   for (const item of cases) {
     const result = await adapterInstance.generate(item, auth({ stepId: `invalid-${cases.indexOf(item)}`, purpose: 'generation', inputHash: sha256({ index: cases.indexOf(item) }), adapter, profileDigest: profile.digest }), { credential })
@@ -113,13 +108,13 @@ test('Seedream blocks unsupported cardinality, fields, reference count, and tran
   assert.equal(transport.calls.length, 0)
 })
 
-test('Seedream accepts one Alpha PNG transparent reference and persists URL/base64 output safely', async () => {
+test('Seedream persists standard PNG URL/base64 output safely', async () => {
   const sink = new TestAssetSink()
   const transport = new RecordingMockTransport()
   const adapterInstance = new SeedreamAdapter(seedreamConfig(transport, sink))
-  const input = { prompt: 'transparent product', image: ALPHA_PNG, background: 'transparent' as const, output_format: 'png' as const }
+  const input = { prompt: 'standard image', image: OPAQUE_PNG, output_format: 'png' as const }
   const authorization = auth({ stepId: 'seedream-valid', purpose: 'generation', inputHash: sha256({ fixture: 'seedream-valid' }), adapter, profileDigest: profile.digest, dataCategories: ['prompt'] })
-  transport.enqueue(response('', { data: [{ b64_json: Buffer.from(ALPHA_PNG).toString('base64'), mediaType: 'image/png' }] }))
+  transport.enqueue(response('', { data: [{ b64_json: Buffer.from(OPAQUE_PNG).toString('base64'), mediaType: 'image/png' }] }))
   const result = await adapterInstance.generate(input, authorization, { credential })
   assert.equal(result.status, 'succeeded')
   assert.equal(result.artifacts.length, 1)
@@ -138,33 +133,6 @@ test('missing credential, endpoint, model, or adapter scope fails closed', async
   assert.equal(transport.calls.length, 0)
   assert.throws(() => new SeedreamAdapter({ ...seedreamConfig(transport, sink), endpoint: '' }), /ADAPTER_ENDPOINT_MISSING/)
   assert.throws(() => new SeedreamAdapter({ ...seedreamConfig(transport, sink), model: '' }), /ADAPTER_MODEL_MISSING/)
-})
-
-test('veImageX independently validates Alpha PNG output and lookup never resubmits', async () => {
-  const sink = new TestAssetSink()
-  const transport = new RecordingMockTransport()
-  const instance = new VeImageXBackgroundRemovalAdapter({ endpoint: destination, credentialRef: credential.ref, adapter: postAdapter, profile: postProfile, destination, transport, assetSink: sink })
-  const inputArtifact: ArtifactHandle = { id: 'input', storeId: 'fixture', contentHash: computeArtifactBytesHash(ALPHA_PNG), mediaType: 'image/png', byteLength: ALPHA_PNG.length, role: 'source', resolverId: 'fixture', availability: 'available', retentionClass: 'fixture', redactionPolicy: 'safe-hash-only' }
-  const input = { artifact: inputArtifact, bytes: ALPHA_PNG }
-  const authorization = auth({ stepId: 've-step', purpose: 'postprocessing', inputHash: sha256({ operation: 'background_removal', artifactId: inputArtifact.id, contentHash: inputArtifact.contentHash }), adapter: postAdapter, profileDigest: postProfile.digest, artifactHashes: [inputArtifact.contentHash], dataCategories: ['image'] })
-  transport.enqueue(response('', { output: [{ b64_json: Buffer.from(ALPHA_PNG).toString('base64'), mediaType: 'image/png' }] }))
-  const result = await instance.process(input, authorization, { credential })
-  assert.equal(result.status, 'succeeded')
-  assert.equal(transport.calls.length, 1)
-
-  const unknownTransport = new RecordingMockTransport()
-  const unknownInstance = new VeImageXBackgroundRemovalAdapter({ endpoint: destination, credentialRef: credential.ref, adapter: postAdapter, profile: postProfile, destination, transport: unknownTransport, assetSink: new TestAssetSink() })
-  const unknownAuth = auth({ stepId: 've-unknown', purpose: 'postprocessing', inputHash: authorization.inputHash, adapter: postAdapter, profileDigest: postProfile.digest, artifactHashes: [inputArtifact.contentHash], dataCategories: ['image'] })
-  unknownTransport.enqueue(response('', {}, 'processing'))
-  const unknown = await unknownInstance.process(input, unknownAuth, { credential })
-  assert.equal(unknown.status, 'submission_unknown')
-  assert.ok(unknown.lookup)
-  unknownTransport.enqueueLookup(response(unknown.lookup!.requestHash, { output: [{ b64_json: Buffer.from(ALPHA_PNG).toString('base64'), mediaType: 'image/png' }] }))
-  const reconciled = await unknownInstance.lookup(unknown.lookup!, unknownAuth, { credential })
-  assert.equal(reconciled.status, 'succeeded')
-  assert.equal(reconciled.artifacts.length, 1)
-  assert.equal(unknownTransport.calls.length, 1)
-  assert.equal(unknownTransport.lookupCalls.length, 1)
 })
 
 test('structural validation is deterministic for PNG/JPEG/WebP, dimensions, Alpha, bytes, availability, and contract', () => {
@@ -319,27 +287,6 @@ test('Seedream resolver preserves ArtifactHandle authorization and adapters reje
   const forgedResult = await forgedInstance.generate({ prompt: 'forged response' }, auth({ stepId: 'forged-response', purpose: 'generation', inputHash: sha256({ forgedResponse: 1 }), adapter, profileDigest: profile.digest }), { credential })
   assert.equal(forgedResult.status, 'failed')
   assert.equal(forgedResult.failureCode, 'PROVIDER_RESPONSE_HASH_MISMATCH')
-})
-
-test('lookup reconciliation is original-request bound, bounded, and returns only persisted safe results', async () => {
-  const sink = new TestAssetSink()
-  const transport = new RecordingMockTransport()
-  const instance = new VeImageXBackgroundRemovalAdapter({ endpoint: destination, credentialRef: credential.ref, adapter: postAdapter, profile: postProfile, destination, transport, assetSink: sink })
-  const artifact: ArtifactHandle = { id: 'lookup-input', storeId: 'fixture', contentHash: computeArtifactBytesHash(ALPHA_PNG), mediaType: 'image/png', byteLength: ALPHA_PNG.length, role: 'source', resolverId: 'fixture', availability: 'available', retentionClass: 'fixture', redactionPolicy: 'safe-hash-only' }
-  const authorization = auth({ stepId: 'lookup-bound', purpose: 'postprocessing', inputHash: sha256({ lookup: 1 }), adapter: postAdapter, profileDigest: postProfile.digest, artifactHashes: [artifact.contentHash], dataCategories: ['image'] })
-  transport.enqueue(response('', {}, 'processing'))
-  const pending = await instance.process({ artifact, bytes: ALPHA_PNG }, authorization, { credential })
-  assert.equal(pending.status, 'submission_unknown')
-  assert.ok(pending.lookup)
-  const forged = { ...pending.lookup!, purpose: 'generation' as const }
-  await assert.rejects(() => instance.lookup(forged, authorization, { credential }), /PROVIDER_LOOKUP_SCOPE_MISMATCH|PROVIDER_LOOKUP_HASH_MISMATCH/)
-  transport.enqueueLookup(response(pending.lookup!.requestHash, { output: [{ b64_json: Buffer.from(ALPHA_PNG).toString('base64'), mediaType: 'image/png' }] }))
-  const reconciled = await instance.lookup(pending.lookup!, authorization, { credential })
-  assert.equal(reconciled.status, 'succeeded')
-  assert.equal(reconciled.response.body, undefined)
-  const repeated = await instance.lookup(pending.lookup!, authorization, { credential })
-  assert.equal(repeated.status, 'failed')
-  assert.equal(repeated.failureCode, 'REMOTE_CALL_BUDGET_EXHAUSTED')
 })
 
 test('structural validator distinguishes declared media type and visual transparency uncertainty', () => {

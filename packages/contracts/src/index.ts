@@ -524,7 +524,7 @@ export interface Compensation {
   explanation: string
 }
 
-export type PipelineStepType = 'resolve_asset'|'publish_asset'|'generate'|'background_removal'|'normalize'|'structural_validate'|'semantic_review'|'cleanup'|'compensation'|'custom'
+export type PipelineStepType = 'resolve_asset'|'publish_asset'|'generate'|'postprocess'|'normalize'|'structural_validate'|'semantic_review'|'cleanup'|'compensation'|'custom'
 export interface StepDependency {
   schemaVersion: typeof STEP_DEPENDENCY_SCHEMA_VERSION
   id: string

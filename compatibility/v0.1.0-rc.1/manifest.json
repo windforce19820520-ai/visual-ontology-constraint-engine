@@ -21,7 +21,7 @@
     "@voce/core": [
       "MemoryScenarioPackRegistry",
       "createScenarioPackRegistry",
-      "MOCK_NATIVE_TRANSPARENT_PROFILE",
+      "MOCK_IMAGE_PROFILE",
       "MockProviderAdapter",
       "createMockRuntimeForPlan",
       "replayArtifacts"

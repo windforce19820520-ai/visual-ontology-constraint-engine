@@ -22,9 +22,16 @@ export const FIXTURE_M6_ALPHA_PNG = Uint8Array.from([
   8, 6, 0, 0, 0, 31, 21, 196, 137,
 ])
 
+export const FIXTURE_M6_OPAQUE_PNG = Uint8Array.from([
+  137, 80, 78, 71, 13, 10, 26, 10,
+  0, 0, 0, 13, 73, 72, 68, 82,
+  0, 0, 0, 1, 0, 0, 0, 1,
+  8, 2, 0, 0, 0, 144, 119, 83, 222,
+])
+
 export const FIXTURE_M6_JPEG = Uint8Array.from([255, 216, 255, 224, 0, 16, 74, 70, 73, 70, 0, 1, 255, 217])
 
-export function fixtureM6Artifact(id: string, bytes: Uint8Array = FIXTURE_M6_ALPHA_PNG, mediaType = 'image/png', role = 'generated-image'): ArtifactHandle {
+export function fixtureM6Artifact(id: string, bytes: Uint8Array = FIXTURE_M6_OPAQUE_PNG, mediaType = 'image/png', role = 'generated-image'): ArtifactHandle {
   return {
     id,
     storeId: 'm6-fixture-store',
@@ -121,7 +128,7 @@ export function fixtureM6Authorization(input: {
   })
 }
 
-export function fixtureStructuralArtifactInput(id = 'm6-alpha', bytes = FIXTURE_M6_ALPHA_PNG, mediaType = 'image/png'): StructuralValidationArtifactInput {
+export function fixtureStructuralArtifactInput(id = 'm6-image', bytes = FIXTURE_M6_OPAQUE_PNG, mediaType = 'image/png'): StructuralValidationArtifactInput {
   return { artifact: fixtureM6Artifact(id, bytes, mediaType), bytes: new Uint8Array(bytes) }
 }
 

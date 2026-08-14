@@ -13,7 +13,7 @@ const testCount = Number(testOutput.match(/tests\s+(\d+)/)?.[1] ?? 0)
 const passCount = Number(testOutput.match(/pass\s+(\d+)/)?.[1] ?? 0)
 const failCount = Number(testOutput.match(/fail\s+(\d+)/)?.[1] ?? 0)
 const skippedCount = Number(testOutput.match(/skipped\s+(\d+)/)?.[1] ?? 0)
-if (testCount < 105 || failCount !== 0) fail(`M8_STANDARD_TEST_GATE_FAILED:${testCount}/${passCount}/${failCount}/${skippedCount}`)
+if (testCount < 103 || failCount !== 0) fail(`M8_STANDARD_TEST_GATE_FAILED:${testCount}/${passCount}/${failCount}/${skippedCount}`)
 
 run(node, [path.join(ROOT, 'scripts', 'compatibility.mjs')])
 run(node, [path.join(ROOT, 'scripts', 'security-gate.mjs')])
@@ -37,7 +37,7 @@ await writeJson(path.join(RELEASE_ROOT, 'summary.json'), {
   gates: { repositoryValidation: 'passed', typecheck: 'passed', compatibility: 'passed', cleanConsumer: 'passed', security: 'passed', reproducibility: 'passed', checksums: 'passed' },
   consumer: { packageSources: 'local-tarballs', ignoreScripts: true, workspaceSymlinks: false, packages: consumerSummary.packageAudit.length, packs: consumerSummary.packs.length, verticals: consumerSummary.verticals.length, compareReportHash: consumerSummary.comparison.reportHash },
   supplyChain: { sbom: 'local-sbom', checksums: 'checksums.sha256', officialAttestation: false },
-  deferred: ['npm publish', 'GitHub Release/tag', 'merge', 'real Seedream/veImageX/LLM/provider smoke', 'production readiness'],
+  deferred: ['npm publish', 'GitHub Release/tag', 'merge', 'real Seedream/LLM/provider smoke', 'production readiness'],
 })
 const manifestFiles = await contentInventory(RELEASE_ROOT, new Set(['checksums.sha256', 'build-manifest.json']))
 await writeJson(path.join(RELEASE_ROOT, 'build-manifest.json'), { schemaVersion: 'voce.local-build-manifest/v1alpha1', kind: 'local-build-manifest', officialAttestation: false, releaseCandidate: RELEASE_CANDIDATE, sourceRevision: revision, inventoryCoverage: { excludes: ['checksums.sha256', 'build-manifest.json'], reason: 'The embedded inventory excludes itself and the checksum file.' }, checksumCoverage: { excludes: ['checksums.sha256'], reason: 'The checksum file excludes only itself and protects this build manifest.' }, files: manifestFiles })

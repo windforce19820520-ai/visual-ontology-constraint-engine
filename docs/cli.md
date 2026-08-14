@@ -10,7 +10,7 @@ cd visual-ontology-constraint-engine
 pnpm install --ignore-scripts
 pnpm run build
 node packages/cli/dist/cli.js pack validate --source fixtures/packs/product-shot --json
-node packages/cli/dist/cli.js case compile --case fixtures/cases/product-shot.json --scenario fixtures/packs/product-shot --profile fixtures/profiles/mock-native-transparent.json --out .local-output/product-shot-compiled --json
+node packages/cli/dist/cli.js case compile --case fixtures/cases/product-shot.json --scenario fixtures/packs/product-shot --profile fixtures/profiles/mock-image.json --out .local-output/product-shot-compiled --json
 node packages/cli/dist/cli.js case run --bundle .local-output/product-shot-compiled --provider mock --out .local-output/product-shot-run --json
 node packages/cli/dist/cli.js trace render --bundle .local-output/product-shot-run --out .local-output/product-shot.html --json
 ```
@@ -59,6 +59,6 @@ Readers validate schema, inventory, safe relative paths, duplicate/case-collidin
 
 ## Deliberate boundaries
 
-The CLI does not discover global packages, read credentials, install or activate packs, load executable plugins, call Seedream/veImageX/LLM providers, or make real network requests. ScenarioPack content is declarative data. Real Provider smoke tests, npm publish, GitHub Release/tag creation, and production deployment require a separate explicit authorization.
+The CLI does not discover global packages, read credentials, install or activate packs, load executable plugins, call Seedream/LLM providers, or make real network requests. ScenarioPack content is declarative data. Real Provider smoke tests, npm publish, GitHub Release/tag creation, and production deployment require a separate explicit authorization.
 
 The CLI documentation is currently English-only; the bilingual ScenarioPack/system/scenario/glossary specifications remain unchanged.

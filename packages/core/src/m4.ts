@@ -1505,7 +1505,6 @@ function defaultCapabilities(profile: ProviderCapabilityProfile): RegisteredStep
   const generatorPin = { id: profile.adapterId, version: profile.version, digest: generatorDigest }
   const profilePin = { id: profile.id, version: profile.version, digest: profileDigest(profile) }
   const localDigest = sha256({ fixture: 'voce-local-step-adapter', version: '1.0.0' })
-  const bgDigest = sha256({ fixture: 'voce-background-removal-adapter', version: '1.0.0' })
   const normalizeDigest = sha256({ fixture: 'voce-image-normalization-adapter', version: '1.0.0' })
   const validateDigest = sha256({ fixture: 'voce-structural-validation-adapter', version: '1.0.0' })
   const localPin = { id: 'voce.local', version: '1.0.0', digest: localDigest }
@@ -1513,7 +1512,6 @@ function defaultCapabilities(profile: ProviderCapabilityProfile): RegisteredStep
     { id: 'resolve-provider-asset', type: 'resolve_asset', capability: 'resolve_provider_readable_asset', adapterId: 'voce.local', adapterVersion: localPin, adapterDigest: localDigest, outputMediaTypes: ['image/png', 'image/jpeg', 'image/webp'], destination: 'local', dataCategories: ['asset_metadata'], mayCreateChargedSubmission: false },
     { id: 'publish-provider-asset', type: 'publish_asset', capability: 'publish_provider_readable_asset', adapterId: 'voce.asset-publisher', adapterVersion: { id: 'voce.asset-publisher', version: '1.0.0', digest: localDigest }, adapterDigest: localDigest, destination: profile.destination, dataCategories: ['reference_image'], mayCreateChargedSubmission: true },
     { id: 'generate-image', type: 'generate', capability: 'image_generation', adapterId: profile.adapterId, adapterVersion: generatorPin, adapterDigest: generatorDigest, profileVersion: profilePin, outputMediaTypes: profileOutputMediaTypes(profile), supportsAlpha: profileOutput(profile).alpha, destination: profile.destination, dataCategories: profile.dataCategories ?? ['reference_image', 'prompt'], budget: createBudget({ schemaVersion: BUDGET_SCHEMA_VERSION, id: profile.adapterId, maximumCalls: 1, maximumRetries: 0, timeoutMs: profile.timeoutMs }), cancellation: { cancellable: true, onCancel: 'submission_unknown' }, mayCreateChargedSubmission: true },
-    { id: 'remove-background', type: 'background_removal', capability: 'background_removal', adapterId: 'voce.background-removal', adapterVersion: { id: 'voce.background-removal', version: '1.0.0', digest: bgDigest }, adapterDigest: bgDigest, inputMediaTypes: ['image/jpeg', 'image/png', 'image/webp'], outputMediaTypes: ['image/png'], supportsAlpha: true, destination: 'local', dataCategories: ['generated_image'], budget: createBudget({ schemaVersion: BUDGET_SCHEMA_VERSION, id: 'voce.background-removal', maximumCalls: 1, maximumRetries: 0, timeoutMs: 60_000 }), cancellation: { cancellable: false, onCancel: 'continue' }, mayCreateChargedSubmission: false },
     { id: 'normalize-image', type: 'normalize', capability: 'image_normalization', adapterId: 'voce.image-normalizer', adapterVersion: { id: 'voce.image-normalizer', version: '1.0.0', digest: normalizeDigest }, adapterDigest: normalizeDigest, inputMediaTypes: ['image/jpeg', 'image/png', 'image/webp'], outputMediaTypes: ['image/png', 'image/jpeg', 'image/webp'], supportsAlpha: true, destination: 'local', dataCategories: ['generated_image'], budget: createBudget({ schemaVersion: BUDGET_SCHEMA_VERSION, id: 'voce.image-normalizer', maximumCalls: 1, maximumRetries: 0, timeoutMs: 60_000 }), cancellation: { cancellable: false, onCancel: 'continue' }, mayCreateChargedSubmission: false },
     { id: 'structural-validate', type: 'structural_validate', capability: 'structural_validation', adapterId: 'voce.structural-validator', adapterVersion: { id: 'voce.structural-validator', version: '1.0.0', digest: validateDigest }, adapterDigest: validateDigest, inputMediaTypes: ['image/png', 'image/jpeg', 'image/webp'], destination: 'local', dataCategories: ['generated_image', 'output_metadata'], budget: createBudget({ schemaVersion: BUDGET_SCHEMA_VERSION, id: 'voce.structural-validator', maximumCalls: 1, maximumRetries: 0, timeoutMs: 30_000 }), cancellation: { cancellable: false, onCancel: 'continue' }, mayCreateChargedSubmission: false },
   ]
@@ -1665,12 +1663,12 @@ function blockedPipelinePlan(input: Partial<PipelinePlanningInput>, reasons: str
   return clone(base)
 }
 
-export const MOCK_NATIVE_TRANSPARENT_PROFILE: ProviderCapabilityProfile = (() => {
+export const MOCK_IMAGE_PROFILE: ProviderCapabilityProfile = (() => {
   const base: Omit<ProviderCapabilityProfile, 'profileHash'> = {
     schemaVersion: PROVIDER_CAPABILITY_PROFILE_SCHEMA_VERSION,
-    id: 'mock-native-transparent',
+    id: 'mock-image',
     version: '1.0.0',
-    versionSummary: 'Offline mock generator with direct transparent PNG output.',
+    versionSummary: 'Offline mock image generator with standard opaque PNG and JPEG output.',
     adapterId: 'mock.image-generator',
     adapterDigest: sha256({ fixture: 'mock-image-generator', version: '1.0.0' }),
     verificationStatus: 'verified',
@@ -1683,8 +1681,8 @@ export const MOCK_NATIVE_TRANSPARENT_PROFILE: ProviderCapabilityProfile = (() =>
     supportsEditing: true,
     supportsBatchOutput: false,
     outputMediaTypes: ['image/png', 'image/jpeg'],
-    supportsTransparentOutput: true,
-    supportsAlpha: true,
+    supportsTransparentOutput: false,
+    supportsAlpha: false,
     knownIncompatibilities: [],
     timeoutMs: 120_000,
     streaming: true,
@@ -1694,12 +1692,12 @@ export const MOCK_NATIVE_TRANSPARENT_PROFILE: ProviderCapabilityProfile = (() =>
   return { ...base, profileHash: computeProviderCapabilityProfileHash(base) }
 })()
 
-export const MOCK_JPEG_PLUS_REMOVAL_PROFILE: ProviderCapabilityProfile = (() => {
+export const MOCK_JPEG_PROFILE: ProviderCapabilityProfile = (() => {
   const base: Omit<ProviderCapabilityProfile, 'profileHash'> = {
     schemaVersion: PROVIDER_CAPABILITY_PROFILE_SCHEMA_VERSION,
-    id: 'mock-jpeg-plus-removal',
+    id: 'mock-jpeg',
     version: '1.0.0',
-    versionSummary: 'Offline mock generator that emits opaque JPEG; registered postprocessors can produce transparent PNG.',
+    versionSummary: 'Offline mock generator that emits opaque JPEG.',
     adapterId: 'mock.jpeg-generator',
     adapterDigest: sha256({ fixture: 'mock-jpeg-generator', version: '1.0.0' }),
     verificationStatus: 'verified',
@@ -1713,7 +1711,7 @@ export const MOCK_JPEG_PLUS_REMOVAL_PROFILE: ProviderCapabilityProfile = (() => 
     outputMediaTypes: ['image/jpeg'],
     supportsTransparentOutput: false,
     supportsAlpha: false,
-    knownIncompatibilities: ['TRANSPARENT_OUTPUT_NOT_NATIVE'],
+    knownIncompatibilities: [],
     timeoutMs: 120_000,
     streaming: false,
     destination: 'mock://jpeg-generator',
@@ -1741,8 +1739,8 @@ export const MOCK_LIMITED_REFERENCE_PROFILE: ProviderCapabilityProfile = (() => 
     supportsEditing: false,
     supportsBatchOutput: false,
     outputMediaTypes: ['image/png'],
-    supportsTransparentOutput: true,
-    supportsAlpha: true,
+    supportsTransparentOutput: false,
+    supportsAlpha: false,
     knownIncompatibilities: [],
     timeoutMs: 90_000,
     streaming: false,
@@ -1752,7 +1750,7 @@ export const MOCK_LIMITED_REFERENCE_PROFILE: ProviderCapabilityProfile = (() => 
   return { ...base, profileHash: computeProviderCapabilityProfileHash(base) }
 })()
 
-export const MOCK_PROVIDER_CAPABILITY_PROFILES = [MOCK_NATIVE_TRANSPARENT_PROFILE, MOCK_JPEG_PLUS_REMOVAL_PROFILE, MOCK_LIMITED_REFERENCE_PROFILE]
+export const MOCK_PROVIDER_CAPABILITY_PROFILES = [MOCK_IMAGE_PROFILE, MOCK_JPEG_PROFILE, MOCK_LIMITED_REFERENCE_PROFILE]
 
 export class CapabilityAwarePipelinePlanner {
   plan(input: PipelinePlanningInput): PipelinePlanningResult {
@@ -1772,7 +1770,6 @@ export class CapabilityAwarePipelinePlanner {
     const capabilities = input.registeredCapabilities ? sortedBy(input.registeredCapabilities, (item) => `${item.type}|${item.id}`) : defaultCapabilities(input.profile)
     const generator = capabilityFor('generate', capabilities)
     const validator = capabilityFor('structural_validate', capabilities)
-    const remover = capabilityFor('background_removal', capabilities)
     const normalizer = capabilityFor('normalize', capabilities)
     const publisher = capabilityFor('publish_asset', capabilities)
     const resolver = capabilityFor('resolve_asset', capabilities)
@@ -1782,7 +1779,7 @@ export class CapabilityAwarePipelinePlanner {
     reasons.push(...conflictingObjectIds(input.dataTransfers ?? [], (item) => item.id, 'DATA_TRANSFER_ID_COLLISION'))
     for (const budget of input.budgets ?? []) reasons.push(...budgetValidationReasons(budget, true))
     for (const transfer of input.dataTransfers ?? []) reasons.push(...dataTransferValidationReasons(transfer, true))
-    const selectedCapabilities = [resolver, publisher, generator, remover, normalizer, validator].filter((value): value is RegisteredStepCapability => Boolean(value))
+    const selectedCapabilities = [resolver, publisher, generator, normalizer, validator].filter((value): value is RegisteredStepCapability => Boolean(value))
     for (const capability of selectedCapabilities) reasons.push(...capabilityValidationReasons(capability))
     if (!generator) reasons.push('GENERATION_CAPABILITY_MISSING')
     if (!validator) reasons.push('STRUCTURAL_VALIDATOR_MISSING')
@@ -1791,18 +1788,16 @@ export class CapabilityAwarePipelinePlanner {
     const native = targetTransparent && output.transparent && output.alpha && targetTypes.some((type) => output.mediaTypes.includes(type))
     const generatorMedia = generator?.outputMediaTypes ?? output.mediaTypes
     const directMedia = targetTypes.some((type) => generatorMedia.includes(type))
-    const needsRemoval = targetTransparent && !native
     const dimensions = input.outputContract.dimensions
     const dimensionsNeedNormalization = Boolean(dimensions && ((output.minimumWidth !== undefined && dimensions.width < output.minimumWidth) || (output.minimumHeight !== undefined && dimensions.height < output.minimumHeight) || (output.maximumWidth !== undefined && dimensions.width > output.maximumWidth) || (output.maximumHeight !== undefined && dimensions.height > output.maximumHeight)))
-    const postprocessNeeded = targetTransparent ? !native || dimensionsNeedNormalization : !directMedia || dimensionsNeedNormalization
+    const postprocessNeeded = dimensionsNeedNormalization || (!targetTransparent && !directMedia)
     if (targetTransparent && input.outputContract.allowAlpha === false) reasons.push('OUTPUT_ALPHA_CONTRACT_CONFLICT')
-    if (targetTransparent && !native && (!remover || !normalizer)) reasons.push('TRANSPARENT_OUTPUT_UNSATISFIABLE')
+    if (targetTransparent && !native) reasons.push('TRANSPARENT_OUTPUT_UNSATISFIABLE')
     if (!targetTransparent && !directMedia && !normalizer) reasons.push('OUTPUT_FORMAT_UNSATISFIABLE')
     if (dimensionsNeedNormalization && !normalizer) reasons.push('OUTPUT_DIMENSION_UNSATISFIABLE')
-    if (targetTransparent && remover && (!remover.supportsAlpha || !(remover.outputMediaTypes ?? []).includes('image/png'))) reasons.push('BACKGROUND_REMOVAL_ALPHA_UNSUPPORTED')
     if (normalizer && postprocessNeeded && targetTransparent && (!normalizer.supportsAlpha || !(normalizer.outputMediaTypes ?? []).some((type) => targetTypes.includes(type)))) reasons.push('NORMALIZATION_ALPHA_OR_FORMAT_UNSUPPORTED')
     if (normalizer && dimensionsNeedNormalization && !(normalizer.outputMediaTypes ?? []).length) reasons.push('NORMALIZATION_CAPABILITY_INCOMPLETE')
-    if (input.profile.knownIncompatibilities.some((code) => targetTransparent && (code === 'TRANSPARENT_OUTPUT_NOT_NATIVE' || code === 'TRANSPARENT_OUTPUT_UNSUPPORTED')) && (!remover || !normalizer)) reasons.push('KNOWN_CAPABILITY_GAP')
+    if (input.profile.knownIncompatibilities.some((code) => targetTransparent && (code === 'TRANSPARENT_OUTPUT_NOT_NATIVE' || code === 'TRANSPARENT_OUTPUT_UNSUPPORTED'))) reasons.push('KNOWN_CAPABILITY_GAP')
     if (reasons.length) return pipelineResult('blocked', blockedPipelinePlan(input, reasons), reasons, [])
 
     const temporaryPublication = referenceProfileLimits(input.profile).requiresPublishedReferences
@@ -1848,19 +1843,14 @@ export class CapabilityAwarePipelinePlanner {
     const generation = generator ? addStep(generator, generationDepends, ['planned-reference', 'prompt'], ['generated-image'], 'generate source image') : undefined
     if (!generation) reasons.push('GENERATION_STEP_UNPLANNABLE')
     let last = generation
-    if (needsRemoval && remover && last) {
-      const removalStep = addStep(remover, [last.id], ['generated-image'], ['transparent-image'], 'remove background')
-      if (!removalStep) reasons.push('BACKGROUND_REMOVAL_STEP_UNPLANNABLE')
-      last = removalStep
-    }
-    const needsNormalize = Boolean(last && (targetTransparent ? !native : !directMedia) || dimensionsNeedNormalization)
+    const needsNormalize = Boolean(last && ((!targetTransparent && !directMedia) || dimensionsNeedNormalization))
     if (needsNormalize && normalizer && last) {
-      const normalizeStep = addStep(normalizer, [last.id], ['transparent-image', 'generated-image'], ['normalized-image'], 'normalize format, dimensions, and Alpha')
+      const normalizeStep = addStep(normalizer, [last.id], ['generated-image'], ['normalized-image'], 'normalize format and dimensions')
       if (!normalizeStep) reasons.push('NORMALIZATION_STEP_UNPLANNABLE')
       last = normalizeStep
     }
     const validateDepends = last ? [last.id] : []
-    const validationStep = validator ? addStep(validator, validateDepends, ['normalized-image', 'transparent-image', 'generated-image'], ['validated-output'], 'structural validate output contract') : undefined
+    const validationStep = validator ? addStep(validator, validateDepends, ['normalized-image', 'generated-image'], ['validated-output'], 'structural validate output contract') : undefined
     if (!validationStep) reasons.push('STRUCTURAL_VALIDATION_STEP_UNPLANNABLE')
     if (reasons.length) return pipelineResult('blocked', blockedPipelinePlan(input, reasons), reasons, [])
     cleanup.appliesToStepIds = sortedStrings(cleanup.appliesToStepIds)
@@ -1892,7 +1882,7 @@ export class CapabilityAwarePipelinePlanner {
       dataTransfers: uniqueTransfers,
       cleanup: [cleanup],
       compensation: sortedBy(compensation, (item) => item.id),
-      warnings: sortedStrings([...(temporaryPublication ? ['TEMPORARY_PUBLICATION_CLEANUP_REQUIRED'] : []), ...(needsRemoval ? ['BACKGROUND_REMOVAL_CHAIN_REQUIRED'] : [])]),
+      warnings: sortedStrings(temporaryPublication ? ['TEMPORARY_PUBLICATION_CLEANUP_REQUIRED'] : []),
       blockedReasons: [],
       status: 'ok',
       planHash: '',

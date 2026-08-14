@@ -14,7 +14,7 @@
   },
   "fixtures": [
     { "id": "third-party-minimal.offline", "cases": [
-      { "id": "case-third-party-001", "profileId": "mock-native-transparent", "expectedStatus": "completed",
+      { "id": "case-third-party-001", "profileId": "mock-image", "expectedStatus": "completed",
         "scopePaths": [],
         "coreProbes": [
           { "id": "third-party-core", "intents": [
