@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { link, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { link, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -12,6 +12,15 @@ function invoke(args: string[]) {
   const result = spawnSync(process.execPath, [cli, ...args, '--json'], { cwd: root, encoding: 'utf8' })
   const lines = result.stdout.trim().split(/\r?\n/).filter(Boolean)
   return { ...result, json: lines.length ? JSON.parse(lines.at(-1)!) as Record<string, unknown> : undefined, stdoutLines: lines }
+}
+async function runtimeSourceFiles(directory: string): Promise<string[]> {
+  const result: string[] = []
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const filePath = path.join(directory, entry.name)
+    if (entry.isDirectory()) result.push(...await runtimeSourceFiles(filePath))
+    else if (entry.isFile() && filePath.endsWith('.ts') && !filePath.endsWith('.test.ts')) result.push(filePath)
+  }
+  return result.sort()
 }
 
 test('CLI help and version have stable machine output', () => {
@@ -28,6 +37,27 @@ test('pack inspect, validate, and test share the explicit registry path', () => 
   const source = fixture('packs/third-party-minimal')
   const inspect = invoke(['pack', 'inspect', '--source', source]); const validate = invoke(['pack', 'validate', '--source', source]); const fixtureTest = invoke(['pack', 'test', '--source', source])
   assert.equal(inspect.status, 0); assert.equal(validate.status, 0); assert.equal(fixtureTest.status, 0); assert.equal(inspect.json?.packId, 'example.test/third-party-minimal'); assert.equal(validate.json?.valid, true); assert.equal(fixtureTest.json?.status, 'passed'); const results = fixtureTest.json?.results as Array<Record<string, unknown>>; assert.deepEqual(results[0].assertions && (results[0].assertions as Array<Record<string, unknown>>).map((item) => item.status), ['passed', 'passed', 'passed']); assert.match(String(results[0].assertionHash), /^sha256:[0-9a-f]{64}$/)
+})
+
+test('runtime CLI and Core source contains no first-party scenario-name branches', async () => {
+  const scenarioName = /virtual-tryon|cosplay|product-shot/i
+  for (const packageName of ['cli', 'core']) {
+    for (const filePath of await runtimeSourceFiles(path.join(root, 'packages', packageName, 'src'))) {
+      assert.doesNotMatch(await readFile(filePath, 'utf8'), scenarioName, filePath)
+    }
+  }
+})
+
+test('third-party declarations drive person-image disclosure independently of packId', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'voce-pack-declarations-')); const source = JSON.parse(await readFile(fixture('packs/third-party-minimal/pack.json'), 'utf8')) as Record<string, unknown>; const inspected: Array<Record<string, unknown>> = []
+  try {
+    for (const packId of ['example.test/third-party-minimal', 'renamed.example/arbitrary-pack']) {
+      const packDirectory = path.join(directory, packId.includes('/') ? packId.split('/').at(-1)! : packId); await mkdir(packDirectory, { recursive: true }); await writeFile(path.join(packDirectory, 'pack.json'), JSON.stringify({ ...source, packId }, null, 2), 'utf8')
+      const result = invoke(['pack', 'inspect', '--source', packDirectory]); assert.equal(result.status, 0); inspected.push(result.json!)
+    }
+    const stableSemanticView = (value: Record<string, unknown>) => ({ version: value.version, kind: value.kind, declarations: value.declarations, fixtureSuites: value.fixtureSuites })
+    assert.deepEqual(stableSemanticView(inspected[0]), stableSemanticView(inspected[1])); assert.deepEqual(inspected[0].declarations, { mayHandlePersonImages: true, rightsDisclosureRequired: true }); const invalidDirectory = path.join(directory, 'invalid-declarations'); await mkdir(invalidDirectory); await writeFile(path.join(invalidDirectory, 'pack.json'), JSON.stringify({ ...source, declarations: { mayHandlePersonImages: true, rightsDisclosureRequired: true, unexpected: false } }), 'utf8'); const invalid = invoke(['pack', 'inspect', '--source', invalidDirectory]); assert.equal(invalid.status, 4); assert.deepEqual(invalid.json, { status: 'error', code: 'PACK_DECLARATIONS_UNKNOWN_FIELD' })
+  } finally { await rm(directory, { recursive: true, force: true }) }
 })
 
 test('three vertical fixtures compile, run with Mock, and render a static trace', async () => {
@@ -54,7 +84,7 @@ test('bundle manifest symlink and hardlink are rejected before execution', async
     const manifest = path.join(compiled, 'manifest.json'); const backup = path.join(compiled, 'manifest.real.json'); const original = await readFile(manifest)
     await rename(manifest, backup)
     try { await symlink(backup, manifest) } catch (error) { await rename(backup, manifest); t.skip(`symlink unavailable: ${String(error)}`); return }
-    const symlinked = invoke(['case', 'run', '--bundle', compiled, '--provider', 'mock', '--out', output]); assert.equal(symlinked.status, 4); assert.deepEqual(symlinked.json, { status: 'error', code: 'BUNDLE_MANIFEST_UNSAFE' }); assert.equal(await readFile(backup, 'utf8'), new TextDecoder().decode(original)); assert.equal(await readFile(output).catch(() => undefined), undefined)
+    const symlinked = invoke(['case', 'run', '--bundle', compiled, '--provider', 'mock', '--out', output]); assert.equal(symlinked.status, 4); assert.deepEqual(symlinked.json, { status: 'error', code: 'BUNDLE_MANIFEST_UNSAFE' }); assert.equal(await readFile(backup, 'utf8'), new TextDecoder().decode(original)); await assert.rejects(lstat(output), (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT')
   } finally { await rm(directory, { recursive: true, force: true }) }
 })
 
@@ -64,7 +94,7 @@ test('bundle manifest hardlink is rejected before execution', async (t) => {
     assert.equal(invoke(['case', 'compile', '--case', fixture('cases/product-shot.json'), '--scenario', fixture('packs/product-shot'), '--profile', fixture('profiles/mock-native-transparent.json'), '--out', compiled]).status, 0)
     const manifest = path.join(compiled, 'manifest.json'); const target = path.join(compiled, 'manifest.real.json'); await rename(manifest, target)
     try { await link(target, manifest) } catch (error) { await rename(target, manifest); t.skip(`hardlink unavailable: ${String(error)}`); return }
-    const linked = invoke(['case', 'run', '--bundle', compiled, '--provider', 'mock', '--out', output]); assert.equal(linked.status, 4); assert.deepEqual(linked.json, { status: 'error', code: 'BUNDLE_MANIFEST_UNSAFE' }); assert.equal(await readFile(output).catch(() => undefined), undefined)
+    const linked = invoke(['case', 'run', '--bundle', compiled, '--provider', 'mock', '--out', output]); assert.equal(linked.status, 4); assert.deepEqual(linked.json, { status: 'error', code: 'BUNDLE_MANIFEST_UNSAFE' }); await assert.rejects(lstat(output), (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT')
   } finally { await rm(directory, { recursive: true, force: true }) }
 })
 

@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "kind": "root",
   "scenarioLabel": "third-party contract fixture",
+  "declarations": { "mayHandlePersonImages": true, "rightsDisclosureRequired": true },
   "contributions": {
     "rulePacks": [
       { "id": "third-party.rules", "namespace": "example.test.third-party", "rules": [

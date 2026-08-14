@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "kind": "root",
   "scenarioLabel": "virtual try-on offline fixture",
+  "declarations": { "mayHandlePersonImages": true, "rightsDisclosureRequired": true },
   "contributions": {
     "rulePacks": [
       { "id": "virtual-tryon.rules", "namespace": "voce.fixture.virtual-tryon", "rules": [

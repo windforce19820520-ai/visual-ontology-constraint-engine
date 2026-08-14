@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "kind": "root",
   "scenarioLabel": "cosplay offline fixture",
+  "declarations": { "mayHandlePersonImages": true, "rightsDisclosureRequired": true },
   "contributions": {
     "rulePacks": [
       { "id": "cosplay.rules", "namespace": "voce.fixture.cosplay", "rules": [

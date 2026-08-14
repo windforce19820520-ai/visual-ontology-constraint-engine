@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "kind": "root",
   "scenarioLabel": "product shot offline fixture",
+  "declarations": { "mayHandlePersonImages": false, "rightsDisclosureRequired": false },
   "contributions": {
     "rulePacks": [
       { "id": "product-shot.rules", "namespace": "voce.fixture.product-shot", "rules": [
