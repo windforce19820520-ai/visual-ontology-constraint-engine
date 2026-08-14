@@ -1,0 +1,12 @@
+# M8 implementation notes
+
+- M8 keeps `0.1.0-rc.1` explicitly prerelease across the root and all four public package manifests. Packed dependencies use exact prerelease versions, not `workspace:*`, so a clean consumer cannot resolve back to workspace links.
+- The candidate compatibility surface is versioned in `compatibility/v0.1.0-rc.1/manifest.json`. It fixes only the documented ScenarioPack/Registry/Manifest, declarative rule contribution, ProviderAdapter/profile, BundleManifest, and offline testkit surface. It does not freeze internal modules or executable plugin ports.
+- Contracts schemas remain data files included by `@voce/contracts`; the package export pattern supports the documented `.json` subpath. No fixture or source-tree path is added as a public export.
+- Release tarballs reject undeclared files, source maps, tests, links/special entries, unsafe paths, case collisions, lifecycle scripts, workspace dependency specs, and public path/credential material. `dist` test outputs are excluded with per-package `.npmignore` files rather than removing existing internal tests from the build.
+- `release-candidate` refuses a tracked-dirty worktree and records the exact `HEAD` in `build-manifest.json`. Ignored build output is not part of the tracked-dirty decision. The local manifest deliberately remains `officialAttestation: false`.
+- Reproducibility compares two consecutive builds by decompressed tarball relative-path/content hashes. Gzip/tar container bytes are not treated as portable golden values because tool metadata can vary.
+- The consumer uses local package tarballs, `--ignore-scripts`, package-import copy mode, and an offline install first. It checks installed ESM imports, TypeScript declarations, schema readability, CLI doctor/pack flows, third-party renaming, vertical Mock flows, compare, and removal without workspace fallback.
+- The security corpus is small JSON metadata plus generated bundle mutations. Symlink cases are expected to run on Linux; Windows may report the existing OS permission skip. All other unsafe cases must fail before Mock execution with stable public codes.
+- The doctor output uses an `authProbe` field containing only `inspected: false`; it never reads credentials. No real HTTP, provider SDK, LLM, Seedream, or veImageX call is added.
+- CI is limited to Ubuntu/Windows Node 20 release gates and a Node 22 public-consumer validation. Permissions remain `contents: read`; publish, tag, release, merge, and secrets are absent.

@@ -8,9 +8,14 @@ permissions:
   contents: read
 
 jobs:
-  release-candidate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  quality:
+    name: Node 20 ${{ matrix.os }} offline gates
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,9 +30,54 @@ jobs:
           cache: pnpm
       - name: Install without lifecycle scripts
         run: pnpm install --frozen-lockfile --ignore-scripts
-      - name: Validate and run tests
+      - name: Validate and run the standard suite
         run: pnpm run validate
-      - name: Run offline release-candidate checks
-        run: pnpm run release-candidate
-      - name: Run clean-room checks
+      - name: Run candidate compatibility gate
+        run: pnpm run compatibility
+      - name: Run offline security gate
+        run: pnpm run security
+      - name: Run clean-room consumer gate
         run: pnpm run clean-room
+
+  release-candidate:
+    name: Ubuntu Node 20 release-candidate manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: quality
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Build release candidate and verify checksums
+        run: pnpm run release-candidate
+
+  node-22-consumer:
+    name: Ubuntu Node 22 public consumer
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Validate declarations and public tarball consumer
+        run: pnpm run typecheck && pnpm run compatibility && pnpm run consumer

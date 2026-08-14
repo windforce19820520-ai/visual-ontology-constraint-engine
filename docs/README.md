@@ -10,6 +10,9 @@ English is the normative language for public contracts and architecture decision
 - [ScenarioPack contract](scenario-pack-contract.md) · [简体中文](zh-CN/scenario-pack-contract.md)
 - [Architecture summary](architecture.md)
 - [Roadmap](roadmap.md)
+- [Release-readiness checklist](release-checklist.md)
+- [Candidate public compatibility surface](compatibility.md)
+- [Release-candidate process](release-process.md)
 
 ## Translation policy
 

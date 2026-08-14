@@ -1,100 +1,55 @@
-import { createHash } from 'node:crypto'
-import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { spawnSync } from 'node:child_process'
-import { gunzipSync } from 'node:zlib'
-import process from 'node:process'
-import { fileURLToPath } from 'node:url'
+import { PACKAGE_NAMES, RELEASE_CANDIDATE, RELEASE_ROOT, ROOT, assertCleanTrackedWorktree, contentInventory, fail, run, runAllowFailure, sourceRevision, writeJson } from './m8-common.mjs'
 
-const root = fileURLToPath(new URL('..', import.meta.url))
-const output = path.join(root, 'release-candidate', 'v0.1.0-rc.1')
+assertCleanTrackedWorktree()
+const revision = sourceRevision()
+await rm(RELEASE_ROOT, { recursive: true, force: true }); await mkdir(RELEASE_ROOT, { recursive: true })
 const node = process.execPath
-const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
-const cli = path.join(root, 'packages', 'cli', 'dist', 'cli.js')
+const validation = run(node, [path.join(ROOT, 'scripts', 'validate-repository.mjs')])
+const typecheck = run(node, [path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc'), '-b', '--pretty', 'false'])
+const testOutput = run(node, [path.join(ROOT, 'scripts', 'run-tests.mjs')])
+const testCount = Number(testOutput.match(/tests\s+(\d+)/)?.[1] ?? 0)
+const passCount = Number(testOutput.match(/pass\s+(\d+)/)?.[1] ?? 0)
+const failCount = Number(testOutput.match(/fail\s+(\d+)/)?.[1] ?? 0)
+const skippedCount = Number(testOutput.match(/skipped\s+(\d+)/)?.[1] ?? 0)
+if (testCount < 105 || failCount !== 0) fail(`M8_STANDARD_TEST_GATE_FAILED:${testCount}/${passCount}/${failCount}/${skippedCount}`)
 
-function fail(message) { throw new Error(message) }
-function run(command, args, cwd = root, options = {}) {
-  const result = spawnSync(command, args, { cwd, encoding: 'utf8', stdio: options.stdio ?? 'pipe', shell: command.endsWith('.cmd'), env: { ...process.env, CI: '1' } })
-  if (result.error) throw result.error
-  if (result.status !== 0) fail(`${command} ${args.join(' ')} failed with ${result.status}: ${(result.stderr ?? '').trim()}`)
-  return result.stdout ?? ''
-}
-function writeJson(file, value) { return writeFile(file, JSON.stringify(value, null, 2) + '\n', 'utf8') }
-async function filesUnder(directory, relative = '') {
-  const entries = await readdir(path.join(directory, relative), { withFileTypes: true })
-  const result = []
-  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    const child = path.join(relative, entry.name)
-    if (entry.isDirectory()) result.push(...await filesUnder(directory, child))
-    else if (entry.isFile()) result.push(child.replaceAll('\\', '/'))
-  }
-  return result
-}
-async function sha256File(file) { return `sha256:${createHash('sha256').update(await readFile(file)).digest('hex')}` }
-function tarballEntries(bytes) {
-  const tar = gunzipSync(bytes); const entries = []
-  for (let offset = 0; offset + 512 <= tar.length;) {
-    const header = tar.subarray(offset, offset + 512); const name = header.subarray(0, 100).toString('utf8').replace(/\0.*$/, ''); const prefix = header.subarray(345, 500).toString('utf8').replace(/\0.*$/, '')
-    if (!name) break
-    const size = Number.parseInt(header.subarray(124, 136).toString('ascii').replace(/\0.*$/, '').trim() || '0', 8); const type = header[156]
-    if (type === 0 || type === 48) entries.push(prefix ? `${prefix}/${name}` : name)
-    offset += 512 + Math.ceil(size / 512) * 512
-  }
-  return entries.sort()
-}
-function cliRun(args) { return run(node, [cli, ...args, '--json']) }
-function parseOutput(stdout) { const lines = stdout.trim().split(/\r?\n/); return JSON.parse(lines.at(-1)) }
+run(node, [path.join(ROOT, 'scripts', 'compatibility.mjs')])
+run(node, [path.join(ROOT, 'scripts', 'security-gate.mjs')])
+const consumerRoom = path.join(ROOT, 'clean-room', `m8-${RELEASE_CANDIDATE}`)
+run(node, [path.join(ROOT, 'scripts', 'consumer.mjs'), consumerRoom])
+const consumerSummary = JSON.parse(await readFile(path.join(consumerRoom, 'consumer-summary.json'), 'utf8'))
+if (consumerSummary.status !== 'passed' || consumerSummary.workspaceSymlinks !== false) fail('M8_CONSUMER_GATE_FAILED')
+await cp(path.join(consumerRoom, 'tarballs'), path.join(RELEASE_ROOT, 'tarballs'), { recursive: true })
+await cp(path.join(consumerRoom, 'output'), path.join(RELEASE_ROOT, 'verticals'), { recursive: true })
+await writeJson(path.join(RELEASE_ROOT, 'consumer-summary.json'), consumerSummary)
+run(node, [path.join(ROOT, 'scripts', 'reproducibility.mjs')])
 
-await rm(output, { recursive: true, force: true })
-await mkdir(output, { recursive: true })
-run(node, ['scripts/validate-repository.mjs'])
-run(node, [path.join(root, 'node_modules', 'typescript', 'bin', 'tsc'), '-b', '--pretty', 'false'])
-run(node, ['scripts/run-tests.mjs'])
+const licenses = await import('./m8-common.mjs').then(({ readLockPackageMetadata }) => readLockPackageMetadata())
+await writeJson(path.join(RELEASE_ROOT, 'package-audit.json'), consumerSummary.packageAudit)
+await writeJson(path.join(RELEASE_ROOT, 'version-matrix.json'), { releaseCandidate: RELEASE_CANDIDATE, sourceRevision: revision, nodeBaseline: '>=20', ci: { ubuntu: 'Node 20', windows: 'Node 20', publicConsumer: 'Node 22' }, packages: consumerSummary.packageAudit.map((item) => ({ name: item.name, version: item.version })) })
+await writeJson(path.join(RELEASE_ROOT, 'licenses.json'), { schemaVersion: 'voce.local-sbom/v1alpha1', source: ['pnpm-lock.yaml', 'installed public package metadata'], status: 'metadata-only', entries: licenses, unknownPolicy: 'Missing license or engine metadata is recorded as unknown; no provenance or license assertion is inferred.' })
 
-const packs = [
-  ['virtual-tryon', 'fixtures/cases/virtual-tryon.json', 'fixtures/profiles/mock-jpeg-plus-removal.json'],
-  ['cosplay', 'fixtures/cases/cosplay.json', 'fixtures/profiles/mock-native-transparent.json'],
-  ['product-shot', 'fixtures/cases/product-shot.json', 'fixtures/profiles/mock-native-transparent.json'],
-]
-const packAudits = []
-for (const [name, caseFile, profileFile] of packs) {
-  const pack = `fixtures/packs/${name}`
-  const inspect = parseOutput(cliRun(['pack', 'inspect', '--source', pack]))
-  const validate = parseOutput(cliRun(['pack', 'validate', '--source', pack]))
-  const fixtureTest = parseOutput(cliRun(['pack', 'test', '--source', pack]))
-  const compiledDir = path.join(output, name, 'compiled')
-  const runDir = path.join(output, name, 'run')
-  const traceFile = path.join(output, name, 'trace.html')
-  const compiled = parseOutput(cliRun(['case', 'compile', '--case', caseFile, '--scenario', pack, '--profile', profileFile, '--out', compiledDir]))
-  const executed = parseOutput(cliRun(['case', 'run', '--bundle', compiledDir, '--provider', 'mock', '--out', runDir]))
-  const trace = parseOutput(cliRun(['trace', 'render', '--bundle', runDir, '--out', traceFile]))
-  packAudits.push({ name, inspect, validate, fixtureTest, compiled, executed, trace })
-}
+await writeJson(path.join(RELEASE_ROOT, 'summary.json'), {
+  status: 'passed', releaseCandidate: RELEASE_CANDIDATE, sourceRevision: revision,
+  standardTests: { total: testCount, passed: passCount, failed: failCount, skipped: skippedCount, skipCondition: 'Windows symlink permission may skip exactly two tests; Linux CI must execute them.' },
+  gates: { repositoryValidation: 'passed', typecheck: 'passed', compatibility: 'passed', cleanConsumer: 'passed', security: 'passed', reproducibility: 'passed', checksums: 'passed' },
+  consumer: { packageSources: 'local-tarballs', ignoreScripts: true, workspaceSymlinks: false, packages: consumerSummary.packageAudit.length, packs: consumerSummary.packs.length, verticals: consumerSummary.verticals.length, compareReportHash: consumerSummary.comparison.reportHash },
+  supplyChain: { sbom: 'local-sbom', checksums: 'checksums.sha256', officialAttestation: false },
+  deferred: ['npm publish', 'GitHub Release/tag', 'merge', 'real Seedream/veImageX/LLM/provider smoke', 'production readiness'],
+})
+const manifestFiles = await contentInventory(RELEASE_ROOT, new Set(['checksums.sha256', 'build-manifest.json']))
+await writeJson(path.join(RELEASE_ROOT, 'build-manifest.json'), { schemaVersion: 'voce.local-build-manifest/v1alpha1', kind: 'local-build-manifest', officialAttestation: false, releaseCandidate: RELEASE_CANDIDATE, sourceRevision: revision, inventoryCoverage: { excludes: ['checksums.sha256', 'build-manifest.json'], reason: 'The embedded inventory excludes itself and the checksum file.' }, checksumCoverage: { excludes: ['checksums.sha256'], reason: 'The checksum file excludes only itself and protects this build manifest.' }, files: manifestFiles })
+const checksummed = await contentInventory(RELEASE_ROOT, new Set(['checksums.sha256']))
+await writeFile(path.join(RELEASE_ROOT, 'checksums.sha256'), checksummed.map((item) => `${item.sha256}  ${item.path}`).join('\n') + '\n', 'utf8')
+const verify = run(node, [path.join(ROOT, 'scripts', 'verify-checksums.mjs'), RELEASE_ROOT])
+const tamperRoot = path.join(ROOT, 'release-candidate', `.checksum-tamper-${RELEASE_CANDIDATE}`)
+await cp(RELEASE_ROOT, tamperRoot, { recursive: true }); await writeFile(path.join(tamperRoot, 'summary.json'), 'tampered\n', 'utf8')
+const tamper = runAllowFailure(node, [path.join(ROOT, 'scripts', 'verify-checksums.mjs'), tamperRoot]); await rm(tamperRoot, { recursive: true, force: true })
+if (tamper.status === 0) fail('M8_CHECKSUM_TAMPER_NOT_DETECTED')
+await cp(RELEASE_ROOT, tamperRoot, { recursive: true }); await writeFile(path.join(tamperRoot, 'build-manifest.json'), 'tampered\n', 'utf8')
+const manifestTamper = runAllowFailure(node, [path.join(ROOT, 'scripts', 'verify-checksums.mjs'), tamperRoot]); await rm(tamperRoot, { recursive: true, force: true })
+if (manifestTamper.status === 0) fail('M8_BUILD_MANIFEST_TAMPER_NOT_DETECTED')
 
-const packageNames = ['@voce/contracts', '@voce/core', '@voce/testkit', '@voce/cli']
-const packageAudit = []
-const tarballDirectory = path.join(output, 'tarballs')
-await mkdir(tarballDirectory, { recursive: true })
-for (const name of packageNames) {
-  const packageDirectory = path.join(root, 'packages', name.split('/').at(-1))
-  const manifest = JSON.parse(await readFile(path.join(packageDirectory, 'package.json'), 'utf8'))
-  if (Object.keys(manifest.scripts ?? {}).some((key) => ['preinstall', 'install', 'postinstall', 'prepare'].includes(key))) fail(`${name} contains an install lifecycle script`)
-  const before = new Set(await readdir(tarballDirectory))
-  run(pnpm, ['pack', '--pack-destination', tarballDirectory], packageDirectory)
-  const tarballName = (await readdir(tarballDirectory)).find((file) => !before.has(file) && file.endsWith('.tgz'))
-  if (!tarballName) fail(`${name} did not produce a tarball`)
-  const contents = tarballEntries(await readFile(path.join(tarballDirectory, tarballName)))
-  if (contents.some((file) => /(node_modules|\.pnpm-store|\.env|release-candidate|clean-room)/i.test(file))) fail(`${name} tarball contains a forbidden path`)
-  packageAudit.push({ name, version: manifest.version, files: manifest.files ?? [], lifecycleScripts: false, tarball: `tarballs/${tarballName}`, tarballContents: contents })
-}
-
-await writeJson(path.join(output, 'package-audit.json'), packageAudit)
-await writeJson(path.join(output, 'version-matrix.json'), { releaseCandidate: '0.1.0-rc.1', node: '>=20', packages: packageAudit.map((item) => ({ name: item.name, version: item.version })) })
-await writeJson(path.join(output, 'licenses.json'), { source: 'workspace manifests and pnpm-lock.yaml', status: 'declared', entries: packageNames.map((name) => ({ name, license: 'Apache-2.0' })), missingThirdPartyMetadata: ['semver license metadata is not duplicated into the repository; inspect the lock/install metadata during distribution review.'] })
-await writeJson(path.join(output, 'summary.json'), { status: 'passed', releaseCandidate: '0.1.0-rc.1', packages: packageNames.length, verticalCases: packAudits, checksums: 'checksums.sha256', provenance: 'local-build-manifest-only' })
-const allFiles = await filesUnder(output)
-const checksums = []
-for (const relative of allFiles.sort()) if (!['checksums.sha256', 'build-manifest.json'].includes(relative)) checksums.push(`${await sha256File(path.join(output, ...relative.split('/')))}  ${relative}`)
-await writeFile(path.join(output, 'checksums.sha256'), checksums.join('\n') + '\n', 'utf8')
-await writeJson(path.join(output, 'build-manifest.json'), { schemaVersion: 'voce.local-build-manifest/v1alpha1', kind: 'local-build-manifest', officialAttestation: false, note: 'This local manifest is not a GitHub artifact attestation or npm provenance statement.', releaseCandidate: '0.1.0-rc.1', sourceRevision: run('git', ['rev-parse', 'HEAD']).trim(), checksumCoverage: { excludes: ['checksums.sha256', 'build-manifest.json'], reason: 'Avoids self-referential provenance and checksum cycles.' }, files: checksums.map((line) => { const [sha, relative] = line.split('  '); return { path: relative, sha256: sha } }) })
-console.log(JSON.stringify({ status: 'passed', output: 'release-candidate/v0.1.0-rc.1', verticalCases: packAudits.length, packages: packageNames.length, provenance: 'local-build-manifest-only' }))
+console.log(JSON.stringify({ status: 'passed', output: 'release-candidate/v0.1.0-rc.1', sourceRevision: revision, tests: { total: testCount, passed: passCount, skipped: skippedCount }, packages: PACKAGE_NAMES.length, consumer: 'passed', reproducibility: 'passed', checksumTamper: 'artifact-and-build-manifest-rejected', provenance: 'local-build-manifest-only' }))

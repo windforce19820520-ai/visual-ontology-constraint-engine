@@ -18,13 +18,13 @@ importers:
   packages/cli:
     dependencies:
       '@voce/contracts':
-        specifier: workspace:*
+        specifier: 0.1.0-rc.1
         version: link:../contracts
       '@voce/core':
-        specifier: workspace:*
+        specifier: 0.1.0-rc.1
         version: link:../core
       '@voce/testkit':
-        specifier: workspace:*
+        specifier: 0.1.0-rc.1
         version: link:../testkit
 
   packages/contracts: {}
@@ -32,7 +32,7 @@ importers:
   packages/core:
     dependencies:
       '@voce/contracts':
-        specifier: workspace:*
+        specifier: 0.1.0-rc.1
         version: link:../contracts
       semver:
         specifier: 7.7.2
@@ -45,10 +45,10 @@ importers:
   packages/testkit:
     dependencies:
       '@voce/contracts':
-        specifier: workspace:*
+        specifier: 0.1.0-rc.1
         version: link:../contracts
       '@voce/core':
-        specifier: workspace:*
+        specifier: 0.1.0-rc.1
         version: link:../core
 
 packages:
