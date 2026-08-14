@@ -1,7 +1,7 @@
 import { cp, link, lstat, mkdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
-import { RELEASE_CANDIDATE, RELEASE_ROOT, ROOT, cliPath, fail, parseJsonLine, run, writeJson } from './m8-common.mjs'
+import { RELEASE_CANDIDATE, RELEASE_ROOT, ROOT, cliPath, fail, filesUnder, parseJsonLine, run, writeJson } from './m8-common.mjs'
 
 const corpus = JSON.parse(await readFile(path.join(ROOT, 'fixtures', 'security', 'm8', 'corpus.json'), 'utf8'))
 if (corpus.schemaVersion !== 'voce.security-corpus/v1alpha1') fail('M8_SECURITY_CORPUS_INVALID')
@@ -20,6 +20,10 @@ function spawn(command, args, cwd) {
   return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' }
 }
 
+async function pathExists(target) {
+  try { await lstat(target); return true } catch (error) { if (error?.code === 'ENOENT') return false; throw error }
+}
+
 const base = path.join(temp, 'base')
 const compile = parseJsonLine(run(process.execPath, [cli, 'case', 'compile', '--case', path.join(ROOT, 'fixtures', 'cases', 'product-shot.json'), '--scenario', path.join(ROOT, 'fixtures', 'packs', 'product-shot'), '--profile', path.join(ROOT, 'fixtures', 'profiles', 'mock-native-transparent.json'), '--out', base, '--json']))
 if (compile.status !== 'ok') fail('M8_SECURITY_BASE_COMPILE_FAILED')
@@ -29,15 +33,16 @@ for (const item of corpus.cases) {
   const directory = path.join(temp, item.id); await cp(base, directory, { recursive: true })
   const manifest = path.join(directory, 'manifest.json')
   const payload = path.join(directory, 'case.json')
+  const runOutput = path.join(temp, `${item.id}-out`)
   let observed
   if (item.mutation === 'manifest-symlink') {
-    const target = path.join(directory, 'manifest.real.json'); await rename(manifest, target); await symlink(target, manifest); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', path.join(temp, `${item.id}-out`)]).json?.code
+    const target = path.join(directory, 'manifest.real.json'); await rename(manifest, target); await symlink(target, manifest); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', runOutput]).json?.code
   } else if (item.mutation === 'manifest-hardlink') {
-    const target = path.join(directory, 'manifest.real.json'); await rename(manifest, target); await link(target, manifest); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', path.join(temp, `${item.id}-out`)]).json?.code
+    const target = path.join(directory, 'manifest.real.json'); await rename(manifest, target); await link(target, manifest); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', runOutput]).json?.code
   } else if (item.mutation === 'payload-symlink') {
-    const target = path.join(directory, 'case.real.json'); await rename(payload, target); await symlink(target, payload); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', path.join(temp, `${item.id}-out`)]).json?.code
+    const target = path.join(directory, 'case.real.json'); await rename(payload, target); await symlink(target, payload); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', runOutput]).json?.code
   } else if (item.mutation === 'payload-hardlink') {
-    const target = path.join(directory, 'case.real.json'); await rename(payload, target); await link(target, payload); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', path.join(temp, `${item.id}-out`)]).json?.code
+    const target = path.join(directory, 'case.real.json'); await rename(payload, target); await link(target, payload); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', runOutput]).json?.code
   } else if (item.mutation === 'path-traversal' || item.mutation === 'case-collision' || item.mutation === 'unknown-schema' || item.mutation === 'unknown-field') {
     const value = JSON.parse(await readFile(manifest, 'utf8'))
     if (item.mutation === 'path-traversal') value.files[0].path = '../escape.json'
@@ -45,13 +50,13 @@ for (const item of corpus.cases) {
     if (item.mutation === 'unknown-schema') value.schemaVersion = 'voce.unknown/v9'
     if (item.mutation === 'unknown-field') value.unexpected = true
     await writeFile(manifest, JSON.stringify(value, null, 2), 'utf8')
-    observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', path.join(temp, `${item.id}-out`)]).json?.code
+    observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', runOutput]).json?.code
   } else if (item.mutation === 'missing-file') {
-    await rm(payload); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', path.join(temp, `${item.id}-out`)]).json?.code
+    await rm(payload); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', runOutput]).json?.code
   } else if (item.mutation === 'extra-file') {
-    await writeFile(path.join(directory, 'extra.json'), '{}', 'utf8'); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', path.join(temp, `${item.id}-out`)]).json?.code
+    await writeFile(path.join(directory, 'extra.json'), '{}', 'utf8'); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', runOutput]).json?.code
   } else if (item.mutation === 'hash-tamper') {
-    await writeFile(payload, '{}', 'utf8'); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', path.join(temp, `${item.id}-out`)]).json?.code
+    await writeFile(payload, '{}', 'utf8'); observed = invokeAllowFailure(['case', 'run', '--bundle', directory, '--provider', 'mock', '--out', runOutput]).json?.code
   } else if (item.mutation === 'output-input-overlap') {
     observed = invokeAllowFailure(['case', 'compile', '--case', path.join(ROOT, 'fixtures', 'cases', 'product-shot.json'), '--scenario', path.join(ROOT, 'fixtures', 'packs', 'product-shot'), '--profile', path.join(ROOT, 'fixtures', 'profiles', 'mock-native-transparent.json'), '--out', path.join(ROOT, 'fixtures', 'cases', 'product-shot.json')]).json?.code
   } else if (item.mutation === 'scenario-pack-executable') {
@@ -60,15 +65,16 @@ for (const item of corpus.cases) {
   }
   const passed = observed === item.expectedCode
   if (!passed) fail(`M8_SECURITY_CASE_FAILED:${item.id}:expected=${item.expectedCode}:observed=${observed}`)
-  results.push({ id: item.id, status: 'passed', code: observed })
+  const mustNotWriteOutput = !['output-input-overlap', 'scenario-pack-executable'].includes(item.mutation)
+  if (mustNotWriteOutput && await pathExists(runOutput)) fail(`M8_SECURITY_FAILURE_WROTE_OUTPUT:${item.id}`)
+  results.push({ id: item.id, status: 'passed', code: observed, ...(mustNotWriteOutput ? { outputAbsent: true } : {}) })
   await rm(directory, { recursive: true, force: true })
 }
 
 const runtimeSources = []
 for (const packageName of ['cli', 'core']) {
   const directory = path.join(ROOT, 'packages', packageName, 'src')
-  const entries = await (await import('node:fs/promises')).readdir(directory, { withFileTypes: true })
-  for (const entry of entries.filter((item) => item.isFile() && item.name.endsWith('.ts') && !item.name.endsWith('.test.ts'))) runtimeSources.push(path.join(directory, entry.name))
+  for (const relative of await filesUnder(directory)) if (relative.endsWith('.ts') && !relative.endsWith('.test.ts')) runtimeSources.push(path.join(directory, ...relative.split('/')))
 }
 for (const file of runtimeSources) {
   const source = await readFile(file, 'utf8')

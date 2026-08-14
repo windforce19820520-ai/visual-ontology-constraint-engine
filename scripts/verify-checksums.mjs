@@ -15,7 +15,7 @@ for (const line of lines) {
   expected.set(relative.toLowerCase(), { relative, sha256: match[1] })
 }
 const actual = await filesUnder(root)
-const allowedUnhashed = new Set(['checksums.sha256', 'build-manifest.json'])
+const allowedUnhashed = new Set(['checksums.sha256'])
 for (const relative of actual) {
   if (allowedUnhashed.has(relative)) continue
   const found = expected.get(relative.toLowerCase())

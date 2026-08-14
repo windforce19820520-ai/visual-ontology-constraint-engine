@@ -39,14 +39,17 @@ await writeJson(path.join(RELEASE_ROOT, 'summary.json'), {
   supplyChain: { sbom: 'local-sbom', checksums: 'checksums.sha256', officialAttestation: false },
   deferred: ['npm publish', 'GitHub Release/tag', 'merge', 'real Seedream/veImageX/LLM/provider smoke', 'production readiness'],
 })
-const checksummed = await contentInventory(RELEASE_ROOT, new Set(['checksums.sha256', 'build-manifest.json']))
-await writeFile(path.join(RELEASE_ROOT, 'checksums.sha256'), checksummed.map((item) => `${item.sha256}  ${item.path}`).join('\n') + '\n', 'utf8')
 const manifestFiles = await contentInventory(RELEASE_ROOT, new Set(['checksums.sha256', 'build-manifest.json']))
-await writeJson(path.join(RELEASE_ROOT, 'build-manifest.json'), { schemaVersion: 'voce.local-build-manifest/v1alpha1', kind: 'local-build-manifest', officialAttestation: false, releaseCandidate: RELEASE_CANDIDATE, sourceRevision: revision, checksumCoverage: { excludes: ['checksums.sha256', 'build-manifest.json'], reason: 'Avoids self-referential provenance and checksum cycles.' }, files: manifestFiles })
+await writeJson(path.join(RELEASE_ROOT, 'build-manifest.json'), { schemaVersion: 'voce.local-build-manifest/v1alpha1', kind: 'local-build-manifest', officialAttestation: false, releaseCandidate: RELEASE_CANDIDATE, sourceRevision: revision, inventoryCoverage: { excludes: ['checksums.sha256', 'build-manifest.json'], reason: 'The embedded inventory excludes itself and the checksum file.' }, checksumCoverage: { excludes: ['checksums.sha256'], reason: 'The checksum file excludes only itself and protects this build manifest.' }, files: manifestFiles })
+const checksummed = await contentInventory(RELEASE_ROOT, new Set(['checksums.sha256']))
+await writeFile(path.join(RELEASE_ROOT, 'checksums.sha256'), checksummed.map((item) => `${item.sha256}  ${item.path}`).join('\n') + '\n', 'utf8')
 const verify = run(node, [path.join(ROOT, 'scripts', 'verify-checksums.mjs'), RELEASE_ROOT])
 const tamperRoot = path.join(ROOT, 'release-candidate', `.checksum-tamper-${RELEASE_CANDIDATE}`)
 await cp(RELEASE_ROOT, tamperRoot, { recursive: true }); await writeFile(path.join(tamperRoot, 'summary.json'), 'tampered\n', 'utf8')
 const tamper = runAllowFailure(node, [path.join(ROOT, 'scripts', 'verify-checksums.mjs'), tamperRoot]); await rm(tamperRoot, { recursive: true, force: true })
 if (tamper.status === 0) fail('M8_CHECKSUM_TAMPER_NOT_DETECTED')
+await cp(RELEASE_ROOT, tamperRoot, { recursive: true }); await writeFile(path.join(tamperRoot, 'build-manifest.json'), 'tampered\n', 'utf8')
+const manifestTamper = runAllowFailure(node, [path.join(ROOT, 'scripts', 'verify-checksums.mjs'), tamperRoot]); await rm(tamperRoot, { recursive: true, force: true })
+if (manifestTamper.status === 0) fail('M8_BUILD_MANIFEST_TAMPER_NOT_DETECTED')
 
-console.log(JSON.stringify({ status: 'passed', output: 'release-candidate/v0.1.0-rc.1', sourceRevision: revision, tests: { total: testCount, passed: passCount, skipped: skippedCount }, packages: PACKAGE_NAMES.length, consumer: 'passed', reproducibility: 'passed', checksumTamper: 'rejected', provenance: 'local-build-manifest-only' }))
+console.log(JSON.stringify({ status: 'passed', output: 'release-candidate/v0.1.0-rc.1', sourceRevision: revision, tests: { total: testCount, passed: passCount, skipped: skippedCount }, packages: PACKAGE_NAMES.length, consumer: 'passed', reproducibility: 'passed', checksumTamper: 'artifact-and-build-manifest-rejected', provenance: 'local-build-manifest-only' }))

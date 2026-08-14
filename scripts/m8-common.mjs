@@ -51,6 +51,7 @@ export async function filesUnder(directory, relative = '') {
     const child = path.join(relative, entry.name)
     if (entry.isDirectory()) result.push(...await filesUnder(directory, child))
     else if (entry.isFile()) result.push(child.replaceAll('\\', '/'))
+    else fail(`M8_RELEASE_TREE_LINK_OR_SPECIAL:${child.replaceAll('\\', '/')}`)
   }
   return result
 }

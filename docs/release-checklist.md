@@ -29,7 +29,7 @@ git diff --check
 - Installed consumers use public ESM entrypoints, package declarations, the CLI bin, the documented schema subpath, and the same Registry/Resolver path for first-party and renamed third-party data-only packs.
 - Product-shot compile, Mock run, static trace, two-bundle compare, and virtual-tryon/cosplay assertion IDs, statuses, and hashes are retained in the generated consumer summary.
 - Tarballs contain only `package.json`, `LICENSE`, `README.md`, declared `dist`/schema files, and no source, tests, source maps, node_modules, caches, credentials, or lifecycle scripts.
-- The local checksum verifier is exercised once normally and once against a tampered copy; the tampered verification must fail.
+- The local checksum verifier covers the build manifest, rejects links and special files, and is exercised against both an ordinary artifact tamper and a build-manifest tamper; both verifications must fail.
 - The local SBOM/license report uses only the lockfile and installed public metadata. Missing metadata remains `unknown`.
 - The local build manifest always declares `officialAttestation: false`.
 
