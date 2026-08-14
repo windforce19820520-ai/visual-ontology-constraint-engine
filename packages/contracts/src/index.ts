@@ -113,6 +113,657 @@ export type ScenarioPackResolution = {status:'resolved';lock:ScenarioComposition
 export interface ScenarioPackRegistry { register(source:LocalScenarioPackSource):ScenarioPackDescriptor; list():ScenarioPackDescriptor[]; snapshot():ScenarioPackCatalogSnapshot; resolve(selection:ScenarioPackSelection,catalog?:ScenarioPackCatalogSnapshot):ScenarioPackResolution }
 
 export interface CaseSpec { schemaVersion:'voce.case-spec/v1alpha1'; id:string; revision:number; mode:'manual'|'assisted'|'auto'; scenario:ScenarioPackSelection; userIntent:string; assets:ArtifactHandle[]; trustedMetadata:TrustedMetadata[]; policies:CasePolicies; requestedOutput:OutputContract }
-export interface OutputContract { artifactKind:'image'|'structured_review'|'layer_bundle';dataType:'image'|'json';mediaTypes:string[];cardinality:{min:number;max:number};dimensions?:{width:number;height:number};background?:'transparent'|'opaque'|'any' }
+export interface OutputContract { artifactKind:'image'|'structured_review'|'layer_bundle';dataType:'image'|'json';mediaTypes:string[];cardinality:{min:number;max:number};dimensions?:{width:number;height:number};background?:'transparent'|'opaque'|'any';maxBytes?:number;allowAlpha?:boolean;downstreamUse?:string }
 export interface VersionPin { id:string;version:string;digest:string }
-export interface CompilationContext { caseSpecId:string;caseSpecRevision:number;caseSpecHash:string;artifactHashes:string[];decisionHashes:string[];scenarioCompositionLockHash:string;effectiveScenarioHash:string;rulePackPlugins:VersionPin[];optimizer:VersionPin;contextHash:string }
+export interface CompilationContext { caseSpecId:string;caseSpecRevision:number;caseSpecHash:string;artifactHashes:string[];decisionHashes:string[];scenarioCompositionLockHash:string;effectiveScenarioHash:string;rulePackPlugins:VersionPin[];optimizer:VersionPin;contextHash:string;ontologySchema?:VersionPin;hostPolicy?:VersionPin;adapters?:VersionPin[];capabilityProfiles?:VersionPin[];selectedGenerationProfileId?:string;optimizerMode?:'strict'|'balanced'|'creative';budgets?:Budget[];dataTransfers?:DataTransfer[] }
+
+/* M4: constraint compilation, reference budgeting, and capability-aware planning. */
+export const CONSTRAINT_SCHEMA_VERSION = 'voce.constraint/v1alpha1' as const
+export const GOAL_SCHEMA_VERSION = 'voce.goal/v1alpha1' as const
+export const CONSTRAINT_DEPENDENCY_SCHEMA_VERSION = 'voce.constraint-dependency/v1alpha1' as const
+export const RESOURCE_CLAIM_SCHEMA_VERSION = 'voce.resource-claim/v1alpha1' as const
+export const CONSTRAINT_CONFLICT_SCHEMA_VERSION = 'voce.constraint-conflict/v1alpha1' as const
+export const DEGRADATION_SCHEMA_VERSION = 'voce.degradation/v1alpha1' as const
+export const REVIEW_REQUIREMENT_SCHEMA_VERSION = 'voce.review-requirement/v1alpha1' as const
+export const RULE_TRACE_SCHEMA_VERSION = 'voce.rule-trace/v1alpha1' as const
+export const CONSTRAINT_IR_SCHEMA_VERSION = 'voce.constraint-ir/v1alpha1' as const
+export const REFERENCE_CANDIDATE_SCHEMA_VERSION = 'voce.reference-candidate/v1alpha1' as const
+export const REFERENCE_DEPENDENCY_SCHEMA_VERSION = 'voce.reference-dependency/v1alpha1' as const
+export const PLANNED_REFERENCE_SCHEMA_VERSION = 'voce.planned-reference/v1alpha1' as const
+export const REFERENCE_OMISSION_SCHEMA_VERSION = 'voce.reference-omission/v1alpha1' as const
+export const REFERENCE_PLAN_SCHEMA_VERSION = 'voce.reference-plan/v1alpha1' as const
+export const PROVIDER_CAPABILITY_PROFILE_SCHEMA_VERSION = 'voce.provider-capability-profile/v1alpha1' as const
+export const PIPELINE_STEP_SCHEMA_VERSION = 'voce.pipeline-step/v1alpha1' as const
+export const STEP_DEPENDENCY_SCHEMA_VERSION = 'voce.step-dependency/v1alpha1' as const
+export const BUDGET_SCHEMA_VERSION = 'voce.budget/v1alpha1' as const
+export const DATA_TRANSFER_SCHEMA_VERSION = 'voce.data-transfer/v1alpha1' as const
+export const CLEANUP_SCHEMA_VERSION = 'voce.cleanup/v1alpha1' as const
+export const COMPENSATION_SCHEMA_VERSION = 'voce.compensation/v1alpha1' as const
+export const PIPELINE_PLAN_SCHEMA_VERSION = 'voce.pipeline-plan/v1alpha1' as const
+export const PIPELINE_PLANNING_RESULT_SCHEMA_VERSION = 'voce.pipeline-planning-result/v1alpha1' as const
+export const REMOTE_CALL_AUTHORIZATION_SCHEMA_VERSION = 'voce.remote-call-authorization/v1alpha1' as const
+export const EXECUTION_AUTHORIZATION_SCHEMA_VERSION = 'voce.execution-authorization/v1alpha1' as const
+export const EXPLAIN_RESULT_SCHEMA_VERSION = 'voce.explain-result/v1alpha1' as const
+export const SEMANTIC_DIFF_SCHEMA_VERSION = 'voce.semantic-diff/v1alpha1' as const
+
+export type ConstraintKind = 'preservation'|'transformation'|'visibility'|'coverage'|'occlusion'|'compatibility'|'dependency'|'cardinality'|'resource'|'source_isolation'|'provider'|'output'|'review'|'custom'
+export type ConstraintState = 'active'|'satisfied'|'unsatisfied'|'waived'
+export type ConstraintDependencyKind = 'requires'|'supports'|'excludes'|'parent_detail'|'identity_garment'|'source_isolation'|'visibility'|'occludes'|'ordered_before'
+export type ResourceClaimMode = 'shared'|'exclusive'
+
+export interface Constraint {
+  schemaVersion: typeof CONSTRAINT_SCHEMA_VERSION
+  id: string
+  constraintHash: string
+  kind: ConstraintKind
+  importance: Importance
+  status: ConstraintState
+  targetPath?: string
+  targetPaths: string[]
+  predicate: string
+  value?: JsonValue
+  goalIds: string[]
+  dependsOn: string[]
+  resourceClaimIds: string[]
+  sourceIds: string[]
+  ruleId?: string
+  reasonCode: string
+  explanation: string
+}
+
+export interface Goal {
+  schemaVersion: typeof GOAL_SCHEMA_VERSION
+  id: string
+  goalHash: string
+  operation: ChangeOperation|'output'|'review'
+  importance: Importance
+  targetPath?: string
+  requestedValue?: JsonValue
+  sourceIds: string[]
+  constraintIds: string[]
+  explanation: string
+}
+
+export interface ConstraintDependency {
+  schemaVersion: typeof CONSTRAINT_DEPENDENCY_SCHEMA_VERSION
+  id: string
+  dependencyHash: string
+  parentId: string
+  childId: string
+  kind: ConstraintDependencyKind
+  importance: Importance
+  explanation: string
+}
+
+export interface ResourceClaim {
+  schemaVersion: typeof RESOURCE_CLAIM_SCHEMA_VERSION
+  id: string
+  resourceHash: string
+  resourceId: string
+  mode: ResourceClaimMode
+  claimantIds: string[]
+  constraintIds: string[]
+  quantity: number
+  explanation: string
+}
+
+export interface ConstraintConflict {
+  schemaVersion: typeof CONSTRAINT_CONFLICT_SCHEMA_VERSION
+  id: string
+  conflictHash: string
+  code: string
+  severity: Importance
+  targetPath?: string
+  constraintIds: string[]
+  dependencyIds: string[]
+  resourceClaimIds: string[]
+  message: string
+  blocking: boolean
+  waiverAllowed: boolean
+}
+
+export interface Degradation {
+  schemaVersion: typeof DEGRADATION_SCHEMA_VERSION
+  id: string
+  degradationHash: string
+  preferenceId: string
+  constraintId?: string
+  goalId?: string
+  reasonCode: string
+  impact: string
+  affectedIds: string[]
+  explanation: string
+}
+
+export interface ReviewRequirement {
+  schemaVersion: typeof REVIEW_REQUIREMENT_SCHEMA_VERSION
+  id: string
+  reviewHash: string
+  reasonCode: string
+  targetPath?: string
+  constraintIds: string[]
+  sourceIds: string[]
+  blocking: boolean
+  explanation: string
+}
+
+export interface RuleTrace {
+  schemaVersion: typeof RULE_TRACE_SCHEMA_VERSION
+  id: string
+  traceHash: string
+  ruleId: string
+  contributionId?: string
+  inputIds: string[]
+  outputIds: string[]
+  outcome: 'applied'|'skipped'|'degraded'|'blocked'
+  reasonCode: string
+  message: string
+}
+
+export interface ConstraintIR {
+  schemaVersion: typeof CONSTRAINT_IR_SCHEMA_VERSION
+  id: string
+  caseId: string
+  caseRevision: number
+  contextHash: string
+  requestedScopePlanHash: string
+  instanceHash: string
+  decisionHashes: string[]
+  goals: Goal[]
+  constraints: Constraint[]
+  dependencies: ConstraintDependency[]
+  resourceClaims: ResourceClaim[]
+  conflicts: ConstraintConflict[]
+  degradedPreferences: Degradation[]
+  reviewRequirements: ReviewRequirement[]
+  explanations: RuleTrace[]
+  ruleTraces: RuleTrace[]
+  warnings: string[]
+  status: 'ok'|'blocked'
+  deterministicSignature: string
+}
+
+export interface ConstraintWaiver {
+  schemaVersion: 'voce.constraint-waiver/v1alpha1'
+  id: string
+  caseId: string
+  caseRevision: number
+  contextHash: string
+  targetId: string
+  authority: DecisionAuthority
+  decidedBy: string
+  reasonCode: string
+  decidedAt: string
+  waiverHash: string
+}
+
+export interface ConstraintCompilationInput {
+  schemaVersion: 'voce.constraint-compilation-input/v1alpha1'
+  caseId: string
+  caseRevision: number
+  context: CompilationContext
+  contextHash: string
+  requestedScopePlanHash: string
+  ontologyInstance: OntologyInstance
+  ontologyStatus?: 'ok'|'blocked'
+  status?: 'ok'|'blocked'
+  changeIntents: ChangeIntent[]
+  sourceBindings: SourceBinding[]
+  bindingDecisions: BindingDecision[]
+  outputContract: OutputContract
+  effectiveScenario?: EffectiveScenario
+  waivers?: ConstraintWaiver[]
+}
+
+export interface ReferenceBudget {
+  maximumReferenceCount?: number
+  maximumTotalBytes?: number
+  usedReferenceCount: number
+  usedTotalBytes?: number
+  byteLengthKnown: boolean
+  unknownByteLengthAssetIds: string[]
+}
+
+export interface ReferenceCandidate {
+  schemaVersion: typeof REFERENCE_CANDIDATE_SCHEMA_VERSION
+  id: string
+  candidateHash?: string
+  assetId: string
+  artifact?: ArtifactHandle
+  artifactHandle?: ArtifactHandle
+  contentHash: string
+  mediaType?: string
+  byteLength?: number
+  role?: string
+  ontologyScopes?: string[]
+  importance?: Importance
+  constraintIds?: string[]
+  sourceBindingIds?: string[]
+  goalIds?: string[]
+  orderKey?: string
+}
+
+export interface ReferenceDependency {
+  schemaVersion: typeof REFERENCE_DEPENDENCY_SCHEMA_VERSION
+  id: string
+  dependencyHash?: string
+  parentCandidateId: string
+  childCandidateId: string
+  kind: ConstraintDependencyKind
+  importance: Importance
+  reasonCode: string
+  explanation: string
+}
+
+export interface PlannedReference {
+  schemaVersion: typeof PLANNED_REFERENCE_SCHEMA_VERSION
+  id: string
+  candidateId: string
+  assetId: string
+  contentHash: string
+  mediaType: string
+  byteLength?: number
+  role: string
+  ontologyScopes: string[]
+  constraintIds: string[]
+  sourceBindingIds: string[]
+  dependencyIds: string[]
+  order: number
+  label: string
+}
+
+export interface ReferenceOmission {
+  schemaVersion: typeof REFERENCE_OMISSION_SCHEMA_VERSION
+  id: string
+  omissionHash: string
+  candidateId: string
+  assetId: string
+  importance: Importance
+  constraintIds: string[]
+  dependencyIds: string[]
+  reasonCode: string
+  impact: string
+}
+
+export interface ReferencePlan {
+  schemaVersion: typeof REFERENCE_PLAN_SCHEMA_VERSION
+  id: string
+  caseId: string
+  caseRevision: number
+  contextHash: string
+  constraintSignature: string
+  profileId: string
+  profileVersion: string
+  profileDigest: string
+  selected: PlannedReference[]
+  ordered: PlannedReference[]
+  omitted: ReferenceOmission[]
+  blockedReferences: ReferenceOmission[]
+  dependencies: ReferenceDependency[]
+  budget: ReferenceBudget
+  warnings: string[]
+  status: 'ok'|'blocked'
+  planHash: string
+}
+
+export interface ReferencePlanningInput {
+  schemaVersion: 'voce.reference-planning-input/v1alpha1'
+  caseId: string
+  caseRevision: number
+  contextHash: string
+  constraintIR: ConstraintIR
+  candidates: ReferenceCandidate[]
+  dependencies: ReferenceDependency[]
+  profile: ProviderCapabilityProfile
+  budget?: ReferenceBudget
+}
+
+export type CapabilityVerificationStatus = 'verified'|'declared'|'stale'|'unknown'
+export interface ProviderReferenceLimits {
+  maximumReferenceCount?: number
+  maximumTotalBytes?: number
+  maximumBytesPerReference?: number
+  allowedMediaTypes?: string[]
+  allowedRoles?: string[]
+  ordering?: 'stable'|'role'|'provider_defined'
+  roleOrder?: string[]
+  supportsMultipleReferences?: boolean
+  requiresPublishedReferences?: boolean
+}
+export interface ProviderOutputCapabilities {
+  mediaTypes?: string[]
+  formats?: string[]
+  supportsTransparentOutput?: boolean
+  supportsAlpha?: boolean
+  maximumWidth?: number
+  maximumHeight?: number
+  minimumWidth?: number
+  minimumHeight?: number
+}
+export interface ProviderCapabilityProfile {
+  schemaVersion: typeof PROVIDER_CAPABILITY_PROFILE_SCHEMA_VERSION
+  id: string
+  version: string
+  profileHash: string
+  versionSummary: string
+  adapterId: string
+  adapterDigest?: string
+  verificationStatus: CapabilityVerificationStatus
+  referenceLimits?: ProviderReferenceLimits
+  outputCapabilities?: ProviderOutputCapabilities
+  maximumReferenceCount?: number
+  maximumTotalReferenceBytes?: number
+  maximumBytesPerReference?: number
+  allowedReferenceMediaTypes?: string[]
+  allowedReferenceRoles?: string[]
+  referenceOrdering?: 'stable'|'role'|'provider_defined'
+  referenceRoleOrder?: string[]
+  supportsMultipleReferences?: boolean
+  supportsEditing?: boolean
+  supportsBatchOutput?: boolean
+  requiresPublishedReferences?: boolean
+  outputMediaTypes?: string[]
+  supportsTransparentOutput?: boolean
+  supportsAlpha?: boolean
+  knownIncompatibilities: string[]
+  timeoutMs: number
+  streaming: boolean
+  destination?: string
+  dataCategories?: string[]
+}
+
+export interface Budget {
+  schemaVersion: typeof BUDGET_SCHEMA_VERSION
+  id: string
+  maximumCalls: number
+  maximumRetries: number
+  timeoutMs: number
+  maximumCost?: number
+  currency?: string
+  maximumBytes?: number
+  budgetHash?: string
+}
+
+export interface DataTransfer {
+  schemaVersion: typeof DATA_TRANSFER_SCHEMA_VERSION
+  id: string
+  adapterId: string
+  destination: string
+  region?: string
+  dataCategories: string[]
+  purpose: string
+  maximumBytes?: number
+  transferHash?: string
+}
+
+export interface CancellationPolicy {
+  cancellable: boolean
+  onCancel: 'stop'|'continue'|'submission_unknown'
+}
+
+export interface Cleanup {
+  schemaVersion: typeof CLEANUP_SCHEMA_VERSION
+  id: string
+  cleanupHash: string
+  phase: 'finally'|'compensation'
+  appliesToStepIds: string[]
+  conditions: Array<'always'|'on_success'|'on_failure_or_cancel'|'on_submission_unknown'|'on_worker_restart'>
+  artifactRoles: string[]
+  destination: string
+  dataCategories: string[]
+  explanation: string
+}
+
+export interface Compensation {
+  schemaVersion: typeof COMPENSATION_SCHEMA_VERSION
+  id: string
+  compensationHash: string
+  appliesToStepIds: string[]
+  trigger: 'failure'|'cancel'|'submission_unknown'|'worker_restart'
+  cleanupId: string
+  explanation: string
+}
+
+export type PipelineStepType = 'resolve_asset'|'publish_asset'|'generate'|'background_removal'|'normalize'|'structural_validate'|'semantic_review'|'cleanup'|'compensation'|'custom'
+export interface StepDependency {
+  schemaVersion: typeof STEP_DEPENDENCY_SCHEMA_VERSION
+  id: string
+  dependencyHash?: string
+  fromStepId: string
+  toStepId: string
+  relation: 'depends_on'|'finally_after'|'compensates'
+}
+
+export interface PipelineStep {
+  schemaVersion: typeof PIPELINE_STEP_SCHEMA_VERSION
+  id: string
+  stepHash?: string
+  type: PipelineStepType
+  adapterId: string
+  adapterVersion: VersionPin
+  profileVersion: VersionPin
+  inputArtifactRoles: string[]
+  outputArtifactRoles: string[]
+  dependsOn: string[]
+  budget: Budget
+  dataTransfer: DataTransfer
+  destination: string
+  cancellation: CancellationPolicy
+  cleanupObligationIds: string[]
+  compensationIds: string[]
+  mayCreateChargedSubmission: boolean
+  capability: string
+}
+
+export interface PipelinePlan {
+  schemaVersion: typeof PIPELINE_PLAN_SCHEMA_VERSION
+  id: string
+  caseId: string
+  caseRevision: number
+  contextHash: string
+  constraintSignature: string
+  referencePlanHash: string
+  outputContractHash: string
+  profileDigest: string
+  adapterDigests: string[]
+  steps: PipelineStep[]
+  dependencies: StepDependency[]
+  budgets: Budget[]
+  dataTransfers: DataTransfer[]
+  cleanup: Cleanup[]
+  compensation: Compensation[]
+  warnings: string[]
+  blockedReasons: string[]
+  status: 'ok'|'blocked'
+  planHash: string
+}
+
+export interface RegisteredStepCapability {
+  id: string
+  type: PipelineStepType
+  capability: string
+  adapterId: string
+  adapterVersion: VersionPin
+  adapterDigest?: string
+  profileVersion?: VersionPin
+  inputMediaTypes?: string[]
+  outputMediaTypes?: string[]
+  supportsAlpha?: boolean
+  destination?: string
+  dataCategories?: string[]
+  budget?: Budget
+  cancellation?: CancellationPolicy
+  mayCreateChargedSubmission?: boolean
+}
+
+export interface PipelinePlanningInput {
+  schemaVersion: 'voce.pipeline-planning-input/v1alpha1'
+  caseId: string
+  caseRevision: number
+  contextHash: string
+  outputContract: OutputContract
+  constraintIR: ConstraintIR
+  referencePlan: ReferencePlan
+  profile: ProviderCapabilityProfile
+  registeredCapabilities?: RegisteredStepCapability[]
+  budgets?: Budget[]
+  dataTransfers?: DataTransfer[]
+}
+
+export interface PipelinePlanningResult {
+  schemaVersion: typeof PIPELINE_PLANNING_RESULT_SCHEMA_VERSION
+  status: 'ok'|'blocked'
+  pipelinePlan?: PipelinePlan
+  blockedReasons: string[]
+  warnings: string[]
+  resultHash: string
+}
+
+export type RemoteCallPurpose = 'intent_interpretation'|'reference_interpretation'|'prompt_optimization'|'generation'|'postprocessing'|'semantic_review'|'asset_publication'
+export interface RemoteCallAuthorization {
+  schemaVersion: typeof REMOTE_CALL_AUTHORIZATION_SCHEMA_VERSION
+  id: string
+  caseId: string
+  caseRevision: number
+  contextHash: string
+  stepId: string
+  purpose: RemoteCallPurpose
+  inputHash: string
+  inputManifestHash?: string
+  permittedArtifactHashes: string[]
+  permittedScopeIds: string[]
+  constraintIds: string[]
+  modelId?: string
+  modelVersion?: string
+  adapterId: string
+  adapterDigest: string
+  profileDigest?: string
+  destination: string
+  region?: string
+  dataCategories: string[]
+  maximumCalls: number
+  maximumRetries: number
+  maximumBytes?: number
+  timeoutMs: number
+  maximumCost?: number
+  currency?: string
+  idempotencyKey: string
+  authority: string
+  authorizedBy: string
+  authorizedAt: string
+  expiresAt?: string
+  authorizationHash: string
+}
+
+export interface ExecutionAuthorization {
+  schemaVersion: typeof EXECUTION_AUTHORIZATION_SCHEMA_VERSION
+  id: string
+  caseId: string
+  caseRevision: number
+  contextHash: string
+  constraintIRHash: string
+  compilationSignature: string
+  referencePlanHash: string
+  pipelinePlanHash: string
+  outputContractHash: string
+  promptArtifactHash?: string
+  adapterProfileDigests: string[]
+  destinations: string[]
+  dataTransferDigest: string
+  budgetDigest: string
+  remoteCallAuthorizationIds: string[]
+  authority: string
+  authorizedBy: string
+  authorizedAt: string
+  expiresAt?: string
+  authorizationHash: string
+}
+
+export interface DispatchSnapshot {
+  kind: 'remote_call'|'execution'
+  caseId: string
+  caseRevision: number
+  contextHash: string
+  stepId?: string
+  purpose?: RemoteCallPurpose
+  inputHash?: string
+  inputManifestHash?: string
+  modelId?: string
+  modelVersion?: string
+  permittedArtifactHashes?: string[]
+  permittedScopeIds?: string[]
+  constraintIds?: string[]
+  adapterId?: string
+  adapterDigest?: string
+  profileDigest?: string
+  destination?: string
+  region?: string
+  dataCategories?: string[]
+  maximumCalls?: number
+  maximumRetries?: number
+  maximumBytes?: number
+  timeoutMs?: number
+  maximumCost?: number
+  currency?: string
+  idempotencyKey?: string
+  constraintIRHash?: string
+  compilationSignature?: string
+  referencePlanHash?: string
+  pipelinePlanHash?: string
+  outputContractHash?: string
+  promptArtifactHash?: string
+  adapterProfileDigests?: string[]
+  destinations?: string[]
+  dataTransferDigest?: string
+  budgetDigest?: string
+  remoteCallAuthorizationIds?: string[]
+}
+
+export interface DispatchPreflightResult {
+  status: 'authorized'|'blocked'
+  code: 'AUTHORIZED'|'EXECUTION_NOT_AUTHORIZED'|'AUTHORIZATION_STALE'
+  reasons: string[]
+  authorizationHash: string
+}
+
+export interface ExplainEntry {
+  id: string
+  kind: 'source'|'rule'|'constraint'|'decision'|'asset'|'step'|'degradation'|'conflict'
+  sourceIds: string[]
+  ruleIds: string[]
+  constraintIds: string[]
+  decisionIds: string[]
+  assetIds: string[]
+  reasonCode: string
+  message: string
+}
+
+export interface ExplainResult {
+  schemaVersion: typeof EXPLAIN_RESULT_SCHEMA_VERSION
+  artifactKind: 'constraint-ir'|'reference-plan'|'pipeline-plan'
+  artifactId: string
+  artifactHash: string
+  entries: ExplainEntry[]
+  status: 'ok'|'blocked'
+  explainHash: string
+}
+
+export interface SemanticDiffChange {
+  id: string
+  before?: JsonValue
+  after?: JsonValue
+  reasonCode: string
+}
+
+export interface SemanticDiff {
+  schemaVersion: typeof SEMANTIC_DIFF_SCHEMA_VERSION
+  artifactKind: 'constraint-ir'|'reference-plan'|'pipeline-plan'
+  beforeHash: string
+  afterHash: string
+  added: string[]
+  removed: string[]
+  changed: SemanticDiffChange[]
+  degraded: string[]
+  blocked: string[]
+  diffHash: string
+}

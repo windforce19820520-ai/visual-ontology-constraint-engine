@@ -24,6 +24,7 @@ const requiredFiles = [
   'docs/system-design.md',
   'docs/zh-CN/system-design.md',
   'docs/implementation-notes/m3-decisions.md',
+  'docs/implementation-notes/m4-decisions.md',
 ]
 
 const requiredContractSchemas = [
@@ -54,6 +55,35 @@ const requiredContractSchemas = [
   'packages/contracts/schemas/SourceBinding.schema.json',
   'packages/contracts/schemas/TargetDirective.schema.json',
   'packages/contracts/schemas/UnresolvedItem.schema.json',
+  'packages/contracts/schemas/Constraint.schema.json',
+  'packages/contracts/schemas/Goal.schema.json',
+  'packages/contracts/schemas/ConstraintDependency.schema.json',
+  'packages/contracts/schemas/ResourceClaim.schema.json',
+  'packages/contracts/schemas/ConstraintConflict.schema.json',
+  'packages/contracts/schemas/Degradation.schema.json',
+  'packages/contracts/schemas/ReviewRequirement.schema.json',
+  'packages/contracts/schemas/RuleTrace.schema.json',
+  'packages/contracts/schemas/ConstraintIR.schema.json',
+  'packages/contracts/schemas/ConstraintWaiver.schema.json',
+  'packages/contracts/schemas/ConstraintCompilationInput.schema.json',
+  'packages/contracts/schemas/ReferenceCandidate.schema.json',
+  'packages/contracts/schemas/ReferenceDependency.schema.json',
+  'packages/contracts/schemas/PlannedReference.schema.json',
+  'packages/contracts/schemas/ReferenceOmission.schema.json',
+  'packages/contracts/schemas/ReferencePlan.schema.json',
+  'packages/contracts/schemas/ProviderCapabilityProfile.schema.json',
+  'packages/contracts/schemas/Budget.schema.json',
+  'packages/contracts/schemas/DataTransfer.schema.json',
+  'packages/contracts/schemas/PipelineStep.schema.json',
+  'packages/contracts/schemas/StepDependency.schema.json',
+  'packages/contracts/schemas/Cleanup.schema.json',
+  'packages/contracts/schemas/Compensation.schema.json',
+  'packages/contracts/schemas/PipelinePlan.schema.json',
+  'packages/contracts/schemas/PipelinePlanningResult.schema.json',
+  'packages/contracts/schemas/RemoteCallAuthorization.schema.json',
+  'packages/contracts/schemas/ExecutionAuthorization.schema.json',
+  'packages/contracts/schemas/ExplainResult.schema.json',
+  'packages/contracts/schemas/SemanticDiff.schema.json',
 ]
 
 const repositoryRoot = new URL('../', import.meta.url)
@@ -123,6 +153,13 @@ for (const [file, expectedVersion] of [['fixtures/observation-unconfirmed.json',
   const url = new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot)
   const value = JSON.parse(await readFile(url, 'utf8'))
   if (value.schemaVersion !== expectedVersion) throw new Error(`M3_FIXTURE_SCHEMA_VERSION_MISSING:${file}`)
+}
+
+for (const file of ['fixtures/m4-provider-native-transparent.json', 'fixtures/m4-provider-jpeg-plus-removal.json', 'fixtures/m4-provider-limited-reference.json']) {
+  const url = new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot)
+  const value = JSON.parse(await readFile(url, 'utf8'))
+  if (value.schemaVersion !== 'voce.provider-capability-profile/v1alpha1') throw new Error(`M4_FIXTURE_SCHEMA_VERSION_MISSING:${file}`)
+  if (!/^sha256:[0-9a-f]{64}$/.test(value.profileHash ?? '') || !/^sha256:[0-9a-f]{64}$/.test(value.adapterDigest ?? '')) throw new Error(`M4_FIXTURE_PROFILE_HASH_MISSING:${file}`)
 }
 
 const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
