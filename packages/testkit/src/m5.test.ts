@@ -247,6 +247,7 @@ test('completed reconciliation resumes downstream steps without resubmitting the
   input.options = { unknownStepIds: [generation.id] }
   const runtime = createMockRuntimeForPlan(input.pipelinePlan)
   const unknown = runtime.execute(input)
+  const cleanupEventsBeforeReconciliation = unknown.events.filter((event) => event.state === 'cleaned').length
   const reconciled = runtime.reconcile(unknown.executionRun!.id, 'completed')
   assert.equal(reconciled.status, 'completed')
   assert.equal(reconciled.events.filter((event) => event.stepId === generation.id && event.state === 'submitted').length, 1)
@@ -259,6 +260,8 @@ test('completed reconciliation resumes downstream steps without resubmitting the
   assert.equal(reconciledRemote.state, 'succeeded')
   assert.equal(reconciledRemote.receiptId, reconciledReceipt.id)
   assert.equal(reconciledRemote.providerRequestId, reconciledReceipt.providerRequestId)
+  assert.ok(reconciled.events.filter((event) => event.state === 'cleaned').length > cleanupEventsBeforeReconciliation)
+  assert.ok(reconciled.cleanupReceipts.every((receipt) => receipt.status === 'succeeded'))
   assert.equal(reconciled.executionRun!.runHash, computeExecutionRunHash(reconciled.executionRun!))
   assert.equal(reconciled.trace!.traceHash, computeExecutionTraceHash(reconciled.trace!))
 })

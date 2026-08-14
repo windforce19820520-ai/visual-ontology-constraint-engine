@@ -1868,7 +1868,7 @@ function refreshReconciledReceipts(record: OfflineRuntimeRecord, steps: Pipeline
 
 function appendReconciliationCleanup(record: OfflineRuntimeRecord, outcome: 'success'|'failure'|'cancel'|'unknown', workerRestarted: boolean): void {
   for (const cleanup of sortedBy(record.input.pipelinePlan.cleanup, (item) => item.id)) {
-    if (!cleanupConditionMatches(cleanup, outcome, workerRestarted) || record.cleanupReceipts.some((receipt) => receipt.cleanupId === cleanup.id)) continue
+    if (!cleanupConditionMatches(cleanup, outcome, workerRestarted)) continue
     const cleanupEvents: StepEvent[] = []
     const shouldFail = record.options.cleanupFailureIds.includes(cleanup.id)
     let failedCleanup = false
@@ -1881,7 +1881,10 @@ function appendReconciliationCleanup(record: OfflineRuntimeRecord, outcome: 'suc
       if (!shouldFail) break
       failedCleanup = true
     }
-    record.cleanupReceipts.push(makeCleanupReceipt(record.run.id, cleanup, cleanupEvents, failedCleanup, record.options.maximumCleanupRetries))
+    const receipt = makeCleanupReceipt(record.run.id, cleanup, cleanupEvents, failedCleanup, record.options.maximumCleanupRetries)
+    const existingIndex = record.cleanupReceipts.findIndex((candidate) => candidate.cleanupId === cleanup.id)
+    if (existingIndex >= 0) record.cleanupReceipts[existingIndex] = receipt
+    else record.cleanupReceipts.push(receipt)
   }
 }
 
