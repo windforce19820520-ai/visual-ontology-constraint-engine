@@ -249,7 +249,9 @@ test('Seedream resolves ArtifactHandle bytes and validates endpoint profile and 
   const transport = new RecordingMockTransport()
   const artifactHandle: ArtifactHandle = { id: 'reference-handle', storeId: 'fixture', contentHash: computeArtifactBytesHash(ALPHA_PNG), mediaType: 'image/png', byteLength: ALPHA_PNG.length, role: 'reference', resolverId: 'fixture', availability: 'available', retentionClass: 'fixture', redactionPolicy: 'safe-hash-only' }
   const instance = new SeedreamAdapter(seedreamConfig(transport, sink))
-  const request = instance.buildRequest({ prompt: 'artifact', image: artifactHandle, referenceArtifacts: [{ artifact: artifactHandle, bytes: ALPHA_PNG }] }, auth({ stepId: 'artifact-input', purpose: 'generation', inputHash: sha256({ artifact: 1 }), adapter, profileDigest: profile.digest, artifactHashes: [artifactHandle.contentHash], dataCategories: ['prompt', 'reference_image'] }))
+  const request = instance.buildRequest({ prompt: 'artifact', image: artifactHandle, watermark: false, referenceArtifacts: [{ artifact: artifactHandle, bytes: ALPHA_PNG }] }, auth({ stepId: 'artifact-input', purpose: 'generation', inputHash: sha256({ artifact: 1 }), adapter, profileDigest: profile.digest, artifactHashes: [artifactHandle.contentHash], dataCategories: ['prompt', 'reference_image'] }))
+  assert.equal(request.payload.model, 'fixture-model')
+  assert.equal(request.payload.watermark, false)
   assert.equal(typeof request.payload.image, 'string')
   assert.match(String(request.payload.image), /^data:image\/png;base64,/)
   assert.notEqual(request.payload.image, artifactHandle.id)
@@ -259,6 +261,9 @@ test('Seedream resolves ArtifactHandle bytes and validates endpoint profile and 
   const webp = { prompt: 'webp', output_format: 'webp' } as unknown as Parameters<SeedreamAdapter['generate']>[0]
   const result = await instance.generate(webp, auth({ stepId: 'webp', purpose: 'generation', inputHash: sha256({ webp: 1 }), adapter, profileDigest: profile.digest }), { credential })
   assert.equal(result.status, 'failed')
+  const invalidWatermark = { prompt: 'watermark', watermark: 'false' } as unknown as Parameters<SeedreamAdapter['generate']>[0]
+  const watermarkResult = await instance.generate(invalidWatermark, auth({ stepId: 'watermark', purpose: 'generation', inputHash: sha256({ watermark: 1 }), adapter, profileDigest: profile.digest }), { credential })
+  assert.equal(watermarkResult.failureCode, 'SEEDREAM_WATERMARK_INVALID')
   assert.equal(transport.calls.length, 0)
 })
 

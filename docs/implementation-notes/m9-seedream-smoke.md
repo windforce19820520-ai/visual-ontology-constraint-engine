@@ -1,0 +1,10 @@
+# M9 Seedream real-smoke decisions
+
+- M9 is an explicitly authorized, local-only Provider smoke test. Standard tests, fixtures, examples, and CI remain offline and never read credentials or call paid models.
+- The validated Provider profile was the domestic Volcengine ARK image-generation endpoint with `doubao-seedream-5-0-pro-260628` on 2026-08-14.
+- The meaningful real cases were multi-reference only: one person plus upper-garment plus skirt for virtual try-on, and one person plus character art for cosplay. No text-to-image real call was made.
+- The first real attempt exposed a missing required `model` payload field. The adapter now emits the configured model, accepts only a boolean `watermark`, and forwards it explicitly. A 4xx response stops the remaining cases instead of spending another call on the same request defect.
+- After that fix, both authorized cases returned HTTP 200. Provider response times were about 51 and 55 seconds; each temporary result URL was downloaded immediately and persisted as a local JPEG artifact. The complete local run, including download, took about 63 and 64 seconds per case.
+- The successful run used the Provider default watermark behavior and one result showed a visible AI-generation label. `watermark: false` was therefore added and covered by deterministic request-construction tests after the real-call budget was exhausted; no extra paid call was made solely to re-check pixels.
+- The API key was entered through a masked PowerShell prompt, existed only in the child-process environment, and was cleared on exit. Inputs, generated images, temporary URLs, and detailed local receipts stay under ignored `m9-smoke-artifacts/` and are never committed.
+- The runner permits at most two real calls, performs no automatic retry, records sanitized timing/status/failure receipts, and stops on a non-retryable Provider request error.
