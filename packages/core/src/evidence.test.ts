@@ -10,7 +10,7 @@ import type {
   ObservationDecision,
   RequestedScopePlan,
   SourceBinding,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import {
   EvidenceAndSourceResolver,
   FixtureReferenceInterpreter,

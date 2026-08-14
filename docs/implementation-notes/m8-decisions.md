@@ -2,7 +2,7 @@
 
 - M8 keeps `0.1.0-rc.1` explicitly prerelease across the root and all four public package manifests. Packed dependencies use exact prerelease versions, not `workspace:*`, so a clean consumer cannot resolve back to workspace links.
 - The candidate compatibility surface is versioned in `compatibility/v0.1.0-rc.1/manifest.json`. It fixes only the documented ScenarioPack/Registry/Manifest, declarative rule contribution, ProviderAdapter/profile, BundleManifest, and offline testkit surface. It does not freeze internal modules or executable plugin ports.
-- Contracts schemas remain data files included by `@voce/contracts`; the package export pattern supports the documented `.json` subpath. No fixture or source-tree path is added as a public export.
+- Contracts schemas remain data files included by `@voce-engine/contracts`; the package export pattern supports the documented `.json` subpath. No fixture or source-tree path is added as a public export.
 - Release tarballs reject undeclared files, source maps, tests, links/special entries, unsafe paths, case collisions, lifecycle scripts, workspace dependency specs, and public path/credential material. `dist` test outputs are excluded with per-package `.npmignore` files rather than removing existing internal tests from the build.
 - `release-candidate` refuses a tracked-dirty worktree and records the exact `HEAD` in `build-manifest.json`. Ignored build output is not part of the tracked-dirty decision. The local manifest deliberately remains `officialAttestation: false`.
 - Reproducibility compares two consecutive builds by decompressed tarball relative-path/content hashes. Gzip/tar container bytes are not treated as portable golden values because tool metadata can vary.

@@ -31,7 +31,7 @@ Open `.local-output/product-shot.html` in a local viewer. The page is a static, 
 
 `doctor` checks the Node major version, local contract version, and the explicit-path/offline policy. It never probes credentials, environment secrets, or a network endpoint.
 
-The contracts tarball includes the documented JSON Schema subpaths. For example, an installed consumer may read `@voce/contracts/schemas/BundleManifest.schema.json`; schemas are data files, not runtime behavior.
+The contracts tarball includes the documented JSON Schema subpaths. For example, an installed consumer may read `@voce-engine/contracts/schemas/BundleManifest.schema.json`; schemas are data files, not runtime behavior.
 
 The M8 release gates are `pnpm run compatibility`, `pnpm run security`, `pnpm run reproducibility`, `pnpm run consumer`, `pnpm run release-candidate`, `pnpm run clean-room`, and `pnpm run verify-checksums`. The release-candidate gate requires a clean tracked working tree and never publishes or calls a real Provider.
 

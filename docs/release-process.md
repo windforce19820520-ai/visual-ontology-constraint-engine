@@ -1,6 +1,6 @@
 # Release-candidate process
 
-This repository currently produces an auditable local release candidate, not a published release.
+This repository produces an auditable local release candidate before any external publication. Publication is a separate, explicitly owner-authorized operation. `v0.1.0-rc.1` is published as an npm `next` candidate and a GitHub prerelease; it is not production-ready.
 
 ## Local gates
 
@@ -35,6 +35,8 @@ The license report is derived from workspace package metadata and the lock/insta
 
 The container bytes of `.tgz` files are not required to match across tar/gzip tool versions. Reproducibility compares the decompressed, normalized relative-path/content-hash inventory while preserving the exact source revision binding.
 
-## What is not automated
+## External publication boundary
 
-The workflow never publishes to npm, creates a GitHub Release, creates a tag, merges a pull request, calls a real Provider, sends credentials, or claims production readiness. Those actions require explicit authorization from the root task and a separate review of release permissions and provenance.
+The local and CI workflows never publish to npm, create a GitHub Release or tag, merge a pull request, call a real Provider, send credentials, or claim production readiness. Those actions require explicit owner authorization and a separate review of release permissions and provenance.
+
+For an authorized RC publication, publish the exact checked tarballs in dependency order—contracts, core, testkit, CLI—with the npm `next` dist-tag. Verify each registry result before creating the annotated Git tag and GitHub prerelease. A browser login is not a substitute for CLI publication authorization, and credentials must never enter Git or release artifacts.

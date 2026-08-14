@@ -47,7 +47,7 @@ import type {
   SemanticDiffChange,
   SourceBinding,
   StepDependency,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import {
   BINDING_DECISION_SCHEMA_VERSION,
   BUDGET_SCHEMA_VERSION,
@@ -77,7 +77,7 @@ import {
   RULE_TRACE_SCHEMA_VERSION,
   SEMANTIC_DIFF_SCHEMA_VERSION,
   STEP_DEPENDENCY_SCHEMA_VERSION,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import {
   computeBindingDecisionHash,
   computeSourceBindingContentHash,

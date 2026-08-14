@@ -5,11 +5,17 @@
 
 An open-source visual ontology, constraint compiler, prompt optimization, and evaluation runtime for controllable, reference-guided image generation.
 
-## Incubation status and v0.1 release-candidate status
+## Incubation status and v0.1 release candidate
 
-The repository now contains a local `0.1.0-rc.1` CLI, deterministic M1–M6 runtime packages, data-only ScenarioPack fixtures, three offline vertical cases, bundle manifests, and clean-room/release-candidate checks. This is an internal release candidate: it is not published to npm, has no GitHub Release or tag, and is not production-ready.
+`v0.1.0-rc.1` is the first public release candidate. It is **not production-ready**: APIs, schemas, package contracts, and behavior may change before `v0.1.0`.
 
-M8 adds a release-readiness candidate gate: the four public packages are checked from local tarballs, the candidate public compatibility surface is machine-readable, clean consumers compile against installed declarations, tarball contents/checksums/reproducibility are verified, and Ubuntu/Windows offline gates are defined. See the [release-readiness checklist](docs/release-checklist.md), [candidate compatibility surface](docs/compatibility.md), and [changelog](CHANGELOG.md).
+The repository contains deterministic runtime packages, data-only ScenarioPack fixtures, three offline vertical cases, bundle manifests, a Mock execution path, credentialed Seedream multi-reference smoke tooling, and clean-room/release-candidate checks. The four public packages are validated from their packed tarballs, clean consumers compile against installed declarations, and package contents, checksums, and reproducibility are verified on the release path. See the [release-readiness checklist](docs/release-checklist.md), [candidate compatibility surface](docs/compatibility.md), and [changelog](CHANGELOG.md).
+
+## Project origin and repository timeline
+
+VOCE is the product-neutral public core extracted and generalized from earlier research and development for a commercial AI content platform. The public repository therefore begins at the open-source extraction, contract hardening, and release-engineering stage—not at the beginning of the underlying product research.
+
+The rapid M1–M9 sequence records the work of turning that earlier domain knowledge into public contracts, deterministic runtimes, fixtures, safety gates, documentation, and provider validation. It should not be read as a claim that the visual ontology and reference-guided generation design were conceived from zero in one day.
 
 ## The problem
 
@@ -69,7 +75,7 @@ End users should not fill out an ontology form. They upload references, describe
 
 Removing an earring from the result is different from ignoring one image as its source. The ontology stays behind the interface and makes both decisions structured, explainable, and testable.
 
-## Planned technical contributions
+## Core technical contributions
 
 1. **Sparse visual ontology** — person, expression, gaze, pose, wardrobe, accessories, props, environment, camera, lighting, style, references, and output contracts without requiring every field to be populated.
 2. **Multimodal Reference Interpreter** — produces multiple scoped observations, confidence, evidence regions, and unresolved items from each image.
@@ -125,6 +131,19 @@ npm run validate
 ```
 
 No API key or network model access is required.
+
+## Install the release candidate
+
+The RC is published under the npm `next` dist-tag. Pin the exact version when reproducibility matters:
+
+```bash
+npm install @voce-engine/contracts@0.1.0-rc.1
+npm install @voce-engine/core@0.1.0-rc.1
+npm install --save-dev @voce-engine/testkit@0.1.0-rc.1
+npm install --global @voce-engine/cli@0.1.0-rc.1
+```
+
+The GitHub prerelease and its checksummed tarballs are available from [`v0.1.0-rc.1`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.1).
 
 ## Use the offline CLI
 

@@ -17,13 +17,13 @@ importers:
 
   packages/cli:
     dependencies:
-      '@voce/contracts':
+      '@voce-engine/contracts':
         specifier: 0.1.0-rc.1
         version: link:../contracts
-      '@voce/core':
+      '@voce-engine/core':
         specifier: 0.1.0-rc.1
         version: link:../core
-      '@voce/testkit':
+      '@voce-engine/testkit':
         specifier: 0.1.0-rc.1
         version: link:../testkit
 
@@ -31,7 +31,7 @@ importers:
 
   packages/core:
     dependencies:
-      '@voce/contracts':
+      '@voce-engine/contracts':
         specifier: 0.1.0-rc.1
         version: link:../contracts
       semver:
@@ -44,10 +44,10 @@ importers:
 
   packages/testkit:
     dependencies:
-      '@voce/contracts':
+      '@voce-engine/contracts':
         specifier: 0.1.0-rc.1
         version: link:../contracts
-      '@voce/core':
+      '@voce-engine/core':
         specifier: 0.1.0-rc.1
         version: link:../core
 

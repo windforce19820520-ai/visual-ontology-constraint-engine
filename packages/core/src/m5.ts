@@ -47,7 +47,7 @@ import type {
   StepEventState,
   StepReceipt,
   VersionPin,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import {
   ARTIFACT_REPLAY_RESULT_SCHEMA_VERSION,
   BINDING_DECISION_SCHEMA_VERSION,
@@ -74,7 +74,7 @@ import {
   REMOTE_CALL_RUN_SCHEMA_VERSION,
   STEP_EVENT_SCHEMA_VERSION,
   STEP_RECEIPT_SCHEMA_VERSION,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import {
   computeBudgetHash,
   computeCompilationContextHash,
@@ -1084,7 +1084,7 @@ export interface OfflineExecutionResult {
   reasons: string[]
   executionRun?: ExecutionRun
   run?: ExecutionRun
-  events: import('@voce/contracts').StepEvent[]
+  events: import('@voce-engine/contracts').StepEvent[]
   receipts: StepReceipt[]
   remoteCallRuns: RemoteCallRun[]
   cleanupReceipts: CleanupReceipt[]
@@ -1163,7 +1163,7 @@ export function computeExecutionStepInputHash(step: PipelineStep, contextHash: s
   })
 }
 
-function executionSnapshot(input: OfflineExecutionInput): import('@voce/contracts').DispatchSnapshot {
+function executionSnapshot(input: OfflineExecutionInput): import('@voce-engine/contracts').DispatchSnapshot {
   const authorization = input.executionAuthorization
   return {
     kind: 'execution',
@@ -1216,7 +1216,7 @@ function requiredRemoteStep(step: PipelineStep): boolean {
   return step.mayCreateChargedSubmission || step.destination !== 'local'
 }
 
-function remoteSnapshot(authorization: RemoteCallAuthorization): import('@voce/contracts').DispatchSnapshot {
+function remoteSnapshot(authorization: RemoteCallAuthorization): import('@voce-engine/contracts').DispatchSnapshot {
   return {
     kind: 'remote_call',
     caseId: authorization.caseId,

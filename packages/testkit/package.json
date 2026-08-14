@@ -1,1 +1,16 @@
-{"name":"@voce/testkit","version":"0.1.0-rc.1","license":"Apache-2.0","type":"module","exports":{".":"./dist/index.js"},"types":"./dist/index.d.ts","files":["dist/index.js","dist/index.d.ts","dist/m4.js","dist/m4.d.ts","dist/m5.js","dist/m5.d.ts","dist/m6.js","dist/m6.d.ts","README.md","LICENSE"],"engines":{"node":">=20"},"repository":{"type":"git","url":"https://github.com/windforce19820520-ai/visual-ontology-constraint-engine.git","directory":"packages/testkit"},"dependencies":{"@voce/core":"0.1.0-rc.1","@voce/contracts":"0.1.0-rc.1"}}
+{
+  "name": "@voce-engine/testkit",
+  "version": "0.1.0-rc.1",
+  "description": "Deterministic fixtures and Mock-only helpers for offline VOCE contract and runtime tests.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": { ".": "./dist/index.js" },
+  "types": "./dist/index.d.ts",
+  "files": ["dist/index.js", "dist/index.d.ts", "dist/m4.js", "dist/m4.d.ts", "dist/m5.js", "dist/m5.d.ts", "dist/m6.js", "dist/m6.d.ts", "README.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "repository": { "type": "git", "url": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine.git", "directory": "packages/testkit" },
+  "homepage": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine#readme",
+  "bugs": { "url": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues" },
+  "publishConfig": { "access": "public", "tag": "next" },
+  "dependencies": { "@voce-engine/core": "0.1.0-rc.1", "@voce-engine/contracts": "0.1.0-rc.1" }
+}

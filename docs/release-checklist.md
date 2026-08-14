@@ -1,6 +1,6 @@
 # v0.1.0-rc.1 release-readiness checklist
 
-This checklist describes the local release candidate gate. It does not authorize npm publishing, a GitHub Release, a tag, a merge, or a production-readiness claim.
+This checklist describes the local release candidate gate. Passing it does not itself authorize npm publishing, a GitHub Release, a tag, a merge, or a production-readiness claim. `v0.1.0-rc.1` publication is a separately authorized RC operation.
 
 ## Local commands
 
@@ -37,6 +37,6 @@ git diff --check
 
 The release-candidate workflow covers Ubuntu and Windows on Node 20, including the real Linux symlink tests and Windows clean-room copy install. A Node 22 Ubuntu consumer job validates the public tarball path. CI has `contents: read`, no secrets, no provider/network probes, and no publish/tag/release steps.
 
-## Deferred actions
+## Separately authorized actions
 
-Real Seedream, LLM, and other paid or network Provider smoke; npm publish; GitHub Release/tag; provenance or attestation; PR merge; hosted product features; marketplace/discovery; and production-readiness declarations remain separately authorized work.
+Real Seedream, LLM, and other paid or network Provider smoke; npm publication; GitHub Release/tag; provenance or attestation; PR merge; hosted product features; marketplace/discovery; and production-readiness declarations remain outside the automatic gate. M9 performed an explicitly authorized local Seedream multi-reference smoke; its credentials, inputs, and generated results are ignored and are not release artifacts.

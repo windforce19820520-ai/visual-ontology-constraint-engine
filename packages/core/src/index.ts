@@ -5,11 +5,11 @@ import type {
   ScenarioPack, ScenarioPackCatalogSnapshot, ScenarioPackDependency, ScenarioPackDescriptor,
   ScenarioPackManifest, ScenarioPackRegistry, ScenarioPackRequest, ScenarioPackResolution,
   ScenarioPackSelection,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import { valid as semverValid, validRange as semverValidRange, satisfies as semverSatisfies } from 'semver'
 import { canonicalize, hashWithoutSelf, sha256 } from './canonical.js'
 
-export type { JsonValue } from '@voce/contracts'
+export type { JsonValue } from '@voce-engine/contracts'
 export { canonicalize, hashWithoutSelf, sha256 } from './canonical.js'
 
 export const RESOLVER_VERSION = 'voce.scenario-pack-resolver/v1alpha1'

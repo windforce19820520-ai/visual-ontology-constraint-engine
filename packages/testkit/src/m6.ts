@@ -7,13 +7,13 @@ import type {
   RemoteCallAuthorization,
   StructuralValidationArtifactInput,
   VersionPin,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import {
   computeArtifactBytesHash,
   computeProviderResponseEnvelopeHash,
   createRemoteCallAuthorization,
   sha256,
-} from '@voce/core'
+} from '@voce-engine/core'
 
 export const FIXTURE_M6_ALPHA_PNG = Uint8Array.from([
   137, 80, 78, 71, 13, 10, 26, 10,

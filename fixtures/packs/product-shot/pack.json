@@ -1,6 +1,6 @@
 {
   "schemaVersion": "voce.scenario-pack-source/v1alpha1",
-  "packId": "@voce/scenario-product-shot",
+  "packId": "@voce-engine/scenario-product-shot",
   "version": "0.1.0",
   "kind": "root",
   "scenarioLabel": "product shot offline fixture",

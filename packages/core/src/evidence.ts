@@ -25,7 +25,7 @@ import type {
   SourceBinding,
   TrustedMetadata,
   UnresolvedItem,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import {
   BINDING_DECISION_SCHEMA_VERSION,
   CONFLICT_SCHEMA_VERSION,
@@ -40,7 +40,7 @@ import {
   RESOLVER_RESULT_SCHEMA_VERSION,
   SOURCE_BINDING_SCHEMA_VERSION,
   UNRESOLVED_ITEM_SCHEMA_VERSION,
-} from '@voce/contracts'
+} from '@voce-engine/contracts'
 import { canonicalize, sha256 } from './canonical.js'
 
 export const EVIDENCE_RESOLVER_VERSION = 'voce.evidence-source-resolver/v1alpha1'
