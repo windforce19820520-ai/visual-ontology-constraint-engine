@@ -75,7 +75,7 @@ for (const file of runtimeSources) {
   if (/\b(fetch|axios|node:https?|http\.request|https\.request)\b/.test(source)) fail(`M8_NETWORK_GATE_SOURCE_MATCH:${path.basename(file)}`)
 }
 
-const summary = { status: 'passed', releaseCandidate: RELEASE_CANDIDATE, corpus: corpus.cases.length, results, networkGate: { runtimeSourceScan: 'passed', providerCalls: 'not invoked', credentials: 'not inspected' } }
+const summary = { status: 'passed', releaseCandidate: RELEASE_CANDIDATE, corpus: corpus.cases.length, results, networkGate: { runtimeSourceScan: 'passed', providerCalls: 'not invoked', authMaterial: 'not inspected' } }
 await writeJson(path.join(RELEASE_ROOT, 'security-summary.json'), summary)
 await rm(temp, { recursive: true, force: true })
 console.log(JSON.stringify({ status: 'passed', cases: results.filter((item) => item.status === 'passed').length, skipped: results.filter((item) => item.status === 'skipped').length, networkGate: 'passed' }))
