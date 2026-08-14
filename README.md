@@ -5,9 +5,9 @@
 
 An open-source visual ontology, constraint compiler, prompt optimization, and evaluation runtime for controllable, reference-guided image generation.
 
-## Incubation status
+## Incubation status and v0.1 release-candidate status
 
-This repository is in the design and incubation phase. It does not yet contain a production-ready SDK or a `v0.1.0` release. The current public baseline establishes the project boundary, architecture, safety rules, and implementation roadmap before code extraction begins.
+The repository now contains a local `0.1.0-rc.1` CLI, deterministic M1–M6 runtime packages, data-only ScenarioPack fixtures, three offline vertical cases, bundle manifests, and clean-room/release-candidate checks. This is an internal release candidate: it is not published to npm, has no GitHub Release or tag, and is not production-ready.
 
 ## The problem
 
@@ -121,6 +121,12 @@ npm run validate
 ```
 
 No API key or network model access is required.
+
+## Use the offline CLI
+
+After `pnpm install --ignore-scripts` and `pnpm run build`, run `node packages/cli/dist/cli.js --help` or follow [CLI usage](docs/cli.md). All pack, case, and trace inputs are explicit local paths; the default provider is disabled and `--provider mock` is the only execution path in this release candidate.
+
+The first-party packs and the third-party contract fixture are redistributable data-only examples under `fixtures/`. They use `example.test`/fixture IDs and generated virtual artifacts; they contain no private images, credentials, signed URLs, or model output.
 
 ## License
 

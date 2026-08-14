@@ -111,6 +111,7 @@ const requiredContractSchemas = [
   'packages/contracts/schemas/ExecutionTrace.schema.json',
   'packages/contracts/schemas/ArtifactReplayResult.schema.json',
   'packages/contracts/schemas/OfflineExecutionInput.schema.json',
+  'packages/contracts/schemas/BundleManifest.schema.json',
   'packages/contracts/schemas/ProviderTransport.schema.json',
   'packages/contracts/schemas/ProviderRequestEnvelope.schema.json',
   'packages/contracts/schemas/ProviderResponseEnvelope.schema.json',

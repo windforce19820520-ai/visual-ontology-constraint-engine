@@ -1,0 +1,33 @@
+name: Release candidate checks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Validate and run tests
+        run: pnpm run validate
+      - name: Run offline release-candidate checks
+        run: pnpm run release-candidate
+      - name: Run clean-room checks
+        run: pnpm run clean-room

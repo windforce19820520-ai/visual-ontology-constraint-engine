@@ -1715,3 +1715,28 @@ export interface ArtifactReplayResult {
   traceHash?: string
   resultHash: string
 }
+
+/* M7: redacted, content-addressed local bundle contracts. */
+export const BUNDLE_MANIFEST_SCHEMA_VERSION = 'voce.bundle-manifest/v1alpha1' as const
+export type BundleKind = 'compiled'|'run'|'evaluation'|'trace'|'release-candidate'
+export interface BundleFileEntry {
+  path: string
+  sha256: string
+  byteLength: number
+}
+export interface BundlePins {
+  tool: VersionPin
+  core: VersionPin
+  contracts: VersionPin
+  scenario: VersionPin
+  profile?: VersionPin
+}
+export interface BundleManifest {
+  schemaVersion: typeof BUNDLE_MANIFEST_SCHEMA_VERSION
+  kind: BundleKind
+  case: { id: string; revision: number }
+  pins: BundlePins
+  files: BundleFileEntry[]
+  semanticHash: string
+  createdBy: string
+}

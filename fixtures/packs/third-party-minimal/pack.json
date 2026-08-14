@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "voce.scenario-pack-source/v1alpha1",
+  "packId": "example.test/third-party-minimal",
+  "version": "0.1.0",
+  "kind": "root",
+  "scenarioLabel": "third-party contract fixture",
+  "declarations": { "mayHandlePersonImages": true, "rightsDisclosureRequired": true },
+  "contributions": {
+    "rulePacks": [
+      { "id": "third-party.rules", "namespace": "example.test.third-party", "rules": [
+        { "id": "deterministic-fixture-rule", "kind": "incompatibility", "leftPaths": ["product.geometry"], "rightPaths": ["product.material"], "importance": "preferred", "code": "THIRD_PARTY_DETERMINISTIC_RULE", "reasonCode": "THIRD_PARTY_DETERMINISTIC_RULE", "message": "Third-party fixture rule is evaluated by the public declarative compiler." }
+      ] }
+    ]
+  },
+  "fixtures": [
+    { "id": "third-party-minimal.offline", "cases": [
+      { "id": "case-third-party-001", "profileId": "mock-native-transparent", "expectedStatus": "completed",
+        "scopePaths": [],
+        "coreProbes": [
+          { "id": "third-party-core", "intents": [
+            { "id": "third-party-geometry", "operation": "create", "targetPath": "product.geometry", "requestedValue": "box", "importance": "preferred" },
+            { "id": "third-party-material", "operation": "preserve", "targetPath": "product.material", "requestedValue": "metal", "importance": "preferred" }
+          ] }
+        ],
+        "expectedAssertions": [
+          { "id": "third-party-public-core", "phase": "compile", "target": "coreProbes.third-party-core.constraintHash", "operator": "sha256" },
+          { "id": "third-party-public-resolution", "phase": "compile", "target": "resolution.effectiveScenarioHash", "operator": "sha256" },
+          { "id": "third-party-execution", "phase": "run", "target": "run.executionStatus", "operator": "equals", "expected": "completed" }
+        ] }
+    ] }
+  ]
+}
