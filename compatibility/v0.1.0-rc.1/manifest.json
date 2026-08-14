@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "voce.compatibility-suite/v1alpha1",
+  "releaseCandidate": "0.1.0-rc.1",
+  "status": "candidate-not-stable",
+  "publicPackages": [
+    "@voce/contracts",
+    "@voce/core",
+    "@voce/testkit",
+    "@voce/cli"
+  ],
+  "candidatePublicSurface": {
+    "@voce/contracts": [
+      "ScenarioPack",
+      "ScenarioPackRegistry",
+      "ScenarioPackManifest",
+      "DeclarativeRulePackContribution",
+      "ProviderAdapter",
+      "ProviderCapabilityProfile",
+      "BundleManifest"
+    ],
+    "@voce/core": [
+      "MemoryScenarioPackRegistry",
+      "createScenarioPackRegistry",
+      "MOCK_NATIVE_TRANSPARENT_PROFILE",
+      "MockProviderAdapter",
+      "createMockRuntimeForPlan",
+      "replayArtifacts"
+    ],
+    "@voce/testkit": [
+      "fixtureM4ConstraintInput",
+      "fixtureM5ExecutionInput",
+      "fixtureM6Artifact"
+    ],
+    "@voce/cli": [
+      "CLI_VERSION",
+      "runCli"
+    ]
+  },
+  "schemaIds": [
+    { "file": "ScenarioPackManifest.schema.json", "id": "voce.scenario-pack/v1alpha1" },
+    { "file": "ProviderCapabilityProfile.schema.json", "id": "voce.provider-capability-profile/v1alpha1" },
+    { "file": "BundleManifest.schema.json", "id": "voce.bundle-manifest/v1alpha1" },
+    { "file": "EffectiveScenario.schema.json", "id": "voce.effective-scenario/v1alpha1" },
+    { "file": "ScenarioCompositionLock.schema.json", "id": "voce.scenario-pack-lock/v1alpha1" }
+  ],
+  "consumerFixture": "consumer.ts",
+  "deterministicFields": [
+    "manifestHash",
+    "packageDigest",
+    "distributionDigest",
+    "lockHash",
+    "effectiveScenarioHash",
+    "profileHash",
+    "semanticHash",
+    "assertionHash"
+  ],
+  "safetyBehaviors": [
+    "mock-adapter-is-offline",
+    "bundle-manifest-hash-is-checked",
+    "bundle-input-output-overlap-is-rejected",
+    "trace-is-static-and-redacted"
+  ],
+  "notStable": [
+    "No npm publish, GitHub Release, tag, provenance, or production-readiness claim is included.",
+    "ProviderAdapter and executable plugin loading remain trusted local-code boundaries.",
+    "No compatibility promise is made for ports outside this candidate surface."
+  ]
+}

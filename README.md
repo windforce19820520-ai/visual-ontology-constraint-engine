@@ -9,6 +9,8 @@ An open-source visual ontology, constraint compiler, prompt optimization, and ev
 
 The repository now contains a local `0.1.0-rc.1` CLI, deterministic M1–M6 runtime packages, data-only ScenarioPack fixtures, three offline vertical cases, bundle manifests, and clean-room/release-candidate checks. This is an internal release candidate: it is not published to npm, has no GitHub Release or tag, and is not production-ready.
 
+M8 adds a release-readiness candidate gate: the four public packages are checked from local tarballs, the candidate public compatibility surface is machine-readable, clean consumers compile against installed declarations, tarball contents/checksums/reproducibility are verified, and Ubuntu/Windows offline gates are defined. See the [release-readiness checklist](docs/release-checklist.md), [candidate compatibility surface](docs/compatibility.md), and [changelog](CHANGELOG.md).
+
 ## The problem
 
 Reference-guided image generation becomes difficult when a task combines person identity, expression, pose, garments, accessories, props, background, camera, lighting, product fidelity, reference-image limits, and provider-specific output constraints.

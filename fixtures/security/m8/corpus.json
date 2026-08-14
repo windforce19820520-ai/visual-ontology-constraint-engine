@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "voce.security-corpus/v1alpha1",
+  "purpose": "Small redistributable offline regression corpus for M8 release gates.",
+  "cases": [
+    { "id": "manifest-symlink", "mutation": "manifest-symlink", "expectedCode": "BUNDLE_MANIFEST_UNSAFE", "requires": "symlink" },
+    { "id": "manifest-hardlink", "mutation": "manifest-hardlink", "expectedCode": "BUNDLE_MANIFEST_UNSAFE" },
+    { "id": "payload-symlink", "mutation": "payload-symlink", "expectedCode": "BUNDLE_ENTRY_UNSAFE", "requires": "symlink" },
+    { "id": "payload-hardlink", "mutation": "payload-hardlink", "expectedCode": "BUNDLE_ENTRY_UNSAFE" },
+    { "id": "path-traversal", "mutation": "path-traversal", "expectedCode": "BUNDLE_INVENTORY_INVALID" },
+    { "id": "case-collision", "mutation": "case-collision", "expectedCode": "BUNDLE_INVENTORY_INVALID" },
+    { "id": "missing-file", "mutation": "missing-file", "expectedCode": "BUNDLE_FILE_MISSING" },
+    { "id": "extra-file", "mutation": "extra-file", "expectedCode": "BUNDLE_EXTRA_FILE" },
+    { "id": "hash-tamper", "mutation": "hash-tamper", "expectedCode": "BUNDLE_FILE_HASH_MISMATCH" },
+    { "id": "unknown-schema", "mutation": "unknown-schema", "expectedCode": "BUNDLE_SCHEMA_UNSUPPORTED" },
+    { "id": "unknown-field", "mutation": "unknown-field", "expectedCode": "BUNDLE_UNKNOWN_FIELD" },
+    { "id": "output-input-overlap", "mutation": "output-input-overlap", "expectedCode": "OUTPUT_INPUT_OVERLAP" },
+    { "id": "scenario-pack-executable", "mutation": "scenario-pack-executable", "expectedCode": "PACK_DECLARATIONS_UNKNOWN_FIELD" }
+  ]
+}

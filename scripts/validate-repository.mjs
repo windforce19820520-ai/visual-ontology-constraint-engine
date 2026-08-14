@@ -6,6 +6,7 @@ const requiredFiles = [
   '.github/pull_request_template.md',
   'AGENTS.md',
   'README.md',
+  'CHANGELOG.md',
   'LICENSE',
   'NOTICE',
   'CONTRIBUTING.md',
@@ -24,9 +25,19 @@ const requiredFiles = [
   'docs/system-design.md',
   'docs/zh-CN/system-design.md',
   'docs/implementation-notes/m3-decisions.md',
+  'docs/implementation-notes/m1-decisions.md',
+  'docs/implementation-notes/m2-decisions.md',
   'docs/implementation-notes/m4-decisions.md',
   'docs/implementation-notes/m5-decisions.md',
   'docs/implementation-notes/m6-decisions.md',
+  'docs/implementation-notes/m7-decisions.md',
+  'docs/implementation-notes/m8-decisions.md',
+  'docs/release-process.md',
+  'docs/release-checklist.md',
+  'docs/compatibility.md',
+  'compatibility/v0.1.0-rc.1/manifest.json',
+  'compatibility/v0.1.0-rc.1/consumer.ts',
+  'fixtures/security/m8/corpus.json',
 ]
 
 const requiredContractSchemas = [

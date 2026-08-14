@@ -14,8 +14,13 @@
     "test": "tsc -b && node scripts/run-tests.mjs",
     "build": "tsc -b",
     "cli": "node packages/cli/dist/cli.js",
+    "compatibility": "node scripts/compatibility.mjs",
+    "consumer": "node scripts/consumer.mjs",
+    "reproducibility": "node scripts/reproducibility.mjs",
     "release-candidate": "node scripts/release-candidate.mjs",
-    "clean-room": "node scripts/clean-room.mjs"
+    "clean-room": "node scripts/clean-room.mjs",
+    "security": "node scripts/security-gate.mjs",
+    "verify-checksums": "node scripts/verify-checksums.mjs"
   },
   "workspaces": ["packages/*"],
   "devDependencies": { "typescript": "^5.6.3", "@types/node": "^22.0.0" },
