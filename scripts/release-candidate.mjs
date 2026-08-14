@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { gunzipSync } from 'node:zlib'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
@@ -30,6 +31,17 @@ async function filesUnder(directory, relative = '') {
   return result
 }
 async function sha256File(file) { return `sha256:${createHash('sha256').update(await readFile(file)).digest('hex')}` }
+function tarballEntries(bytes) {
+  const tar = gunzipSync(bytes); const entries = []
+  for (let offset = 0; offset + 512 <= tar.length;) {
+    const header = tar.subarray(offset, offset + 512); const name = header.subarray(0, 100).toString('utf8').replace(/\0.*$/, ''); const prefix = header.subarray(345, 500).toString('utf8').replace(/\0.*$/, '')
+    if (!name) break
+    const size = Number.parseInt(header.subarray(124, 136).toString('ascii').replace(/\0.*$/, '').trim() || '0', 8); const type = header[156]
+    if (type === 0 || type === 48) entries.push(prefix ? `${prefix}/${name}` : name)
+    offset += 512 + Math.ceil(size / 512) * 512
+  }
+  return entries.sort()
+}
 function cliRun(args) { return run(node, [cli, ...args, '--json']) }
 function parseOutput(stdout) { const lines = stdout.trim().split(/\r?\n/); return JSON.parse(lines.at(-1)) }
 
@@ -61,13 +73,19 @@ for (const [name, caseFile, profileFile] of packs) {
 
 const packageNames = ['@voce/contracts', '@voce/core', '@voce/testkit', '@voce/cli']
 const packageAudit = []
+const tarballDirectory = path.join(output, 'tarballs')
+await mkdir(tarballDirectory, { recursive: true })
 for (const name of packageNames) {
   const packageDirectory = path.join(root, 'packages', name.split('/').at(-1))
   const manifest = JSON.parse(await readFile(path.join(packageDirectory, 'package.json'), 'utf8'))
   if (Object.keys(manifest.scripts ?? {}).some((key) => ['preinstall', 'install', 'postinstall', 'prepare'].includes(key))) fail(`${name} contains an install lifecycle script`)
-  const dryRun = run(pnpm, ['pack', '--dry-run'], packageDirectory)
-  if (/(node_modules|\.pnpm-store|\.env|release-candidate|clean-room)/i.test(dryRun)) fail(`${name} pack dry-run contains a forbidden path`)
-  packageAudit.push({ name, version: manifest.version, files: manifest.files ?? [], lifecycleScripts: false, dryRun: dryRun.replaceAll(root, '<repository>') })
+  const before = new Set(await readdir(tarballDirectory))
+  run(pnpm, ['pack', '--pack-destination', tarballDirectory], packageDirectory)
+  const tarballName = (await readdir(tarballDirectory)).find((file) => !before.has(file) && file.endsWith('.tgz'))
+  if (!tarballName) fail(`${name} did not produce a tarball`)
+  const contents = tarballEntries(await readFile(path.join(tarballDirectory, tarballName)))
+  if (contents.some((file) => /(node_modules|\.pnpm-store|\.env|release-candidate|clean-room)/i.test(file))) fail(`${name} tarball contains a forbidden path`)
+  packageAudit.push({ name, version: manifest.version, files: manifest.files ?? [], lifecycleScripts: false, tarball: `tarballs/${tarballName}`, tarballContents: contents })
 }
 
 await writeJson(path.join(output, 'package-audit.json'), packageAudit)
