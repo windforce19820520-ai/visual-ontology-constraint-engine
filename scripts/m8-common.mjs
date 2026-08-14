@@ -184,7 +184,7 @@ export async function readLockPackageMetadata() {
   return entries.sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version))
 }
 
-export async function trackedWorktreeStatus() {
+export function trackedWorktreeStatus() {
   return run('git', ['status', '--porcelain', '--untracked-files=no']).trim()
 }
 
