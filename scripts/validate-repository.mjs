@@ -26,6 +26,7 @@ const requiredFiles = [
   'docs/implementation-notes/m3-decisions.md',
   'docs/implementation-notes/m4-decisions.md',
   'docs/implementation-notes/m5-decisions.md',
+  'docs/implementation-notes/m6-decisions.md',
 ]
 
 const requiredContractSchemas = [
@@ -110,6 +111,24 @@ const requiredContractSchemas = [
   'packages/contracts/schemas/ExecutionTrace.schema.json',
   'packages/contracts/schemas/ArtifactReplayResult.schema.json',
   'packages/contracts/schemas/OfflineExecutionInput.schema.json',
+  'packages/contracts/schemas/ProviderTransport.schema.json',
+  'packages/contracts/schemas/ProviderRequestEnvelope.schema.json',
+  'packages/contracts/schemas/ProviderResponseEnvelope.schema.json',
+  'packages/contracts/schemas/ProviderError.schema.json',
+  'packages/contracts/schemas/ProviderSubmissionLookup.schema.json',
+  'packages/contracts/schemas/StructuralValidationInput.schema.json',
+  'packages/contracts/schemas/StructuralValidationFinding.schema.json',
+  'packages/contracts/schemas/StructuralValidationReport.schema.json',
+  'packages/contracts/schemas/SemanticReviewRequest.schema.json',
+  'packages/contracts/schemas/SemanticReviewFinding.schema.json',
+  'packages/contracts/schemas/SemanticReviewReport.schema.json',
+  'packages/contracts/schemas/HumanAcceptanceAnnotation.schema.json',
+  'packages/contracts/schemas/HumanAcceptanceDecision.schema.json',
+  'packages/contracts/schemas/EvaluationReport.schema.json',
+  'packages/contracts/schemas/ComparisonEntry.schema.json',
+  'packages/contracts/schemas/ComparisonReport.schema.json',
+  'packages/contracts/schemas/StaticTraceReportModel.schema.json',
+  'packages/contracts/schemas/ReportArtifact.schema.json',
 ]
 
 const repositoryRoot = new URL('../', import.meta.url)
@@ -195,6 +214,12 @@ for (const [file, expectedVersion] of [['fixtures/m5-prompt-ir-minimal.json', 'v
   for (const field of ['contextHash', 'pipelinePlanHash', 'traceHash', 'deterministicSignature']) {
     if (value[field] !== undefined && !/^sha256:[0-9a-f]{64}$/.test(value[field])) throw new Error(`M5_FIXTURE_HASH_MISSING:${file}:${field}`)
   }
+}
+
+for (const [file, expectedVersion] of [['fixtures/m6-provider-request-minimal.json', 'voce.provider-request-envelope/v1alpha1'], ['fixtures/m6-structural-input-minimal.json', 'voce.structural-validation-input/v1alpha1'], ['fixtures/m6-evaluation-report-minimal.json', 'voce.evaluation-report/v1alpha1']]) {
+  const url = new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot)
+  const value = JSON.parse(await readFile(url, 'utf8'))
+  if (value.schemaVersion !== expectedVersion) throw new Error(`M6_FIXTURE_SCHEMA_VERSION_MISSING:${file}`)
 }
 
 const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')

@@ -1237,7 +1237,375 @@ export interface Evaluation {
   evaluationHash: string
 }
 
-export type EvaluationReport = Evaluation
+export interface EvaluationReport {
+  schemaVersion: 'voce.evaluation-report/v1alpha1'
+  id: string
+  runId: string
+  technicalOutcome: 'pending'|'succeeded'|'failed'|'unknown'|'cancelled'
+  technicalStatus: 'pending'|'passed'|'failed'|'needs_review'
+  structural?: StructuralValidationReport
+  semanticProposal?: SemanticReviewReport
+  humanAcceptance?: HumanAcceptanceDecision
+  cleanup: EvaluationCleanupStatus
+  replay: EvaluationReplayStatus
+  artifactIds: string[]
+  sourceHashes: Record<string, string>
+  status: 'complete'|'partial'|'needs_review'|'failed'
+  warnings: string[]
+  reportHash: string
+}
+
+export interface HumanAcceptanceAnnotation {
+  schemaVersion: 'voce.human-acceptance-annotation/v1alpha1'
+  id: string
+  targetId: string
+  label?: string
+  note: string
+  artifactIds: string[]
+  regionIds: string[]
+  annotationHash: string
+}
+
+export interface HumanAcceptanceDecision {
+  schemaVersion: 'voce.human-acceptance-decision/v1alpha1'
+  id: string
+  runId: string
+  status: 'pending'|'accepted'|'declined'|'waived'
+  reviewerId?: string
+  decidedAt?: string
+  reasonCode?: string
+  annotations: HumanAcceptanceAnnotation[]
+  artifactIds: string[]
+  decisionHash: string
+}
+
+export interface EvaluationCleanupStatus {
+  status: 'not_required'|'pending'|'completed'|'failed'
+  receiptIds: string[]
+  failureCodes: string[]
+}
+
+export interface EvaluationReplayStatus {
+  mode: 'none'|'plan'|'artifact'|'live_rerun'
+  status: 'not_requested'|'available'|'unavailable'|'reconciled'
+  code?: 'REPLAY_AVAILABLE'|'ARTIFACT_UNAVAILABLE'|'REPLAY_RECONCILED'
+  artifactIds: string[]
+}
+
+/* M6: provider transport, deterministic validation, semantic proposals, comparison, and reports. */
+export const PROVIDER_TRANSPORT_SCHEMA_VERSION = 'voce.provider-transport/v1alpha1' as const
+export const PROVIDER_REQUEST_ENVELOPE_SCHEMA_VERSION = 'voce.provider-request-envelope/v1alpha1' as const
+export const PROVIDER_RESPONSE_ENVELOPE_SCHEMA_VERSION = 'voce.provider-response-envelope/v1alpha1' as const
+export const PROVIDER_ERROR_SCHEMA_VERSION = 'voce.provider-error/v1alpha1' as const
+export const PROVIDER_SUBMISSION_LOOKUP_SCHEMA_VERSION = 'voce.provider-submission-lookup/v1alpha1' as const
+export const STRUCTURAL_VALIDATION_INPUT_SCHEMA_VERSION = 'voce.structural-validation-input/v1alpha1' as const
+export const STRUCTURAL_VALIDATION_FINDING_SCHEMA_VERSION = 'voce.structural-validation-finding/v1alpha1' as const
+export const STRUCTURAL_VALIDATION_REPORT_SCHEMA_VERSION = 'voce.structural-validation-report/v1alpha1' as const
+export const SEMANTIC_REVIEW_REQUEST_SCHEMA_VERSION = 'voce.semantic-review-request/v1alpha1' as const
+export const SEMANTIC_REVIEW_FINDING_SCHEMA_VERSION = 'voce.semantic-review-finding/v1alpha1' as const
+export const SEMANTIC_REVIEW_REPORT_SCHEMA_VERSION = 'voce.semantic-review-report/v1alpha1' as const
+export const HUMAN_ACCEPTANCE_ANNOTATION_SCHEMA_VERSION = 'voce.human-acceptance-annotation/v1alpha1' as const
+export const HUMAN_ACCEPTANCE_DECISION_SCHEMA_VERSION = 'voce.human-acceptance-decision/v1alpha1' as const
+export const EVALUATION_REPORT_SCHEMA_VERSION = 'voce.evaluation-report/v1alpha1' as const
+export const COMPARISON_ENTRY_SCHEMA_VERSION = 'voce.comparison-entry/v1alpha1' as const
+export const COMPARISON_REPORT_SCHEMA_VERSION = 'voce.comparison-report/v1alpha1' as const
+export const STATIC_TRACE_REPORT_MODEL_SCHEMA_VERSION = 'voce.static-trace-report-model/v1alpha1' as const
+export const REPORT_ARTIFACT_SCHEMA_VERSION = 'voce.report-artifact/v1alpha1' as const
+
+export interface ProviderTransportContext {
+  authorization: RemoteCallAuthorization
+  credential?: { ref: string; value: string }
+  timeoutMs?: number
+}
+
+export interface ProviderRequestEnvelope {
+  schemaVersion: typeof PROVIDER_REQUEST_ENVELOPE_SCHEMA_VERSION
+  id: string
+  adapterId: string
+  profileId: string
+  profileDigest: string
+  model?: string
+  stepId: string
+  destination: string
+  region?: string
+  purpose: RemoteCallPurpose
+  inputHash: string
+  inputArtifactHashes: string[]
+  dataCategories: string[]
+  maximumCalls: number
+  maximumRetries: number
+  timeoutMs: number
+  maximumBytes?: number
+  maximumCost?: number
+  idempotencyKey: string
+  payload: JsonObject
+  requestHash: string
+}
+
+export interface ProviderResponseEnvelope {
+  schemaVersion: typeof PROVIDER_RESPONSE_ENVELOPE_SCHEMA_VERSION
+  requestHash: string
+  status: 'succeeded'|'failed'|'submission_unknown'|'processing'
+  providerRequestId?: string
+  body?: JsonValue
+  outputArtifactIds: string[]
+  error?: ProviderError
+  responseHash: string
+}
+
+export interface ProviderError {
+  schemaVersion: typeof PROVIDER_ERROR_SCHEMA_VERSION
+  code: string
+  message: string
+  retryable: boolean
+  submissionUnknown: boolean
+  safeDetails?: JsonObject
+  errorHash: string
+}
+
+export interface ProviderSubmissionLookup {
+  schemaVersion: typeof PROVIDER_SUBMISSION_LOOKUP_SCHEMA_VERSION
+  adapterId: string
+  profileId: string
+  profileDigest: string
+  destination: string
+  region?: string
+  stepId: string
+  providerRequestId?: string
+  requestHash: string
+  idempotencyKey: string
+  inputHash: string
+  maximumCalls: number
+  maximumRetries: number
+  timeoutMs: number
+  maximumBytes?: number
+  maximumCost?: number
+  lookupHash: string
+}
+
+export interface ProviderTransport {
+  readonly id: string
+  readonly mode: 'offline'|'network'
+  send(request: ProviderRequestEnvelope, context: ProviderTransportContext): Promise<ProviderResponseEnvelope>
+  lookup(request: ProviderSubmissionLookup, context: ProviderTransportContext): Promise<ProviderResponseEnvelope>
+}
+
+export interface AssetSinkPutInput {
+  bytes: Uint8Array
+  mediaType: string
+  role: string
+  sourceHash?: string
+}
+
+export interface AssetSinkRemoteInput {
+  url: string
+  mediaType?: string
+  role: string
+  sourceHash?: string
+}
+
+export interface AssetSink {
+  put(input: AssetSinkPutInput): Promise<ArtifactHandle>
+  putRemote?(input: AssetSinkRemoteInput): Promise<ArtifactHandle|undefined>
+  resolve?(handle: ArtifactHandle): Promise<Uint8Array|undefined>
+}
+
+export type ArtifactStore = AssetSink
+
+export interface StructuralValidationArtifactInput {
+  artifact: ArtifactHandle
+  bytes?: Uint8Array
+}
+
+export interface StructuralValidationInput {
+  schemaVersion: typeof STRUCTURAL_VALIDATION_INPUT_SCHEMA_VERSION
+  id: string
+  artifacts: StructuralValidationArtifactInput[]
+  outputContract: OutputContract
+  expectedCardinality?: { min: number; max: number }
+  maxBytes?: number
+}
+
+export type StructuralFindingSeverity = 'info'|'warning'|'error'|'critical'
+export type StructuralFindingStatus = 'pass'|'fail'|'unknown'
+
+export interface StructuralValidationFinding {
+  schemaVersion: typeof STRUCTURAL_VALIDATION_FINDING_SCHEMA_VERSION
+  id: string
+  code: string
+  status: StructuralFindingStatus
+  severity: StructuralFindingSeverity
+  artifactId?: string
+  expected?: JsonValue
+  actual?: JsonValue
+  evidenceSummary: string
+  evidenceHash: string
+}
+
+export interface StructuralValidationReport {
+  schemaVersion: typeof STRUCTURAL_VALIDATION_REPORT_SCHEMA_VERSION
+  id: string
+  inputHash: string
+  status: 'passed'|'failed'|'needs_review'
+  findings: StructuralValidationFinding[]
+  artifactIds: string[]
+  reportHash: string
+}
+
+export interface SemanticReviewCriterion {
+  id: string
+  kind: string
+  targetPath?: string
+  importance: Importance
+  prompt?: string
+}
+
+export interface SemanticReviewRequest {
+  schemaVersion: typeof SEMANTIC_REVIEW_REQUEST_SCHEMA_VERSION
+  id: string
+  caseId: string
+  caseRevision: number
+  contextHash: string
+  inputHash: string
+  outputArtifacts: ArtifactHandle[]
+  criteria: SemanticReviewCriterion[]
+  model: VersionPin
+  adapter: VersionPin
+  profile: VersionPin
+  authorizationId: string
+  destination: string
+  region?: string
+  dataCategories: string[]
+  budget: Budget
+  requestHash: string
+}
+
+export type SemanticFindingStatus = 'pass'|'fail'|'uncertain'|'not_applicable'
+
+export interface SemanticReviewFinding {
+  schemaVersion: typeof SEMANTIC_REVIEW_FINDING_SCHEMA_VERSION
+  id: string
+  criterionId: string
+  code: string
+  status: SemanticFindingStatus
+  confidence?: number
+  explanation: string
+  evidenceArtifactIds: string[]
+  evidenceRegionIds: string[]
+  warnings: string[]
+  proposal: true
+  findingHash: string
+}
+
+export interface SemanticReviewReport {
+  schemaVersion: typeof SEMANTIC_REVIEW_REPORT_SCHEMA_VERSION
+  id: string
+  requestHash: string
+  status: 'proposal'|'failed'|'submission_unknown'
+  model: VersionPin
+  adapter: VersionPin
+  profile: VersionPin
+  findings: SemanticReviewFinding[]
+  warnings: string[]
+  receiptIds: string[]
+  reportHash: string
+}
+
+export interface SemanticReviewer {
+  id: string
+  version: VersionPin
+  review(request: SemanticReviewRequest, authorization: RemoteCallAuthorization): Promise<SemanticReviewReport>
+}
+
+export interface ComparisonSnapshot {
+  ontology?: JsonValue
+  bindings?: JsonValue
+  constraintIR?: JsonValue
+  referencePlan?: JsonValue
+  promptIR?: JsonValue
+  promptCandidate?: JsonValue
+  pipelinePlan?: JsonValue
+  receipts?: JsonValue
+  evaluation?: JsonValue
+}
+
+export type ComparisonCategory = keyof ComparisonSnapshot
+export type ComparisonChangeKind = 'added'|'removed'|'changed'|'unchanged'
+
+export interface ComparisonEntry {
+  schemaVersion: typeof COMPARISON_ENTRY_SCHEMA_VERSION
+  id: string
+  category: ComparisonCategory
+  key: string
+  kind: ComparisonChangeKind
+  beforeHash?: string
+  afterHash?: string
+  before?: JsonValue
+  after?: JsonValue
+  changedFields: string[]
+  reasonCode: string
+}
+
+export interface ComparisonReport {
+  schemaVersion: typeof COMPARISON_REPORT_SCHEMA_VERSION
+  id: string
+  caseId: string
+  beforeRevision: number
+  afterRevision: number
+  ignoredFields: string[]
+  entries: ComparisonEntry[]
+  summary: { added: number; removed: number; changed: number; unchanged: number }
+  reportHash: string
+}
+
+export interface StaticTraceStep {
+  id: string
+  type: string
+  state: string
+  at?: string
+  adapterId?: string
+  adapterVersion?: VersionPin
+  profileDigest?: string
+  destination?: string
+  budgetId?: string
+  inputHash?: string
+  outputHashes: string[]
+  receiptId?: string
+  failureCode?: string
+}
+
+export interface StaticTraceReportModel {
+  schemaVersion: typeof STATIC_TRACE_REPORT_MODEL_SCHEMA_VERSION
+  caseId: string
+  revision: number
+  contextHash: string
+  constraintHash?: string
+  referencePlanHash?: string
+  pipelinePlanHash?: string
+  promptHash?: string
+  steps: StaticTraceStep[]
+  budgets: Budget[]
+  destinations: string[]
+  receipts: StepReceipt[]
+  cleanup: CleanupReceipt[]
+  reconciliation: RemoteCallRun[]
+  structural?: StructuralValidationReport
+  semanticProposal?: SemanticReviewReport
+  humanAcceptance?: HumanAcceptanceDecision
+  artifacts: ArtifactHandle[]
+  comparison?: ComparisonReport
+  warnings: string[]
+  modelHash: string
+}
+
+export interface ReportArtifact {
+  schemaVersion: typeof REPORT_ARTIFACT_SCHEMA_VERSION
+  id: string
+  mediaType: 'text/html'
+  content: string
+  contentHash: string
+  modelHash: string
+}
 
 export interface HumanAcceptance {
   schemaVersion: typeof HUMAN_ACCEPTANCE_SCHEMA_VERSION

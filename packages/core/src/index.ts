@@ -528,3 +528,4 @@ export function createScenarioPackRegistry(): ScenarioPackRegistry {
 export * from './evidence.js'
 export * from './m4.js'
 export * from './m5.js'
+export * from './m6.js'

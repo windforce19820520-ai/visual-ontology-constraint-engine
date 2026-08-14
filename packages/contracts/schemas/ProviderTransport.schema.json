@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://voce.dev/schemas/provider-transport/v1alpha1","title":"ProviderTransport","type":"object","properties":{"schemaVersion":{"const":"voce.provider-transport/v1alpha1"},"id":{"type":"string"},"mode":{"enum":["offline","network"]}},"required":["schemaVersion","id","mode"],"additionalProperties":true}
