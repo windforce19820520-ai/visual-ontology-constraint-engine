@@ -9,6 +9,8 @@ This repository develops an open-source visual ontology, constraint compiler, re
 - Keep account, commerce, catalog, publishing, and private deployment concerns outside the repository.
 - Keep the ontology domain-rich but instances sparse and evidence-backed.
 - Separate Observation, SourceBinding, and OntologyInstance.
+- Keep scenario-specific knowledge in a public `ScenarioPack` or `DeclarativeRulePackContribution`; Core must not import a scenario package, compare a scenario ID, or branch on a scenario name.
+- Treat ScenarioPack runtime artifacts as declarative data. `RulePackPlugin`, custom loaders, and adapters remain separate trusted-plugin boundaries.
 - Provider-specific behavior belongs in adapters.
 - Standard development, tests, CI, and examples must not call real paid models.
 
