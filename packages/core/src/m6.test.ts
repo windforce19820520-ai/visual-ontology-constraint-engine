@@ -7,9 +7,10 @@ import type {
   HumanAcceptanceDecision,
   JsonObject,
   ProviderResponseEnvelope,
-  ProviderSubmissionLookup,
   RemoteCallAuthorization,
   SemanticReviewRequest,
+  SemanticReviewReport,
+  ExecutionRun,
   StaticTraceReportModel,
   StructuralValidationArtifactInput,
   StructuralValidationInput,
@@ -24,13 +25,18 @@ import {
   compileEvaluationReport,
   computeArtifactBytesHash,
   computeProviderResponseEnvelopeHash,
-  computeProviderSubmissionLookupHash,
+  computeProviderErrorHash,
+  computeSemanticReviewFindingHash,
+  computeSemanticReviewReportHash,
   computeSemanticReviewRequestHash,
   computeStaticTraceReportModelHash,
+  createProviderSubmissionLookup,
+  executeSemanticReview,
   createHumanAcceptanceDecision,
   createRemoteCallAuthorization,
   renderStaticTraceReport,
   sha256,
+  traceModelFromExecution,
   validateStructuralImage,
 } from './index.js'
 
@@ -81,7 +87,7 @@ function response(requestHash: string, body: JsonObject, status: ProviderRespons
 }
 
 function seedreamConfig(transport: RecordingMockTransport, sink: AssetSink) {
-  return { endpoint: destination, credentialRef: credential.ref, model: 'fixture-model', adapter, profile, destination, transport, assetSink: sink }
+  return { endpoint: destination, credentialRef: credential.ref, model: 'fixture-model', modelVersion: '1.0.0', adapter, profile, destination, transport, assetSink: sink }
 }
 
 test('Seedream blocks unsupported cardinality, fields, reference count, and transparent conflicts before transport', async () => {
@@ -114,7 +120,7 @@ test('Seedream accepts one Alpha PNG transparent reference and persists URL/base
   assert.equal(result.status, 'succeeded')
   assert.equal(result.artifacts.length, 1)
   assert.equal(transport.calls.length, 1)
-  assert.equal(result.response.body && typeof result.response.body === 'object' && !Array.isArray(result.response.body) && 'value' in result.response.body, false)
+  assert.equal(result.response.body, undefined)
 })
 
 test('missing credential, endpoint, model, or adapter scope fails closed', async () => {
@@ -148,10 +154,11 @@ test('veImageX independently validates Alpha PNG output and lookup never resubmi
   unknownTransport.enqueue(response('', {}, 'processing'))
   const unknown = await unknownInstance.process(input, unknownAuth, { credential })
   assert.equal(unknown.status, 'submission_unknown')
-  const lookupBase: Omit<ProviderSubmissionLookup, 'lookupHash'> = { schemaVersion: 'voce.provider-submission-lookup/v1alpha1', adapterId: postAdapter.id, profileId: postProfile.id, profileDigest: postProfile.digest, destination, stepId: 've-unknown', requestHash: sha256({ request: 'unknown' }), idempotencyKey: unknownAuth.idempotencyKey, inputHash: unknownAuth.inputHash, maximumCalls: 1, maximumRetries: 0, timeoutMs: 60_000 }
-  const lookup: ProviderSubmissionLookup = { ...lookupBase, lookupHash: computeProviderSubmissionLookupHash(lookupBase as ProviderSubmissionLookup) }
-  unknownTransport.enqueueLookup(response(lookup.requestHash, { output: [{ b64_json: Buffer.from(ALPHA_PNG).toString('base64'), mediaType: 'image/png' }] }))
-  await unknownInstance.lookup(lookup, unknownAuth, { credential })
+  assert.ok(unknown.lookup)
+  unknownTransport.enqueueLookup(response(unknown.lookup!.requestHash, { output: [{ b64_json: Buffer.from(ALPHA_PNG).toString('base64'), mediaType: 'image/png' }] }))
+  const reconciled = await unknownInstance.lookup(unknown.lookup!, unknownAuth, { credential })
+  assert.equal(reconciled.status, 'succeeded')
+  assert.equal(reconciled.artifacts.length, 1)
   assert.equal(unknownTransport.calls.length, 1)
   assert.equal(unknownTransport.lookupCalls.length, 1)
 })
@@ -161,7 +168,7 @@ test('structural validation is deterministic for PNG/JPEG/WebP, dimensions, Alph
   const valid: StructuralValidationInput = { schemaVersion: 'voce.structural-validation-input/v1alpha1', id: 'structural-valid', artifacts: [artifact('png', ALPHA_PNG, 'image/png')], outputContract: { artifactKind: 'image', dataType: 'image', mediaTypes: ['image/png'], cardinality: { min: 1, max: 1 }, dimensions: { width: 1, height: 1 }, background: 'transparent', allowAlpha: true } }
   const left = validateStructuralImage(valid)
   const right = validateStructuralImage({ ...valid, artifacts: [...valid.artifacts].reverse() })
-  assert.equal(left.status, 'passed')
+  assert.equal(left.status, 'needs_review')
   assert.deepEqual(left, right)
   const jpeg = validateStructuralImage({ ...valid, id: 'jpeg', artifacts: [artifact('jpeg', JPEG, 'image/jpeg')], outputContract: { ...valid.outputContract, mediaTypes: ['image/jpeg'], background: 'opaque' } })
   assert.equal(jpeg.status, 'needs_review')
@@ -219,4 +226,142 @@ test('static report is deterministic, escaped, offline, and redacted', () => {
   assert.doesNotMatch(left.content, /<script/i)
   assert.doesNotMatch(left.content, /Bearer secret|signature=private|C:\\Users\\private/i)
   assert.doesNotMatch(left.content, /<script>alert/i)
+})
+
+test('provider authorization binds purpose, adapter digest, profile, model version, and bounded identity consumption', async () => {
+  const transport = new RecordingMockTransport()
+  const instance = new SeedreamAdapter(seedreamConfig(transport, new TestAssetSink()))
+  const generation = auth({ stepId: 'binding-generation', purpose: 'generation', inputHash: sha256({ binding: 1 }), adapter, profileDigest: profile.digest })
+  const request = instance.buildRequest({ prompt: 'binding' }, generation)
+  transport.enqueue(response(request.requestHash, {}, 'failed'))
+  await transport.send(request, { authorization: generation, credential })
+  await assert.rejects(() => transport.send(request, { authorization: generation, credential }), /REMOTE_CALL_BUDGET_EXHAUSTED/)
+  const semanticAuth = auth({ stepId: 'binding-semantic', purpose: 'semantic_review', inputHash: sha256({ binding: 2 }), adapter, profileDigest: profile.digest })
+  const rejected = await instance.generate({ prompt: 'generation cannot use semantic authorization' }, semanticAuth, { credential })
+  assert.equal(rejected.status, 'failed')
+  assert.equal(transport.calls.length, 1)
+  const lookup = createProviderSubmissionLookup(request, 'provider-request-1')
+  assert.equal(lookup.adapterDigest, adapter.digest)
+  assert.equal(lookup.purpose, 'generation')
+  assert.equal(lookup.modelVersion, '1.0.0')
+})
+
+test('provider hashes bind sensitive bytes and URLs without exposing them', async () => {
+  const transport = new RecordingMockTransport()
+  const instance = new SeedreamAdapter(seedreamConfig(transport, new TestAssetSink()))
+  const first = instance.buildRequest({ prompt: 'hash', image: 'data:image/png;base64,AAAA1111' })
+  const second = instance.buildRequest({ prompt: 'hash', image: 'data:image/png;base64,BBBB2222' })
+  assert.notEqual(first.requestHash, second.requestHash)
+  const signedA = instance.buildRequest({ prompt: 'hash', image: 'https://provider.test/image.png?X-Tos-Signature=one' })
+  const signedB = instance.buildRequest({ prompt: 'hash', image: 'https://provider.test/image.png?X-Tos-Signature=two' })
+  assert.notEqual(signedA.requestHash, signedB.requestHash)
+  const responseA = response(first.requestHash, { url: 'https://provider.test/output.png?X-Tos-Signature=one', b64_json: 'A'.repeat(100) })
+  const responseB = response(first.requestHash, { url: 'https://provider.test/output.png?X-Tos-Signature=two', b64_json: 'B'.repeat(100) })
+  assert.notEqual(responseA.responseHash, responseB.responseHash)
+  const error = { schemaVersion: 'voce.provider-error/v1alpha1' as const, code: 'PROVIDER_FAILED', message: 'Authorization: Bearer secret', retryable: false, submissionUnknown: false, safeDetails: { 'X-Tos-Signature': 'secret-token', base64: 'A'.repeat(100) } }
+  const errorHash = computeProviderErrorHash({ ...error, errorHash: '' })
+  assert.match(errorHash, /^sha256:/)
+  const errorAuth = auth({ stepId: 'hash-error', purpose: 'generation', inputHash: sha256({ hashError: 1 }), adapter, profileDigest: profile.digest })
+  const errorRequest = instance.buildRequest({ prompt: 'hash-error' }, errorAuth)
+  const providerError = { ...error, errorHash: computeProviderErrorHash({ ...error, errorHash: '' }) }
+  const failedBase: Omit<ProviderResponseEnvelope, 'responseHash'> = { schemaVersion: 'voce.provider-response-envelope/v1alpha1', requestHash: errorRequest.requestHash, status: 'failed', outputArtifactIds: [], error: providerError }
+  transport.enqueue({ ...failedBase, responseHash: computeProviderResponseEnvelopeHash(failedBase as ProviderResponseEnvelope) })
+  const failedResult = await instance.generate({ prompt: 'hash-error' }, errorAuth, { credential })
+  assert.doesNotMatch(JSON.stringify(failedResult.response), /secret-token|Bearer secret|A{80}/)
+})
+
+test('Seedream resolves ArtifactHandle bytes and validates endpoint profile and native format', async () => {
+  const sink = new TestAssetSink()
+  const transport = new RecordingMockTransport()
+  const artifactHandle: ArtifactHandle = { id: 'reference-handle', storeId: 'fixture', contentHash: computeArtifactBytesHash(ALPHA_PNG), mediaType: 'image/png', byteLength: ALPHA_PNG.length, role: 'reference', resolverId: 'fixture', availability: 'available', retentionClass: 'fixture', redactionPolicy: 'safe-hash-only' }
+  const instance = new SeedreamAdapter(seedreamConfig(transport, sink))
+  const request = instance.buildRequest({ prompt: 'artifact', image: artifactHandle, referenceArtifacts: [{ artifact: artifactHandle, bytes: ALPHA_PNG }] }, auth({ stepId: 'artifact-input', purpose: 'generation', inputHash: sha256({ artifact: 1 }), adapter, profileDigest: profile.digest, artifactHashes: [artifactHandle.contentHash], dataCategories: ['prompt', 'reference_image'] }))
+  assert.equal(typeof request.payload.image, 'string')
+  assert.match(String(request.payload.image), /^data:image\/png;base64,/)
+  assert.notEqual(request.payload.image, artifactHandle.id)
+  assert.throws(() => new SeedreamAdapter({ ...seedreamConfig(transport, sink), endpointProfile: 'domestic', endpoint: 'https://api.bytepluses.com' }), /ADAPTER_ENDPOINT_PROFILE_MISMATCH/)
+  assert.throws(() => new SeedreamAdapter({ ...seedreamConfig(transport, sink), endpointProfile: 'overseas', endpoint: 'https://api.volces.com' }), /ADAPTER_ENDPOINT_PROFILE_MISMATCH/)
+  const webp = { prompt: 'webp', output_format: 'webp' } as unknown as Parameters<SeedreamAdapter['generate']>[0]
+  const result = await instance.generate(webp, auth({ stepId: 'webp', purpose: 'generation', inputHash: sha256({ webp: 1 }), adapter, profileDigest: profile.digest }), { credential })
+  assert.equal(result.status, 'failed')
+  assert.equal(transport.calls.length, 0)
+})
+
+test('lookup reconciliation is original-request bound, bounded, and returns only persisted safe results', async () => {
+  const sink = new TestAssetSink()
+  const transport = new RecordingMockTransport()
+  const instance = new VeImageXBackgroundRemovalAdapter({ endpoint: destination, credentialRef: credential.ref, adapter: postAdapter, profile: postProfile, destination, transport, assetSink: sink })
+  const artifact: ArtifactHandle = { id: 'lookup-input', storeId: 'fixture', contentHash: computeArtifactBytesHash(ALPHA_PNG), mediaType: 'image/png', byteLength: ALPHA_PNG.length, role: 'source', resolverId: 'fixture', availability: 'available', retentionClass: 'fixture', redactionPolicy: 'safe-hash-only' }
+  const authorization = auth({ stepId: 'lookup-bound', purpose: 'postprocessing', inputHash: sha256({ lookup: 1 }), adapter: postAdapter, profileDigest: postProfile.digest, artifactHashes: [artifact.contentHash], dataCategories: ['image'] })
+  transport.enqueue(response('', {}, 'processing'))
+  const pending = await instance.process({ artifact, bytes: ALPHA_PNG }, authorization, { credential })
+  assert.equal(pending.status, 'submission_unknown')
+  assert.ok(pending.lookup)
+  const forged = { ...pending.lookup!, purpose: 'generation' as const }
+  await assert.rejects(() => instance.lookup(forged, authorization, { credential }), /PROVIDER_LOOKUP_SCOPE_MISMATCH|PROVIDER_LOOKUP_HASH_MISMATCH/)
+  transport.enqueueLookup(response(pending.lookup!.requestHash, { output: [{ b64_json: Buffer.from(ALPHA_PNG).toString('base64'), mediaType: 'image/png' }] }))
+  const reconciled = await instance.lookup(pending.lookup!, authorization, { credential })
+  assert.equal(reconciled.status, 'succeeded')
+  assert.equal(reconciled.response.body, undefined)
+  const repeated = await instance.lookup(pending.lookup!, authorization, { credential })
+  assert.equal(repeated.status, 'failed')
+  assert.equal(repeated.failureCode, 'REMOTE_CALL_BUDGET_EXHAUSTED')
+})
+
+test('structural validator distinguishes declared media type and visual transparency uncertainty', () => {
+  const mismatched = validateStructuralImage({ schemaVersion: 'voce.structural-validation-input/v1alpha1', id: 'declared-mismatch', artifacts: [{ artifact: { ...fixtureArtifactForTest('mismatch', JPEG, 'image/png') }, bytes: JPEG }], outputContract: { artifactKind: 'image', dataType: 'image', mediaTypes: ['image/jpeg'], cardinality: { min: 1, max: 1 }, background: 'opaque', allowAlpha: true } })
+  assert.equal(mismatched.status, 'failed')
+  assert.ok(mismatched.findings.some((item) => item.code === 'DECLARED_MEDIA_TYPE_SIGNATURE_MISMATCH'))
+  const transparent = validateStructuralImage({ schemaVersion: 'voce.structural-validation-input/v1alpha1', id: 'visual-unknown', artifacts: [{ artifact: fixtureArtifactForTest('alpha', ALPHA_PNG, 'image/png'), bytes: ALPHA_PNG }], outputContract: { artifactKind: 'image', dataType: 'image', mediaTypes: ['image/png'], cardinality: { min: 1, max: 1 }, background: 'transparent', allowAlpha: true } })
+  assert.equal(transparent.status, 'needs_review')
+  assert.ok(transparent.findings.some((item) => item.code === 'BACKGROUND_VISUAL_TRANSPARENCY_UNKNOWN'))
+})
+
+function fixtureArtifactForTest(id: string, bytes: Uint8Array, mediaType: string): ArtifactHandle {
+  return { id, storeId: 'fixture', contentHash: computeArtifactBytesHash(bytes), mediaType, byteLength: bytes.length, role: 'output', resolverId: 'fixture', availability: 'available', retentionClass: 'fixture', redactionPolicy: 'safe-hash-only' }
+}
+
+test('semantic execution rejects forged findings and maps failed or unknown reports to non-success receipts', async () => {
+  const artifact = fixtureArtifactForTest('semantic-output', ALPHA_PNG, 'image/png')
+  const reviewAuthorization = auth({ stepId: 'semantic-validation', purpose: 'semantic_review', inputHash: sha256({ semantic: 1 }), adapter, profileDigest: profile.digest, artifactHashes: [artifact.contentHash], dataCategories: ['image'] })
+  const model: VersionPin = { id: 'fixture-model', version: '1.0.0', digest: sha256({ model: 'fixture-model' }) }
+  const base: Omit<SemanticReviewRequest, 'requestHash'> = { schemaVersion: 'voce.semantic-review-request/v1alpha1', id: 'semantic-validation-request', caseId: 'm6-case', caseRevision: 1, contextHash: reviewAuthorization.contextHash, inputHash: reviewAuthorization.inputHash, outputArtifacts: [artifact], criteria: [{ id: 'identity', kind: 'identity_continuity', targetPath: 'person.identity', importance: 'required' }], model, adapter, profile, authorizationId: reviewAuthorization.id, destination, dataCategories: ['image'], budget: budget('semantic-validation-budget') }
+  const request = { ...base, requestHash: computeSemanticReviewRequestHash(base as SemanticReviewRequest) }
+  const fixture = new FixtureSemanticReviewer()
+  const valid = await fixture.review(request, reviewAuthorization)
+  await assert.rejects(() => executeSemanticReview({ id: 'third-party-forged-hash', version: adapter, review: async () => ({ ...valid, requestHash: sha256({ forged: true }) }) }, request, reviewAuthorization), /SEMANTIC_REVIEW_REPORT_INVALID/)
+  const forgedConfidence = { ...valid, findings: [{ ...valid.findings[0], confidence: 2 }] }
+  forgedConfidence.findings[0].findingHash = computeSemanticReviewFindingHash(forgedConfidence.findings[0])
+  forgedConfidence.reportHash = computeSemanticReviewReportHash(forgedConfidence)
+  await assert.rejects(() => executeSemanticReview({ id: 'third-party-confidence', version: adapter, review: async () => forgedConfidence }, request, reviewAuthorization), /SEMANTIC_REVIEW_CONFIDENCE_INVALID/)
+  const forgedEvidence = { ...valid, findings: [{ ...valid.findings[0], evidenceArtifactIds: ['unknown-artifact'] }] }
+  forgedEvidence.findings[0].findingHash = computeSemanticReviewFindingHash(forgedEvidence.findings[0])
+  forgedEvidence.reportHash = computeSemanticReviewReportHash(forgedEvidence)
+  await assert.rejects(() => executeSemanticReview({ id: 'third-party', version: adapter, review: async () => forgedEvidence }, request, reviewAuthorization), /SEMANTIC_REVIEW_EVIDENCE_UNKNOWN/)
+  const failed: SemanticReviewReport = { ...valid, status: 'failed', findings: [], reportHash: '' }
+  failed.reportHash = computeSemanticReviewReportHash(failed)
+  const failedExecution = await executeSemanticReview({ id: 'third-party-failed', version: adapter, review: async () => failed }, request, reviewAuthorization)
+  assert.equal(failedExecution.receipt.state, 'failed')
+  assert.equal(failedExecution.remoteCallRun.state, 'failed')
+  const unknown: SemanticReviewReport = { ...valid, status: 'submission_unknown', findings: [], reportHash: '' }
+  unknown.reportHash = computeSemanticReviewReportHash(unknown)
+  const unknownExecution = await executeSemanticReview({ id: 'third-party-unknown', version: adapter, review: async () => unknown }, request, reviewAuthorization)
+  assert.equal(unknownExecution.receipt.state, 'submission_unknown')
+  assert.equal(unknownExecution.remoteCallRun.state, 'submission_unknown')
+})
+
+test('comparison preserves prompt and plan order while normalizing declared sets', () => {
+  const before = { pipelinePlan: { id: 'plan', steps: [{ id: 'first' }, { id: 'second' }], dataCategories: ['prompt', 'image'] }, promptIR: { id: 'prompt', sections: [{ id: 'subject' }, { id: 'style' }] } }
+  const after = { pipelinePlan: { id: 'plan', steps: [{ id: 'second' }, { id: 'first' }], dataCategories: ['image', 'prompt'] }, promptIR: { id: 'prompt', sections: [{ id: 'style' }, { id: 'subject' }] } }
+  const report = compareSnapshots({ caseId: 'order', beforeRevision: 1, afterRevision: 2, before, after })
+  assert.equal(report.entries.find((item) => item.category === 'pipelinePlan')?.kind, 'changed')
+  assert.equal(report.entries.find((item) => item.category === 'promptIR')?.kind, 'changed')
+})
+
+test('trace model sanitizes public fields and rejects tampered nested hashes', () => {
+  const run = { caseId: 'trace-case', caseRevision: 1, contextHash: sha256({ trace: 1 }), pipelinePlanHash: sha256({ plan: 1 }) } as ExecutionRun
+  const model = traceModelFromExecution({ run, receipts: [], cleanup: [], reconciliation: [], warnings: ['Bearer secret', 'https://provider.test/a?X-Tos-Signature=secret', 'C:\\Users\\private\\image.png', 'A'.repeat(100)] })
+  assert.doesNotMatch(JSON.stringify(model), /Bearer secret|X-Tos-Signature=secret|C:\\Users\\private|A{80}/i)
+  const structural = validateStructuralImage({ schemaVersion: 'voce.structural-validation-input/v1alpha1', id: 'nested', artifacts: [], outputContract: { artifactKind: 'image', dataType: 'image', mediaTypes: ['image/png'], cardinality: { min: 0, max: 0 }, background: 'opaque', allowAlpha: true } })
+  assert.throws(() => traceModelFromExecution({ run, receipts: [], cleanup: [], reconciliation: [], structural: { ...structural, status: 'failed' } }), /TRACE_STRUCTURAL_HASH_MISMATCH/)
 })

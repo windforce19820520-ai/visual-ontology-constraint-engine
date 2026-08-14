@@ -78,7 +78,9 @@ const HASH_PATTERN = /^sha256:[0-9a-f]{64}$/
 const SAFE_URL_PATTERN = /^https?:\/\//i
 const SECRET_PATTERN = /(authorization\s*:\s*bearer\s+|bearer\s+|api[-_ ]?key\s*[:=]\s*|secret\s*[:=]\s*|sk-[A-Za-z0-9_-]+|x-[A-Za-z0-9-]+-key\s*[:=]\s*)[^\s<>&"']+/gi
 const DATA_URI_PATTERN = /data:[^,;\s]+(?:;[^,\s]+)*,[^\s<>&"']+/gi
-const SIGNED_URL_PATTERN = /https?:\/\/[^\s<>&"']+[?&](?:signature|sig|token|expires|x-amz-[^=]+)=[^\s<>&"']+/gi
+const SIGNED_URL_PATTERN = /https?:\/\/[^\s<>&"']+[?&](?:signature|sig|token|expires|credential|security[-_]?token|x[-_]tos[-_](?:signature|credential|security[-_]?token)|x[-_]amz-[^=]+)=[^\s<>&"']+/gi
+const DATA_URI_DETECTION_PATTERN = /^data:[^,;\s]+(?:;[^,\s]+)*,/i
+const BASE64_LIKE_PATTERN = /^[A-Za-z0-9+/]{80,}={0,2}$/
 const ABSOLUTE_PATH_PATTERN = /(?:[A-Za-z]:\\|\\\\|\/Users\/|\/home\/|\/tmp\/)[^\s<>&"']+/g
 
 export interface ProviderCallRecord {
@@ -179,17 +181,44 @@ function safeMessage(message: string): string {
 }
 
 function safeJson(value: unknown): JsonValue {
-  if (typeof value === 'string') return safeMessage(value)
+  if (typeof value === 'string') {
+    if (BASE64_LIKE_PATTERN.test(value)) return '[REDACTED_BASE64]'
+    return safeMessage(value)
+  }
   if (Array.isArray(value)) return value.map((item) => safeJson(item))
   if (value && typeof value === 'object') {
     const object: JsonObject = {}
     for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-      if (/authorization|credential|secret|api.?key|base64|signed.?url|local.?path/i.test(key)) object[key] = '[REDACTED]'
+      if (/authorization|credential|secret|api.?key|base64|b64_json|signed.?url|local.?path|security.?token|x[-_]?tos|x[-_]?amz|signature/i.test(key)) object[key] = '[REDACTED]'
       else object[key] = safeJson(item)
     }
     return object
   }
   return (value ?? null) as JsonValue
+}
+
+function sensitiveHashProjection(value: string, kind: string): JsonObject {
+  return { kind, valueHash: sha256(value), length: value.length }
+}
+
+function hashJson(value: unknown, key?: string): JsonValue {
+  if (typeof value === 'string') {
+    if (key && /authorization|credential|secret|api.?key|base64|b64_json|signed.?url|security.?token|x[-_]?tos|x[-_]?amz|signature/i.test(key)) return sensitiveHashProjection(value, 'sensitive-string')
+    if (DATA_URI_DETECTION_PATTERN.test(value)) return sensitiveHashProjection(value, 'data-uri')
+    SIGNED_URL_PATTERN.lastIndex = 0
+    if (SIGNED_URL_PATTERN.test(value)) return sensitiveHashProjection(value, 'signed-url')
+    if (BASE64_LIKE_PATTERN.test(value)) return sensitiveHashProjection(value, 'base64-like')
+    return value
+  }
+  if (value === null || typeof value === 'boolean' || typeof value === 'number') return value
+  if (Array.isArray(value)) return value.map((item) => hashJson(item, key))
+  if (value && typeof value === 'object') {
+    if (value instanceof Uint8Array) return sensitiveHashProjection(Buffer.from(value).toString('base64'), 'bytes')
+    const object: JsonObject = {}
+    for (const [childKey, item] of Object.entries(value as Record<string, unknown>)) object[childKey] = hashJson(item, childKey)
+    return object
+  }
+  return null
 }
 
 function assertHash(value: unknown, code = 'HASH_INVALID'): asserts value is string {
@@ -201,9 +230,11 @@ function normalizeProviderRequestProjection(request: ProviderRequestEnvelope): J
     schemaVersion: PROVIDER_REQUEST_ENVELOPE_SCHEMA_VERSION,
     id: request.id,
     adapterId: request.adapterId,
+    adapterDigest: request.adapterDigest,
     profileId: request.profileId,
     profileDigest: request.profileDigest,
-    ...(request.model === undefined ? {} : { model: request.model }),
+    ...(request.modelId === undefined ? {} : { modelId: request.modelId }),
+    ...(request.modelVersion === undefined ? {} : { modelVersion: request.modelVersion }),
     stepId: request.stepId,
     destination: request.destination,
     ...(request.region === undefined ? {} : { region: request.region }),
@@ -217,7 +248,7 @@ function normalizeProviderRequestProjection(request: ProviderRequestEnvelope): J
     ...(request.maximumBytes === undefined ? {} : { maximumBytes: request.maximumBytes }),
     ...(request.maximumCost === undefined ? {} : { maximumCost: request.maximumCost }),
     idempotencyKey: request.idempotencyKey,
-    payload: safeJson(request.payload),
+    payload: hashJson(request.payload),
   }) as JsonObject
 }
 
@@ -231,7 +262,7 @@ function normalizeProviderResponseProjection(response: ProviderResponseEnvelope)
     requestHash: response.requestHash,
     status: response.status,
     ...(response.providerRequestId === undefined ? {} : { providerRequestId: response.providerRequestId }),
-    ...(response.body === undefined ? {} : { body: safeJson(response.body) }),
+    ...(response.body === undefined ? {} : { body: hashJson(response.body) }),
     outputArtifactIds: sortedStrings(response.outputArtifactIds),
     ...(response.error === undefined ? {} : { error: normalizeProviderErrorProjection(response.error) }),
   }) as JsonObject
@@ -248,7 +279,7 @@ function normalizeProviderErrorProjection(error: ProviderError): JsonObject {
     message: safeMessage(error.message),
     retryable: error.retryable,
     submissionUnknown: error.submissionUnknown,
-    ...(error.safeDetails === undefined ? {} : { safeDetails: safeJson(error.safeDetails) }),
+    ...(error.safeDetails === undefined ? {} : { safeDetails: hashJson(error.safeDetails) }),
   }) as JsonObject
 }
 
@@ -259,16 +290,23 @@ export function computeProviderErrorHash(error: ProviderError): string {
 function normalizeLookupProjection(request: ProviderSubmissionLookup): JsonObject {
   return jsonReady({
     schemaVersion: PROVIDER_SUBMISSION_LOOKUP_SCHEMA_VERSION,
+    requestId: request.requestId,
     adapterId: request.adapterId,
+    adapterDigest: request.adapterDigest,
     profileId: request.profileId,
     profileDigest: request.profileDigest,
+    ...(request.modelId === undefined ? {} : { modelId: request.modelId }),
+    ...(request.modelVersion === undefined ? {} : { modelVersion: request.modelVersion }),
     destination: request.destination,
     ...(request.region === undefined ? {} : { region: request.region }),
     stepId: request.stepId,
+    purpose: request.purpose,
     ...(request.providerRequestId === undefined ? {} : { providerRequestId: request.providerRequestId }),
     requestHash: request.requestHash,
     idempotencyKey: request.idempotencyKey,
     inputHash: request.inputHash,
+    inputArtifactHashes: sortedStrings(request.inputArtifactHashes),
+    dataCategories: sortedStrings(request.dataCategories),
     maximumCalls: request.maximumCalls,
     maximumRetries: request.maximumRetries,
     timeoutMs: request.timeoutMs,
@@ -313,20 +351,25 @@ function assertRemoteCallAuthorization(request: ProviderRequestEnvelope | Provid
   const authorization = context.authorization
   if (!context.credential || !context.credential.ref || !context.credential.value) throw new ProviderTransportError('ADAPTER_CREDENTIAL_MISSING', 'Host credential injection is missing.')
   if (!authorization || computeRemoteCallAuthorizationHash(authorization) !== authorization.authorizationHash) throw new ProviderTransportError('REMOTE_CALL_AUTHORIZATION_INVALID', 'Remote call authorization is invalid.')
-  if (computeProviderRequestEnvelopeHash(request as ProviderRequestEnvelope) !== (request as ProviderRequestEnvelope).requestHash && 'payload' in request) throw new ProviderTransportError('PROVIDER_REQUEST_HASH_MISMATCH', 'Provider request hash is invalid.')
-  if (!('payload' in request) && computeProviderSubmissionLookupHash(request as ProviderSubmissionLookup) !== (request as ProviderSubmissionLookup).lookupHash) throw new ProviderTransportError('PROVIDER_LOOKUP_HASH_MISMATCH', 'Submission lookup hash is invalid.')
+  const isRequest = 'payload' in request
+  if (isRequest && computeProviderRequestEnvelopeHash(request as ProviderRequestEnvelope) !== request.requestHash) throw new ProviderTransportError('PROVIDER_REQUEST_HASH_MISMATCH', 'Provider request hash is invalid.')
+  if (!isRequest && computeProviderSubmissionLookupHash(request as ProviderSubmissionLookup) !== request.lookupHash) throw new ProviderTransportError('PROVIDER_LOOKUP_HASH_MISMATCH', 'Submission lookup hash is invalid.')
   const reasons: string[] = []
   if (authorization.stepId !== request.stepId) reasons.push('stepId')
+  if (authorization.purpose !== request.purpose) reasons.push('purpose')
   if (authorization.adapterId !== request.adapterId) reasons.push('adapterId')
-  if (authorization.profileDigest !== undefined && authorization.profileDigest !== request.profileDigest) reasons.push('profileDigest')
-  if ('model' in request && request.model !== undefined && authorization.modelId !== request.model) reasons.push('model')
+  if (authorization.adapterDigest !== request.adapterDigest) reasons.push('adapterDigest')
+  if (authorization.profileDigest !== request.profileDigest) reasons.push('profileDigest')
+  if (authorization.modelId !== request.modelId) reasons.push('modelId')
+  if (authorization.modelVersion !== request.modelVersion) reasons.push('modelVersion')
   if (authorization.destination !== request.destination || authorization.region !== request.region) reasons.push('destination')
   if (authorization.inputHash !== request.inputHash) reasons.push('inputHash')
   if (authorization.idempotencyKey !== request.idempotencyKey) reasons.push('idempotencyKey')
   if (authorization.maximumCalls !== request.maximumCalls || authorization.maximumRetries !== request.maximumRetries || authorization.timeoutMs !== request.timeoutMs) reasons.push('budget')
   if (authorization.maximumBytes !== request.maximumBytes || authorization.maximumCost !== request.maximumCost) reasons.push('limits')
-  if (request instanceof Object && 'inputArtifactHashes' in request && canonicalize(jsonReady(sortedStrings(authorization.permittedArtifactHashes))) !== canonicalize(jsonReady(sortedStrings(request.inputArtifactHashes)))) reasons.push('artifactHashes')
+  if (canonicalize(jsonReady(sortedStrings(authorization.permittedArtifactHashes))) !== canonicalize(jsonReady(sortedStrings(request.inputArtifactHashes)))) reasons.push('artifactHashes')
   if ('dataCategories' in request && canonicalize(jsonReady(sortedStrings(authorization.dataCategories))) !== canonicalize(jsonReady(sortedStrings(request.dataCategories)))) reasons.push('dataCategories')
+  if (!isRequest && request.requestId.length === 0) reasons.push('requestId')
   if (reasons.length) throw new ProviderTransportError('REMOTE_CALL_AUTHORIZATION_SCOPE_MISMATCH', 'Remote call authorization scope does not match the provider envelope.', { fields: reasons } as JsonObject)
   const preflight = dispatchPreflight(authorization, {
     kind: 'remote_call',
@@ -359,11 +402,76 @@ function assertRemoteCallAuthorization(request: ProviderRequestEnvelope | Provid
   if (preflight.status !== 'authorized') throw new ProviderTransportError('REMOTE_CALL_NOT_AUTHORIZED', 'Remote call preflight was blocked.')
 }
 
+function providerBindingMatches(request: ProviderRequestEnvelope, lookup: ProviderSubmissionLookup): boolean {
+  return request.id === lookup.requestId
+    && request.adapterId === lookup.adapterId
+    && request.adapterDigest === lookup.adapterDigest
+    && request.profileId === lookup.profileId
+    && request.profileDigest === lookup.profileDigest
+    && request.modelId === lookup.modelId
+    && request.modelVersion === lookup.modelVersion
+    && request.destination === lookup.destination
+    && request.region === lookup.region
+    && request.stepId === lookup.stepId
+    && request.purpose === lookup.purpose
+    && request.requestHash === lookup.requestHash
+    && request.idempotencyKey === lookup.idempotencyKey
+    && request.inputHash === lookup.inputHash
+    && canonicalize(jsonReady(sortedStrings(request.inputArtifactHashes))) === canonicalize(jsonReady(sortedStrings(lookup.inputArtifactHashes)))
+    && canonicalize(jsonReady(sortedStrings(request.dataCategories))) === canonicalize(jsonReady(sortedStrings(lookup.dataCategories)))
+    && request.maximumCalls === lookup.maximumCalls
+    && request.maximumRetries === lookup.maximumRetries
+    && request.timeoutMs === lookup.timeoutMs
+    && request.maximumBytes === lookup.maximumBytes
+    && request.maximumCost === lookup.maximumCost
+}
+
+export function createProviderSubmissionLookup(request: ProviderRequestEnvelope, providerRequestId?: string): ProviderSubmissionLookup {
+  const base: Omit<ProviderSubmissionLookup, 'lookupHash'> = {
+    schemaVersion: PROVIDER_SUBMISSION_LOOKUP_SCHEMA_VERSION,
+    requestId: request.id,
+    adapterId: request.adapterId,
+    adapterDigest: request.adapterDigest,
+    profileId: request.profileId,
+    profileDigest: request.profileDigest,
+    ...(request.modelId === undefined ? {} : { modelId: request.modelId }),
+    ...(request.modelVersion === undefined ? {} : { modelVersion: request.modelVersion }),
+    destination: request.destination,
+    ...(request.region === undefined ? {} : { region: request.region }),
+    stepId: request.stepId,
+    purpose: request.purpose,
+    ...(providerRequestId === undefined ? {} : { providerRequestId }),
+    requestHash: request.requestHash,
+    idempotencyKey: request.idempotencyKey,
+    inputHash: request.inputHash,
+    inputArtifactHashes: sortedStrings(request.inputArtifactHashes),
+    dataCategories: sortedStrings(request.dataCategories),
+    maximumCalls: request.maximumCalls,
+    maximumRetries: request.maximumRetries,
+    timeoutMs: request.timeoutMs,
+    ...(request.maximumBytes === undefined ? {} : { maximumBytes: request.maximumBytes }),
+    ...(request.maximumCost === undefined ? {} : { maximumCost: request.maximumCost }),
+  }
+  return clone({ ...base, lookupHash: computeProviderSubmissionLookupHash(base as ProviderSubmissionLookup) })
+}
+
 function safeResponse(response: ProviderResponseEnvelope): ProviderResponseEnvelope {
   if (computeProviderResponseEnvelopeHash(response) !== response.responseHash) throw new ProviderTransportError('PROVIDER_RESPONSE_HASH_MISMATCH', 'Provider response hash is invalid.')
   if (!isHash(response.requestHash)) throw new ProviderTransportError('PROVIDER_RESPONSE_INVALID', 'Provider response request hash is invalid.')
   if (response.error && computeProviderErrorHash(response.error) !== response.error.errorHash) throw new ProviderTransportError('PROVIDER_ERROR_HASH_MISMATCH', 'Provider error hash is invalid.')
   return clone(response)
+}
+
+function publicResponseReceipt(response: ProviderResponseEnvelope): ProviderResponseEnvelope {
+  const base: Omit<ProviderResponseEnvelope, 'responseHash'> = {
+    schemaVersion: PROVIDER_RESPONSE_ENVELOPE_SCHEMA_VERSION,
+    requestHash: response.requestHash,
+    status: response.status,
+    ...(response.providerRequestId === undefined ? {} : { providerRequestId: response.providerRequestId }),
+    outputArtifactIds: sortedStrings(response.outputArtifactIds),
+    ...(response.error === undefined ? {} : { error: clone({ ...response.error, message: safeMessage(response.error.message), ...(response.error.safeDetails === undefined ? {} : { safeDetails: safeJson(response.error.safeDetails) as JsonObject }) }) }),
+  }
+  return clone({ ...base, responseHash: computeProviderResponseEnvelopeHash(base as ProviderResponseEnvelope) })
 }
 
 export class RecordingMockTransport implements ProviderTransport {
@@ -373,6 +481,9 @@ export class RecordingMockTransport implements ProviderTransport {
   readonly lookupCalls: ProviderCallRecord[] = []
   private readonly responses: ProviderResponseEnvelope[]
   private readonly lookups: ProviderResponseEnvelope[]
+  private readonly sentRequests = new Map<string, ProviderRequestEnvelope>()
+  private readonly sendCounts = new Map<string, number>()
+  private readonly lookupCounts = new Map<string, number>()
 
   constructor(options: RecordingMockTransportOptions | ProviderResponseEnvelope[] = {}) {
     if (Array.isArray(options)) { this.responses = options.map((item) => clone(item)); this.lookups = [] }
@@ -382,8 +493,21 @@ export class RecordingMockTransport implements ProviderTransport {
   enqueue(response: ProviderResponseEnvelope): void { this.responses.push(clone(response)) }
   enqueueLookup(response: ProviderResponseEnvelope): void { this.lookups.push(clone(response)) }
 
+  private consume(kind: 'send'|'lookup', authorization: RemoteCallAuthorization): void {
+    const key = `${authorization.id}:${authorization.idempotencyKey}`
+    const counts = kind === 'send' ? this.sendCounts : this.lookupCounts
+    const count = counts.get(key) ?? 0
+    if (count >= authorization.maximumCalls) throw new ProviderTransportError('REMOTE_CALL_BUDGET_EXHAUSTED', `Remote ${kind} budget has been exhausted.`)
+    counts.set(key, count + 1)
+  }
+
   async send(request: ProviderRequestEnvelope, context: ProviderTransportContext): Promise<ProviderResponseEnvelope> {
     assertRemoteCallAuthorization(request, context)
+    this.consume('send', context.authorization)
+    const identity = `${context.authorization.id}:${context.authorization.idempotencyKey}`
+    const prior = this.sentRequests.get(identity)
+    if (prior && !providerBindingMatches(prior, createProviderSubmissionLookup(request))) throw new ProviderTransportError('REMOTE_CALL_IDENTITY_REUSED', 'Idempotency identity cannot be reused for a different provider request.')
+    this.sentRequests.set(identity, clone(request))
     this.calls.push({ requestId: request.id, requestHash: request.requestHash, adapterId: request.adapterId, profileDigest: request.profileDigest, destination: request.destination, ...(request.region === undefined ? {} : { region: request.region }), inputHash: request.inputHash, idempotencyKey: request.idempotencyKey })
     const response = this.responses.shift() ?? errorResponse(request.requestHash, 'MOCK_RESPONSE_MISSING', 'Recording mock response was not registered.')
     const normalized = response.requestHash === request.requestHash ? response : { ...response, requestHash: request.requestHash, responseHash: '' }
@@ -393,6 +517,10 @@ export class RecordingMockTransport implements ProviderTransport {
 
   async lookup(request: ProviderSubmissionLookup, context: ProviderTransportContext): Promise<ProviderResponseEnvelope> {
     assertRemoteCallAuthorization(request, context)
+    this.consume('lookup', context.authorization)
+    const identity = `${context.authorization.id}:${context.authorization.idempotencyKey}`
+    const original = this.sentRequests.get(identity)
+    if (!original || !providerBindingMatches(original, request)) throw new ProviderTransportError('PROVIDER_LOOKUP_BINDING_MISMATCH', 'Submission lookup is not bound to a prior provider request.')
     this.lookupCalls.push({ requestId: request.providerRequestId ?? request.lookupHash, requestHash: request.requestHash, adapterId: request.adapterId, profileDigest: request.profileDigest, destination: request.destination, ...(request.region === undefined ? {} : { region: request.region }), inputHash: request.inputHash, idempotencyKey: request.idempotencyKey })
     const response = this.lookups.shift() ?? errorResponse(request.requestHash, 'MOCK_LOOKUP_RESPONSE_MISSING', 'Recording lookup response was not registered.')
     const normalized = response.requestHash === request.requestHash ? response : { ...response, requestHash: request.requestHash, responseHash: '' }
@@ -405,6 +533,7 @@ export interface SeedreamAdapterConfig {
   endpoint: string
   credentialRef: string
   model: string
+  modelVersion: string
   adapter: VersionPin
   profile: VersionPin
   destination: string
@@ -412,6 +541,7 @@ export interface SeedreamAdapterConfig {
   endpointProfile?: 'domestic'|'overseas'
   transport?: ProviderTransport
   assetSink: AssetSink
+  resolver?: (artifact: ArtifactHandle) => Promise<Uint8Array|undefined>
 }
 
 export type SeedreamImageInput = string | ArtifactHandle | Uint8Array
@@ -422,7 +552,7 @@ export interface SeedreamGenerateInput {
   n?: number
   sequential_image_generation?: unknown
   background?: 'transparent'|'opaque'|'auto'
-  output_format?: 'png'|'jpeg'|'webp'
+  output_format?: 'png'|'jpeg'
   size?: string
   referenceArtifacts?: StructuralValidationArtifactInput[]
   [key: string]: unknown
@@ -432,13 +562,24 @@ export interface SeedreamGenerationResult {
   status: 'succeeded'|'failed'|'submission_unknown'
   artifacts: ArtifactHandle[]
   response: ProviderResponseEnvelope
+  lookup?: ProviderSubmissionLookup
   failureCode?: string
 }
 
-function validateAdapterConfig(config: Pick<SeedreamAdapterConfig, 'endpoint'|'credentialRef'|'model'|'adapter'|'profile'|'destination'>): void {
+function validateEndpointProfile(endpoint: string, endpointProfile: 'domestic'|'overseas'|undefined): void {
+  if (!endpointProfile) return
+  let hostname: string
+  try { hostname = new URL(endpoint).hostname.toLowerCase() } catch { throw new ProviderTransportError('ADAPTER_ENDPOINT_INVALID', 'Provider endpoint is not a valid URL.') }
+  const expected = endpointProfile === 'domestic' ? 'volces.com' : 'bytepluses.com'
+  if (!(hostname === expected || hostname.endsWith(`.${expected}`))) throw new ProviderTransportError('ADAPTER_ENDPOINT_PROFILE_MISMATCH', 'Provider endpoint host does not match the configured endpoint profile.')
+}
+
+function validateAdapterConfig(config: Pick<SeedreamAdapterConfig, 'endpoint'|'credentialRef'|'model'|'modelVersion'|'adapter'|'profile'|'destination'|'endpointProfile'>): void {
   if (!config.endpoint || !SAFE_URL_PATTERN.test(config.endpoint)) throw new ProviderTransportError('ADAPTER_ENDPOINT_MISSING', 'Provider endpoint is missing or invalid.')
+  validateEndpointProfile(config.endpoint, config.endpointProfile)
   if (!config.credentialRef) throw new ProviderTransportError('ADAPTER_CREDENTIAL_MISSING', 'Provider credential reference is missing.')
   if (!config.model) throw new ProviderTransportError('ADAPTER_MODEL_MISSING', 'Provider model is missing.')
+  if (!config.modelVersion) throw new ProviderTransportError('ADAPTER_MODEL_VERSION_MISSING', 'Provider model version is missing.')
   if (!config.adapter?.id || !isHash(config.adapter.digest)) throw new ProviderTransportError('ADAPTER_VERSION_INVALID', 'Adapter version or digest is invalid.')
   if (!config.profile?.id || !isHash(config.profile.digest)) throw new ProviderTransportError('ADAPTER_PROFILE_INVALID', 'Provider profile or digest is invalid.')
   if (!config.destination) throw new ProviderTransportError('ADAPTER_DESTINATION_MISSING', 'Provider destination is missing.')
@@ -461,16 +602,33 @@ function imageBytes(value: SeedreamImageInput, references: StructuralValidationA
 }
 
 function mediaTypeOf(value: SeedreamImageInput, references: StructuralValidationArtifactInput[]): string | undefined {
-  if (value instanceof Uint8Array) return 'image/png'
+  if (value instanceof Uint8Array) {
+    const header = parseImageHeader(value)
+    return header.format === 'png' ? 'image/png' : header.format === 'jpeg' ? 'image/jpeg' : header.format === 'webp' ? 'image/webp' : undefined
+  }
   if (typeof value === 'object' && !(value instanceof Uint8Array)) return value.mediaType
   if (typeof value === 'string') return value.match(/^data:([^;,]+)/i)?.[1]
   return references.find((item) => item.bytes === value)?.artifact.mediaType
 }
 
-function toProviderImage(value: SeedreamImageInput): string {
-  if (typeof value === 'string') return value
-  if (value instanceof Uint8Array) return `data:image/png;base64,${Buffer.from(value).toString('base64')}`
-  return value.id
+function toProviderImage(value: SeedreamImageInput, references: StructuralValidationArtifactInput[] = []): string {
+  if (typeof value === 'string') {
+    if (SAFE_URL_PATTERN.test(value)) return value
+    if (DATA_URI_DETECTION_PATTERN.test(value)) return value
+    throw new ProviderTransportError('SEEDREAM_IMAGE_REFERENCE_INVALID', 'Seedream image string must be an http(s) URL or image data URI.')
+  }
+  if (value instanceof Uint8Array) {
+    const mediaType = mediaTypeOf(value, [])
+    if (!mediaType || !['image/png', 'image/jpeg'].includes(mediaType)) throw new ProviderTransportError('SEEDREAM_IMAGE_MEDIA_TYPE_UNKNOWN', 'Seedream image bytes do not have a supported PNG or JPEG signature.')
+    return `data:${mediaType};base64,${Buffer.from(value).toString('base64')}`
+  }
+  const bytes = imageBytes(value, references)
+  if (!bytes) throw new ProviderTransportError('SEEDREAM_ARTIFACT_UNRESOLVED', 'Seedream ArtifactHandle must be resolved before request construction.')
+  assertHash(value.contentHash, 'SEEDREAM_ARTIFACT_HASH_INVALID')
+  if (binarySha256(bytes) !== value.contentHash) throw new ProviderTransportError('ARTIFACT_HASH_MISMATCH', 'Seedream reference bytes do not match the ArtifactHandle content hash.')
+  const mediaType = mediaTypeOf(bytes, [])
+  if (!mediaType || mediaType !== value.mediaType || !['image/png', 'image/jpeg'].includes(mediaType)) throw new ProviderTransportError('SEEDREAM_ARTIFACT_MEDIA_TYPE_MISMATCH', 'Seedream ArtifactHandle bytes do not have a supported matching media type.')
+  return `data:${mediaType};base64,${Buffer.from(bytes).toString('base64')}`
 }
 
 function pngHeader(bytes: Uint8Array): { width: number; height: number; alpha: boolean } | undefined {
@@ -504,8 +662,13 @@ function validateSeedreamInput(input: SeedreamGenerateInput): SeedreamImageInput
   for (const key of Object.keys(input)) if (!seedreamAllowedKeys().has(key)) throw new ProviderTransportError('SEEDREAM_FIELD_UNSUPPORTED', 'Seedream request contains an unsupported field.')
   if ('sequential_image_generation' in input) throw new ProviderTransportError('SEEDREAM_SEQUENTIAL_IMAGE_GENERATION_FORBIDDEN', 'Sequential image generation is not allowed.')
   if (input.n !== undefined && input.n !== 1) throw new ProviderTransportError('SEEDREAM_CARDINALITY_INVALID', 'Seedream requires n=1.')
+  if (input.output_format !== undefined && input.output_format !== 'png' && input.output_format !== 'jpeg') throw new ProviderTransportError('SEEDREAM_OUTPUT_FORMAT_UNSUPPORTED', 'Seedream output_format must be png or jpeg.')
   const images = imageInputs(input.image)
   if (images.length > 10) throw new ProviderTransportError('SEEDREAM_REFERENCE_LIMIT_EXCEEDED', 'Seedream accepts at most ten reference images.')
+  for (const image of images) {
+    if (typeof image === 'string' && !SAFE_URL_PATTERN.test(image) && !DATA_URI_DETECTION_PATTERN.test(image)) throw new ProviderTransportError('SEEDREAM_IMAGE_REFERENCE_INVALID', 'Seedream image string must be an http(s) URL or image data URI.')
+    if (image instanceof Uint8Array && !mediaTypeOf(image, [])) throw new ProviderTransportError('SEEDREAM_IMAGE_MEDIA_TYPE_UNKNOWN', 'Seedream image bytes do not have a recognized media signature.')
+  }
   if (input.background === 'transparent') {
     if (images.length === 0) throw new ProviderTransportError('SEEDREAM_TRANSPARENT_TEXT_TO_IMAGE_FORBIDDEN', 'Transparent output requires one Alpha PNG reference image.')
     if (images.length !== 1) throw new ProviderTransportError('SEEDREAM_TRANSPARENT_REFERENCE_CARDINALITY_INVALID', 'Transparent output accepts exactly one reference image.')
@@ -514,24 +677,41 @@ function validateSeedreamInput(input: SeedreamGenerateInput): SeedreamImageInput
     const mediaType = mediaTypeOf(images[0], input.referenceArtifacts ?? [])
     if (mediaType !== 'image/png' || !hasPngAlpha(referenceBytes)) throw new ProviderTransportError('SEEDREAM_TRANSPARENT_ALPHA_REFERENCE_REQUIRED', 'Transparent output requires a single Alpha PNG reference.')
   }
-  if (input.background !== 'transparent' && input.output_format === 'jpeg') return images
   return images
 }
 
 export function validateSeedreamConfig(config: SeedreamAdapterConfig): void { validateAdapterConfig(config) }
 
+async function resolveSeedreamInput(input: SeedreamGenerateInput, config: SeedreamAdapterConfig): Promise<SeedreamGenerateInput> {
+  const references = input.referenceArtifacts ?? []
+  const images = imageInputs(input.image)
+  const resolved = await Promise.all(images.map(async (image): Promise<SeedreamImageInput> => {
+    if (!(image && typeof image === 'object' && !(image instanceof Uint8Array) && 'contentHash' in image)) return image
+    const reference = references.find((item) => item.artifact.id === image.id)
+    const bytes = reference?.bytes ?? (config.resolver ? await config.resolver(image) : config.assetSink.resolve ? await config.assetSink.resolve(image) : undefined)
+    if (!bytes) throw new ProviderTransportError('ARTIFACT_UNAVAILABLE', 'Seedream reference artifact could not be resolved.')
+    assertHash(image.contentHash, 'SEEDREAM_ARTIFACT_HASH_INVALID')
+    if (binarySha256(bytes) !== image.contentHash) throw new ProviderTransportError('ARTIFACT_HASH_MISMATCH', 'Seedream reference bytes do not match the ArtifactHandle content hash.')
+    const actualMediaType = mediaTypeOf(bytes, [])
+    if (!actualMediaType || actualMediaType !== image.mediaType) throw new ProviderTransportError('SEEDREAM_ARTIFACT_MEDIA_TYPE_MISMATCH', 'Seedream reference bytes do not match the ArtifactHandle media type.')
+    return new Uint8Array(bytes)
+  }))
+  return { ...input, ...(input.image === undefined ? {} : { image: Array.isArray(input.image) ? resolved : resolved[0] }), referenceArtifacts: references }
+}
+
 export function buildSeedreamRequest(input: SeedreamGenerateInput, config: SeedreamAdapterConfig, authorization?: RemoteCallAuthorization): ProviderRequestEnvelope {
   validateAdapterConfig(config)
   const images = validateSeedreamInput(input)
   const payload: JsonObject = { prompt: input.prompt, n: 1 }
-  if (images.length === 1) payload.image = toProviderImage(images[0])
-  if (images.length > 1) payload.image = images.map(toProviderImage)
+  if (images.length === 1) payload.image = toProviderImage(images[0], input.referenceArtifacts ?? [])
+  if (images.length > 1) payload.image = images.map((image) => toProviderImage(image, input.referenceArtifacts ?? []))
   if (input.background !== undefined) payload.background = input.background
   if (input.output_format !== undefined) payload.output_format = input.output_format
   if (input.size !== undefined) payload.size = input.size
   const artifactHashes = sortedStrings([
     ...images.filter((value): value is ArtifactHandle => Boolean(value && typeof value === 'object' && !(value instanceof Uint8Array) && 'contentHash' in value)).map((value) => value.contentHash),
     ...(input.referenceArtifacts ?? []).filter((item) => images.some((value) => typeof value === 'object' && !(value instanceof Uint8Array) && value.id === item.artifact.id)).map((item) => item.artifact.contentHash),
+    ...(input.referenceArtifacts ?? []).map((item) => item.artifact.contentHash),
   ])
   artifactHashes.forEach((hash) => assertHash(hash, 'SEEDREAM_ARTIFACT_HASH_INVALID'))
   const inputHash = authorization?.inputHash ?? sha256(jsonReady({ adapter: config.adapter, profile: config.profile, model: config.model, input: jsonReady({ ...input, referenceArtifacts: (input.referenceArtifacts ?? []).map((item) => item.artifact) }) }))
@@ -539,9 +719,11 @@ export function buildSeedreamRequest(input: SeedreamGenerateInput, config: Seedr
     schemaVersion: PROVIDER_REQUEST_ENVELOPE_SCHEMA_VERSION,
     id: hashId('seedream-request', { inputHash, idempotencyKey: authorization?.idempotencyKey ?? 'unbound' }),
     adapterId: config.adapter.id,
+    adapterDigest: config.adapter.digest,
     profileId: config.profile.id,
     profileDigest: config.profile.digest,
-    model: config.model,
+    modelId: config.model,
+    modelVersion: config.modelVersion,
     stepId: authorization?.stepId ?? 'unbound-seedream-step',
     destination: config.destination,
     ...(config.region === undefined ? {} : { region: config.region }),
@@ -585,7 +767,10 @@ async function persistProviderItem(item: { url?: string; b64_json?: string; base
   let bytes: Uint8Array
   try { bytes = Uint8Array.from(Buffer.from(encoded, 'base64')) } catch { throw new ProviderTransportError('PROVIDER_OUTPUT_INVALID', 'Provider image payload could not be decoded.') }
   if (!bytes.length) throw new ProviderTransportError('PROVIDER_OUTPUT_INVALID', 'Provider image payload is empty.')
-  const mediaType = item.mediaType ?? (bytes[0] === 0x89 ? 'image/png' : 'image/jpeg')
+  const detected = mediaTypeOf(bytes, [])
+  if (!detected) throw new ProviderTransportError('PROVIDER_OUTPUT_INVALID', 'Provider image payload has an unsupported media signature.')
+  if (item.mediaType !== undefined && item.mediaType !== detected) throw new ProviderTransportError('PROVIDER_OUTPUT_MEDIA_TYPE_MISMATCH', 'Provider image media type does not match its bytes.')
+  const mediaType = item.mediaType ?? detected
   const artifact = await sink.put({ bytes, mediaType, role, sourceHash: binarySha256(bytes) })
   assertHash(artifact.contentHash, 'ARTIFACT_HANDLE_HASH_INVALID')
   return clone(artifact)
@@ -614,30 +799,41 @@ export class SeedreamAdapter {
   async generate(input: SeedreamGenerateInput, authorization: RemoteCallAuthorization, context: Omit<ProviderTransportContext, 'authorization'> = {}): Promise<SeedreamGenerationResult> {
     let requestHash = authorization.inputHash
     try {
-      const request = this.buildRequest(input, authorization)
+      const preparedInput = await resolveSeedreamInput(input, this.config)
+      const request = this.buildRequest(preparedInput, authorization)
       requestHash = request.requestHash
       if (!context.credential || context.credential.ref !== this.config.credentialRef || !context.credential.value) throw new ProviderTransportError('ADAPTER_CREDENTIAL_MISSING', 'Host credential injection is missing or does not match the configured reference.')
       const transportContext: ProviderTransportContext = { ...context, authorization }
       const response = await this.transport.send(request, transportContext)
       if (response.requestHash !== request.requestHash) throw new ProviderTransportError('PROVIDER_RESPONSE_REQUEST_MISMATCH', 'Provider response did not match the request.')
-      if (response.status === 'submission_unknown' || response.status === 'processing') return { status: 'submission_unknown', artifacts: [], response: clone(response), failureCode: 'REMOTE_SUBMISSION_UNKNOWN' }
-      if (response.status === 'failed') return { status: 'failed', artifacts: [], response: clone(response), failureCode: response.error?.code ?? 'PROVIDER_FAILED' }
+      if (response.status === 'submission_unknown' || response.status === 'processing') return { status: 'submission_unknown', artifacts: [], response: publicResponseReceipt(response), lookup: createProviderSubmissionLookup(request, response.providerRequestId), failureCode: 'REMOTE_SUBMISSION_UNKNOWN' }
+      if (response.status === 'failed') return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), failureCode: response.error?.code ?? 'PROVIDER_FAILED' }
       const artifacts: ArtifactHandle[] = []
       for (const item of responseItems(response.body)) artifacts.push(await persistProviderItem(item, this.config.assetSink, 'generated-image'))
-      if (artifacts.length !== 1) return { status: 'failed', artifacts: [], response: clone(response), failureCode: 'PROVIDER_OUTPUT_CARDINALITY_INVALID' }
-      return { status: 'succeeded', artifacts, response: clone(response) }
+      if (artifacts.length !== 1) return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), failureCode: 'PROVIDER_OUTPUT_CARDINALITY_INVALID' }
+      return { status: 'succeeded', artifacts, response: publicResponseReceipt(response) }
     } catch (error) {
-      if (error instanceof ProviderTransportError) return { status: 'failed', artifacts: [], response: errorResponse(requestHash, error.code, error.message), failureCode: error.code }
-      return { status: 'failed', artifacts: [], response: errorResponse(requestHash, 'PROVIDER_FAILED', 'Provider adapter failed safely.'), failureCode: 'PROVIDER_FAILED' }
+      if (error instanceof ProviderTransportError) return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(requestHash, error.code, error.message)), failureCode: error.code }
+      return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(requestHash, 'PROVIDER_FAILED', 'Provider adapter failed safely.')), failureCode: 'PROVIDER_FAILED' }
     }
   }
 
-  async lookup(lookup: ProviderSubmissionLookup, authorization: RemoteCallAuthorization, context: Omit<ProviderTransportContext, 'authorization'> = {}): Promise<ProviderResponseEnvelope> {
-    if (lookup.adapterId !== this.id || lookup.profileDigest !== this.profileDigest) throw new ProviderTransportError('PROVIDER_LOOKUP_SCOPE_MISMATCH', 'Submission lookup identity does not match the adapter.')
+  async lookup(lookup: ProviderSubmissionLookup, authorization: RemoteCallAuthorization, context: Omit<ProviderTransportContext, 'authorization'> = {}): Promise<SeedreamGenerationResult> {
+    if (lookup.adapterId !== this.id || lookup.adapterDigest !== this.digest || lookup.profileId !== this.config.profile.id || lookup.profileDigest !== this.profileDigest || lookup.purpose !== 'generation' || lookup.modelId !== this.config.model || lookup.modelVersion !== this.config.modelVersion) throw new ProviderTransportError('PROVIDER_LOOKUP_SCOPE_MISMATCH', 'Submission lookup identity does not match the adapter.')
     if (!context.credential || context.credential.ref !== this.config.credentialRef || !context.credential.value) throw new ProviderTransportError('ADAPTER_CREDENTIAL_MISSING', 'Host credential injection is missing or does not match the configured reference.')
-    const response = await this.transport.lookup(lookup, { ...context, authorization })
-    if (response.requestHash !== lookup.requestHash) throw new ProviderTransportError('PROVIDER_LOOKUP_REQUEST_MISMATCH', 'Submission lookup response did not match the original request.')
-    return clone(response)
+    try {
+      const response = await this.transport.lookup(lookup, { ...context, authorization })
+      if (response.requestHash !== lookup.requestHash) throw new ProviderTransportError('PROVIDER_LOOKUP_REQUEST_MISMATCH', 'Submission lookup response did not match the original request.')
+      if (response.status === 'submission_unknown' || response.status === 'processing') return { status: 'submission_unknown', artifacts: [], response: publicResponseReceipt(response), lookup: clone(lookup), failureCode: 'REMOTE_SUBMISSION_UNKNOWN' }
+      if (response.status === 'failed') return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), lookup: clone(lookup), failureCode: response.error?.code ?? 'PROVIDER_FAILED' }
+      const artifacts = []
+      for (const item of responseItems(response.body)) artifacts.push(await persistProviderItem(item, this.config.assetSink, 'generated-image'))
+      if (artifacts.length !== 1) return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), lookup: clone(lookup), failureCode: 'PROVIDER_OUTPUT_CARDINALITY_INVALID' }
+      return { status: 'succeeded', artifacts, response: publicResponseReceipt(response), lookup: clone(lookup) }
+    } catch (error) {
+      if (error instanceof ProviderTransportError) return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(lookup.requestHash, error.code, error.message)), lookup: clone(lookup), failureCode: error.code }
+      return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(lookup.requestHash, 'PROVIDER_FAILED', 'Provider lookup failed safely.')), lookup: clone(lookup), failureCode: 'PROVIDER_FAILED' }
+    }
   }
 }
 
@@ -664,6 +860,7 @@ export interface VeImageXResult {
   status: 'succeeded'|'failed'|'submission_unknown'
   artifacts: ArtifactHandle[]
   response: ProviderResponseEnvelope
+  lookup?: ProviderSubmissionLookup
   failureCode?: string
 }
 
@@ -683,6 +880,7 @@ function buildVeRequest(input: BackgroundRemovalInput, config: VeImageXAdapterCo
     schemaVersion: PROVIDER_REQUEST_ENVELOPE_SCHEMA_VERSION,
     id: hashId('veimagex-request', { inputHash, idempotencyKey: authorization?.idempotencyKey ?? 'unbound' }),
     adapterId: config.adapter.id,
+    adapterDigest: config.adapter.digest,
     profileId: config.profile.id,
     profileDigest: config.profile.digest,
     stepId: authorization?.stepId ?? 'unbound-background-removal-step',
@@ -705,6 +903,19 @@ function buildVeRequest(input: BackgroundRemovalInput, config: VeImageXAdapterCo
 
 function isPngWithAlpha(bytes: Uint8Array): boolean {
   return hasPngAlpha(bytes)
+}
+
+async function resolveStoredArtifact(config: VeImageXAdapterConfig, artifact: ArtifactHandle): Promise<Uint8Array|undefined> {
+  return config.resolver ? config.resolver(artifact) : config.assetSink.resolve ? config.assetSink.resolve(artifact) : undefined
+}
+
+async function validateVeOutputArtifact(config: VeImageXAdapterConfig, artifact: ArtifactHandle): Promise<string|undefined> {
+  if (artifact.mediaType !== 'image/png') return 'POSTPROCESSING_ALPHA_PNG_REQUIRED'
+  const bytes = await resolveStoredArtifact(config, artifact)
+  if (!bytes) return 'ARTIFACT_PERSISTENCE_FAILURE'
+  if (binarySha256(bytes) !== artifact.contentHash) return 'ARTIFACT_HASH_MISMATCH'
+  if (!isPngWithAlpha(bytes)) return 'POSTPROCESSING_ALPHA_PNG_REQUIRED'
+  return undefined
 }
 
 export class VeImageXBackgroundRemovalAdapter {
@@ -736,24 +947,38 @@ export class VeImageXBackgroundRemovalAdapter {
       if (binarySha256(bytes) !== input.artifact.contentHash) return { status: 'failed', artifacts: [], response: errorResponse(request.requestHash, 'ARTIFACT_HASH_MISMATCH', 'Input artifact hash does not match supplied bytes.'), failureCode: 'ARTIFACT_HASH_MISMATCH' }
       const response = await this.transport.send(request, { ...context, authorization })
       if (response.requestHash !== request.requestHash) throw new ProviderTransportError('PROVIDER_RESPONSE_REQUEST_MISMATCH', 'Provider response did not match the request.')
-      if (response.status === 'submission_unknown' || response.status === 'processing') return { status: 'submission_unknown', artifacts: [], response: clone(response), failureCode: 'REMOTE_SUBMISSION_UNKNOWN' }
-      if (response.status === 'failed') return { status: 'failed', artifacts: [], response: clone(response), failureCode: response.error?.code ?? 'POSTPROCESSING_FAILED' }
+      if (response.status === 'submission_unknown' || response.status === 'processing') return { status: 'submission_unknown', artifacts: [], response: publicResponseReceipt(response), lookup: createProviderSubmissionLookup(request, response.providerRequestId), failureCode: 'REMOTE_SUBMISSION_UNKNOWN' }
+      if (response.status === 'failed') return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), failureCode: response.error?.code ?? 'POSTPROCESSING_FAILED' }
       const items = responseItems(response.body)
-      if (items.length !== 1) return { status: 'failed', artifacts: [], response: clone(response), failureCode: 'POSTPROCESSING_OUTPUT_CARDINALITY_INVALID' }
+      if (items.length !== 1) return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), failureCode: 'POSTPROCESSING_OUTPUT_CARDINALITY_INVALID' }
       const artifact = await persistProviderItem(items[0], this.config.assetSink, 'background-removed-image')
-      const outputBytes = this.config.assetSink.resolve ? await this.config.assetSink.resolve(artifact) : undefined
-      if (artifact.mediaType !== 'image/png' || !outputBytes || !isPngWithAlpha(outputBytes)) return { status: 'failed', artifacts: [], response: errorResponse(request.requestHash, 'POSTPROCESSING_ALPHA_PNG_REQUIRED', 'Background removal output must be a PNG with Alpha.'), failureCode: 'POSTPROCESSING_ALPHA_PNG_REQUIRED' }
-      return { status: 'succeeded', artifacts: [artifact], response: clone(response) }
+      const outputFailure = await validateVeOutputArtifact(this.config, artifact)
+      if (outputFailure) return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(request.requestHash, outputFailure, 'Background removal output was not persisted as a valid Alpha PNG.')), failureCode: outputFailure }
+      return { status: 'succeeded', artifacts: [artifact], response: publicResponseReceipt(response) }
     } catch (error) {
-      if (error instanceof ProviderTransportError) return { status: 'failed', artifacts: [], response: errorResponse(requestHash, error.code, error.message), failureCode: error.code }
-      return { status: 'failed', artifacts: [], response: errorResponse(requestHash, 'POSTPROCESSING_FAILED', 'Postprocessing failed safely.'), failureCode: 'POSTPROCESSING_FAILED' }
+      if (error instanceof ProviderTransportError) return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(requestHash, error.code, error.message)), failureCode: error.code }
+      return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(requestHash, 'POSTPROCESSING_FAILED', 'Postprocessing failed safely.')), failureCode: 'POSTPROCESSING_FAILED' }
     }
   }
 
-  async lookup(lookup: ProviderSubmissionLookup, authorization: RemoteCallAuthorization, context: Omit<ProviderTransportContext, 'authorization'> = {}): Promise<ProviderResponseEnvelope> {
-    if (lookup.adapterId !== this.id || lookup.profileDigest !== this.profileDigest) throw new ProviderTransportError('PROVIDER_LOOKUP_SCOPE_MISMATCH', 'Submission lookup identity does not match the postprocessor.')
+  async lookup(lookup: ProviderSubmissionLookup, authorization: RemoteCallAuthorization, context: Omit<ProviderTransportContext, 'authorization'> = {}): Promise<VeImageXResult> {
+    if (lookup.adapterId !== this.id || lookup.adapterDigest !== this.digest || lookup.profileId !== this.config.profile.id || lookup.profileDigest !== this.profileDigest || lookup.purpose !== 'postprocessing' || lookup.modelId !== undefined || lookup.modelVersion !== undefined) throw new ProviderTransportError('PROVIDER_LOOKUP_SCOPE_MISMATCH', 'Submission lookup identity does not match the postprocessor.')
     if (!context.credential || context.credential.ref !== this.config.credentialRef || !context.credential.value) throw new ProviderTransportError('ADAPTER_CREDENTIAL_MISSING', 'Host credential injection is missing or does not match the configured reference.')
-    return clone(await this.transport.lookup(lookup, { ...context, authorization }))
+    try {
+      const response = await this.transport.lookup(lookup, { ...context, authorization })
+      if (response.requestHash !== lookup.requestHash) throw new ProviderTransportError('PROVIDER_LOOKUP_REQUEST_MISMATCH', 'Submission lookup response did not match the original request.')
+      if (response.status === 'submission_unknown' || response.status === 'processing') return { status: 'submission_unknown', artifacts: [], response: publicResponseReceipt(response), lookup: clone(lookup), failureCode: 'REMOTE_SUBMISSION_UNKNOWN' }
+      if (response.status === 'failed') return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), lookup: clone(lookup), failureCode: response.error?.code ?? 'POSTPROCESSING_FAILED' }
+      const items = responseItems(response.body)
+      if (items.length !== 1) return { status: 'failed', artifacts: [], response: publicResponseReceipt(response), lookup: clone(lookup), failureCode: 'POSTPROCESSING_OUTPUT_CARDINALITY_INVALID' }
+      const artifact = await persistProviderItem(items[0], this.config.assetSink, 'background-removed-image')
+      const outputFailure = await validateVeOutputArtifact(this.config, artifact)
+      if (outputFailure) return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(lookup.requestHash, outputFailure, 'Background removal lookup output was not persisted as a valid Alpha PNG.')), lookup: clone(lookup), failureCode: outputFailure }
+      return { status: 'succeeded', artifacts: [artifact], response: publicResponseReceipt(response), lookup: clone(lookup) }
+    } catch (error) {
+      if (error instanceof ProviderTransportError) return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(lookup.requestHash, error.code, error.message)), lookup: clone(lookup), failureCode: error.code }
+      return { status: 'failed', artifacts: [], response: publicResponseReceipt(errorResponse(lookup.requestHash, 'POSTPROCESSING_FAILED', 'Postprocessor lookup failed safely.')), lookup: clone(lookup), failureCode: 'POSTPROCESSING_FAILED' }
+    }
   }
 }
 
@@ -847,10 +1072,12 @@ export function validateStructuralImage(input: StructuralValidationInput): Struc
     const header = parseImageHeader(item.bytes)
     const actualMediaType = header.format === 'png' ? 'image/png' : header.format === 'jpeg' ? 'image/jpeg' : header.format === 'webp' ? 'image/webp' : 'unknown'
     if (header.format === 'unknown') findings.push(finding(inputHash, 'MEDIA_SIGNATURE_INVALID', 'fail', 'critical', artifact.id, expectedMediaTypes(input.outputContract), 'unknown', 'Image magic signature is not a supported PNG, JPEG, or WebP header.'))
-    if (expectedMediaTypes(input.outputContract).length && !expectedMediaTypes(input.outputContract).includes(artifact.mediaType) && !expectedMediaTypes(input.outputContract).includes(actualMediaType)) findings.push(finding(inputHash, 'MEDIA_TYPE_NOT_ALLOWED', 'fail', 'error', artifact.id, expectedMediaTypes(input.outputContract), artifact.mediaType, 'Artifact media type is outside the output contract.'))
+    if (header.format !== 'unknown' && artifact.mediaType !== actualMediaType) findings.push(finding(inputHash, 'DECLARED_MEDIA_TYPE_SIGNATURE_MISMATCH', 'fail', 'critical', artifact.id, artifact.mediaType, actualMediaType, 'Declared artifact media type does not match the detected magic signature.'))
+    if (expectedMediaTypes(input.outputContract).length && !expectedMediaTypes(input.outputContract).includes(actualMediaType)) findings.push(finding(inputHash, 'MEDIA_TYPE_NOT_ALLOWED', 'fail', 'error', artifact.id, expectedMediaTypes(input.outputContract), actualMediaType, 'Detected image media type is outside the output contract allowlist.'))
     if (header.width === undefined || header.height === undefined || header.width <= 0 || header.height <= 0) findings.push(finding(inputHash, 'DIMENSIONS_UNKNOWN', 'unknown', 'warning', artifact.id, 'positive width and height', { width: header.width ?? null, height: header.height ?? null }, 'Image dimensions could not be reliably decoded from the basic header.'))
     if (input.outputContract.dimensions && header.width !== undefined && header.height !== undefined && (header.width !== input.outputContract.dimensions.width || header.height !== input.outputContract.dimensions.height)) findings.push(finding(inputHash, 'DIMENSIONS_MISMATCH', 'fail', 'error', artifact.id, input.outputContract.dimensions as unknown as JsonValue, { width: header.width, height: header.height }, 'Image dimensions do not match the output contract.'))
     if (input.outputContract.background === 'transparent' && !header.alpha) findings.push(finding(inputHash, 'ALPHA_REQUIRED', 'fail', 'critical', artifact.id, true, header.alpha ?? false, 'Transparent output requires an Alpha channel.'))
+    if (input.outputContract.background === 'transparent' && header.alpha) findings.push(finding(inputHash, 'BACKGROUND_VISUAL_TRANSPARENCY_UNKNOWN', 'unknown', 'warning', artifact.id, 'at least one transparent pixel', 'Alpha channel present; pixel transparency not decoded', 'A basic image header proves only that an Alpha channel exists; visual transparency requires review.'))
     if (input.outputContract.allowAlpha === false && header.alpha) findings.push(finding(inputHash, 'ALPHA_FORBIDDEN', 'fail', 'error', artifact.id, false, true, 'The output contract forbids Alpha.'))
     if (input.outputContract.background === 'transparent' && header.format !== 'png') findings.push(finding(inputHash, 'TRANSPARENT_FORMAT_INVALID', 'fail', 'critical', artifact.id, 'image/png', actualMediaType, 'Transparent output must be PNG.'))
     if (input.outputContract.background === 'any' && header.alpha === undefined) findings.push(finding(inputHash, 'BACKGROUND_VISUAL_TRANSPARENCY_UNKNOWN', 'unknown', 'warning', artifact.id, 'known', 'unknown', 'Structural bytes cannot determine whether the visual background is semantically transparent.'))
@@ -887,6 +1114,7 @@ function semanticRequestProjection(request: SemanticReviewRequest): JsonObject {
     authorizationId: request.authorizationId,
     destination: request.destination,
     ...(request.region === undefined ? {} : { region: request.region }),
+    ...(request.allowedEvidenceRegionIds === undefined ? {} : { allowedEvidenceRegionIds: sortedStrings(request.allowedEvidenceRegionIds) }),
     dataCategories: sortedStrings(request.dataCategories),
     budget: request.budget,
   }) as JsonObject
@@ -901,6 +1129,19 @@ function assertSemanticRequest(request: SemanticReviewRequest, authorization: Re
   if (authorization.id !== request.authorizationId || authorization.purpose !== 'semantic_review' || authorization.inputHash !== request.inputHash || authorization.modelId !== request.model.id || authorization.modelVersion !== request.model.version || authorization.adapterId !== request.adapter.id || authorization.adapterDigest !== request.adapter.digest || authorization.profileDigest !== request.profile.digest || authorization.destination !== request.destination || authorization.region !== request.region || authorization.maximumCalls !== request.budget.maximumCalls || authorization.maximumRetries !== request.budget.maximumRetries || authorization.timeoutMs !== request.budget.timeoutMs || authorization.maximumBytes !== request.budget.maximumBytes || authorization.maximumCost !== request.budget.maximumCost || canonicalize(jsonReady(sortedStrings(authorization.permittedArtifactHashes))) !== canonicalize(jsonReady(sortedStrings(request.outputArtifacts.map((item) => item.contentHash)))) || canonicalize(jsonReady(sortedStrings(authorization.dataCategories))) !== canonicalize(jsonReady(sortedStrings(request.dataCategories)))) throw new ProviderTransportError('SEMANTIC_REVIEW_AUTHORIZATION_SCOPE_MISMATCH', 'Semantic review authorization does not match the request.')
   assertHash(authorization.authorizationHash, 'REMOTE_CALL_AUTHORIZATION_INVALID')
   if (computeRemoteCallAuthorizationHash(authorization) !== authorization.authorizationHash) throw new ProviderTransportError('REMOTE_CALL_AUTHORIZATION_INVALID', 'Semantic review authorization hash is invalid.')
+}
+
+function assertSemanticReviewReport(request: SemanticReviewRequest, report: SemanticReviewReport): void {
+  if (!report || typeof report !== 'object' || report.schemaVersion !== SEMANTIC_REVIEW_REPORT_SCHEMA_VERSION || !Array.isArray(report.findings) || !report.model || !report.adapter || !report.profile || report.requestHash !== request.requestHash || computeSemanticReviewReportHash(report) !== report.reportHash) throw new ProviderTransportError('SEMANTIC_REVIEW_REPORT_INVALID', 'Semantic reviewer returned a report with an invalid request or report hash.')
+  if (report.model.id !== request.model.id || report.model.version !== request.model.version || report.model.digest !== request.model.digest || report.adapter.id !== request.adapter.id || report.adapter.version !== request.adapter.version || report.adapter.digest !== request.adapter.digest || report.profile.id !== request.profile.id || report.profile.version !== request.profile.version || report.profile.digest !== request.profile.digest) throw new ProviderTransportError('SEMANTIC_REVIEW_REPORT_BINDING_MISMATCH', 'Semantic reviewer report version binding does not match the request.')
+  const criteria = new Set(request.criteria.map((criterion) => criterion.id))
+  const artifacts = new Set(request.outputArtifacts.map((artifact) => artifact.id))
+  const regions = new Set(request.allowedEvidenceRegionIds ?? [])
+  for (const finding of report.findings) {
+    if (finding.schemaVersion !== SEMANTIC_REVIEW_FINDING_SCHEMA_VERSION || !finding.proposal || !criteria.has(finding.criterionId) || computeSemanticReviewFindingHash(finding) !== finding.findingHash) throw new ProviderTransportError('SEMANTIC_REVIEW_FINDING_INVALID', 'Semantic reviewer returned an invalid finding proposal.')
+    if (finding.confidence !== undefined && (!Number.isFinite(finding.confidence) || finding.confidence < 0 || finding.confidence > 1)) throw new ProviderTransportError('SEMANTIC_REVIEW_CONFIDENCE_INVALID', 'Semantic reviewer confidence is outside the closed interval [0,1].')
+    if (finding.evidenceArtifactIds.some((id) => !artifacts.has(id)) || finding.evidenceRegionIds.some((id) => !regions.has(id))) throw new ProviderTransportError('SEMANTIC_REVIEW_EVIDENCE_UNKNOWN', 'Semantic reviewer evidence references an unknown artifact or region.')
+  }
 }
 
 export interface FixtureSemanticReviewerOptions {
@@ -938,10 +1179,12 @@ export interface SemanticReviewExecution {
 export async function executeSemanticReview(reviewer: SemanticReviewer, request: SemanticReviewRequest, authorization: RemoteCallAuthorization): Promise<SemanticReviewExecution> {
   assertSemanticRequest(request, authorization)
   const report = await reviewer.review(request, authorization)
+  assertSemanticReviewReport(request, report)
   const receiptId = report.receiptIds[0] ?? hashId('semantic-receipt', request.requestHash)
-  const receiptBase: Omit<StepReceipt, 'receiptHash'> = { schemaVersion: 'voce.step-receipt/v1alpha1', id: receiptId, runId: hashId('semantic-run', request.requestHash), stepId: request.id, state: 'succeeded', eventIds: [hashId('semantic-event', request.requestHash)], firstSequence: 1, lastSequence: 1, authorizationId: authorization.id, inputHash: request.inputHash, outputHashes: [report.reportHash], adapterId: request.adapter.id, adapterVersion: clone(request.adapter), profileDigest: request.profile.digest, destination: request.destination, dataCategories: sortedStrings(request.dataCategories), budgetId: request.budget.id, maximumCalls: request.budget.maximumCalls, maximumRetries: request.budget.maximumRetries, timeoutMs: request.budget.timeoutMs, attempts: 1, retriesUsed: 0, cleanupStatus: 'not_required' }
+  const state: StepReceipt['state'] = report.status === 'proposal' ? 'succeeded' : report.status
+  const receiptBase: Omit<StepReceipt, 'receiptHash'> = { schemaVersion: 'voce.step-receipt/v1alpha1', id: receiptId, runId: hashId('semantic-run', request.requestHash), stepId: request.id, state, eventIds: [hashId('semantic-event', { requestHash: request.requestHash, status: report.status })], firstSequence: 1, lastSequence: 1, authorizationId: authorization.id, inputHash: request.inputHash, outputHashes: [report.reportHash], adapterId: request.adapter.id, adapterVersion: clone(request.adapter), profileDigest: request.profile.digest, destination: request.destination, dataCategories: sortedStrings(request.dataCategories), budgetId: request.budget.id, maximumCalls: request.budget.maximumCalls, maximumRetries: request.budget.maximumRetries, timeoutMs: request.budget.timeoutMs, attempts: 1, retriesUsed: 0, ...(report.status === 'proposal' ? {} : { failureCode: report.status === 'submission_unknown' ? 'SEMANTIC_REVIEW_SUBMISSION_UNKNOWN' : 'SEMANTIC_REVIEW_FAILED' }), cleanupStatus: 'not_required' }
   const receipt = clone({ ...receiptBase, receiptHash: sha256(receiptBase as unknown as JsonObject) })
-  const remoteBase: Omit<RemoteCallRun, 'runHash'> = { schemaVersion: 'voce.remote-call-run/v1alpha1', id: hashId('semantic-remote-run', request.requestHash), runId: receipt.runId, stepId: request.id, authorizationId: authorization.id, inputHash: request.inputHash, state: 'succeeded', provider: reviewer.id, adapterId: request.adapter.id, profileDigest: request.profile.digest, destination: request.destination, budgetId: request.budget.id, maximumCalls: request.budget.maximumCalls, maximumRetries: request.budget.maximumRetries, timeoutMs: request.budget.timeoutMs, receiptId }
+  const remoteBase: Omit<RemoteCallRun, 'runHash'> = { schemaVersion: 'voce.remote-call-run/v1alpha1', id: hashId('semantic-remote-run', request.requestHash), runId: receipt.runId, stepId: request.id, authorizationId: authorization.id, inputHash: request.inputHash, state: state, provider: reviewer.id, adapterId: request.adapter.id, profileDigest: request.profile.digest, destination: request.destination, budgetId: request.budget.id, maximumCalls: request.budget.maximumCalls, maximumRetries: request.budget.maximumRetries, timeoutMs: request.budget.timeoutMs, receiptId }
   return { report, remoteCallRun: clone({ ...remoteBase, runHash: sha256(remoteBase as unknown as JsonObject) }), receipt }
 }
 
@@ -1000,12 +1243,16 @@ export function compileEvaluationReport(input: EvaluationCompilerInput): Evaluat
 export const compileEvaluation = compileEvaluationReport
 
 const VOLATILE_FIELDS = new Set(['at', 'createdAt', 'updatedAt', 'decidedAt', 'authorizedAt', 'expiresAt', 'runId', 'parentRunId', 'liveRerunOf', 'eventIds', 'eventCount'])
+const UNORDERED_COMPARISON_ARRAY_KEYS = new Set(['inputArtifactHashes', 'dataCategories', 'permittedArtifactHashes', 'permittedScopeIds', 'constraintIds', 'artifactIds', 'outputArtifactIds', 'receiptIds', 'warnings', 'destinations', 'eventIds', 'findings', 'annotations', 'receipts', 'cleanup', 'reconciliation'])
 
-function stableComparisonValue(value: unknown): JsonValue {
-  if (Array.isArray(value)) return value.map((item) => stableComparisonValue(item)).sort((left, right) => compareCodeUnits(canonicalize(left), canonicalize(right)))
+function stableComparisonValue(value: unknown, key?: string): JsonValue {
+  if (Array.isArray(value)) {
+    const normalized = value.map((item) => stableComparisonValue(item, key))
+    return UNORDERED_COMPARISON_ARRAY_KEYS.has(key ?? '') ? normalized.sort((left, right) => compareCodeUnits(canonicalize(left), canonicalize(right))) : normalized
+  }
   if (value && typeof value === 'object') {
     const object: JsonObject = {}
-    for (const [key, item] of Object.entries(value as Record<string, unknown>)) if (!VOLATILE_FIELDS.has(key)) object[key] = stableComparisonValue(item)
+    for (const [childKey, item] of Object.entries(value as Record<string, unknown>)) if (!VOLATILE_FIELDS.has(childKey)) object[childKey] = stableComparisonValue(item, childKey)
     return object
   }
   return safeJson(value)
@@ -1052,7 +1299,20 @@ export function compareSnapshots(input: { caseId: string; beforeRevision: number
 
 export const compare = compareSnapshots
 
+export function computeComparisonReportHash(report: ComparisonReport): string { return sha256(without(report, 'reportHash')) }
+
 export function computeStaticTraceReportModelHash(model: StaticTraceReportModel): string { return sha256(without(model, 'modelHash')) }
+
+function assertTraceNestedHashes(input: { structural?: StructuralValidationReport; semanticProposal?: SemanticReviewReport; humanAcceptance?: HumanAcceptanceDecision; comparison?: ComparisonReport; artifacts?: ArtifactHandle[] }): void {
+  if (input.structural && computeStructuralValidationReportHash(input.structural) !== input.structural.reportHash) throw new ProviderTransportError('TRACE_STRUCTURAL_HASH_MISMATCH', 'Trace structural report hash is invalid.')
+  if (input.semanticProposal && computeSemanticReviewReportHash(input.semanticProposal) !== input.semanticProposal.reportHash) throw new ProviderTransportError('TRACE_SEMANTIC_HASH_MISMATCH', 'Trace semantic report hash is invalid.')
+  if (input.humanAcceptance && computeHumanAcceptanceDecisionHash(input.humanAcceptance) !== input.humanAcceptance.decisionHash) throw new ProviderTransportError('TRACE_HUMAN_HASH_MISMATCH', 'Trace human acceptance hash is invalid.')
+  if (input.comparison && computeComparisonReportHash(input.comparison) !== input.comparison.reportHash) throw new ProviderTransportError('TRACE_COMPARISON_HASH_MISMATCH', 'Trace comparison report hash is invalid.')
+  for (const artifact of input.artifacts ?? []) if (!isHash(artifact.contentHash)) throw new ProviderTransportError('ARTIFACT_HANDLE_HASH_INVALID', 'Trace artifact content hash is invalid.')
+  for (const [name, value] of [['structural', input.structural], ['semantic', input.semanticProposal], ['human', input.humanAcceptance], ['comparison', input.comparison]] as const) {
+    if (value !== undefined && canonicalize(jsonReady(value)) !== canonicalize(jsonReady(safeJson(value)))) throw new ProviderTransportError('TRACE_NESTED_SECRET_UNSAFE', `Trace ${name} contains a secret or unsafe reference.`)
+  }
+}
 
 function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;')
@@ -1062,6 +1322,7 @@ function display(value: unknown): string { return escapeHtml(safeMessage(typeof 
 function traceStepRows(steps: StaticTraceStep[]): string { return sortedBy(steps, (item) => item.id).map((step) => `<tr><td>${display(step.id)}</td><td>${display(step.type)}</td><td>${display(step.state)}</td><td>${display(step.at ?? '')}</td><td>${display(step.adapterId ?? '')}</td><td>${display(step.destination ?? '')}</td><td>${display(step.receiptId ?? '')}</td><td>${display(step.failureCode ?? '')}</td></tr>`).join('') }
 
 export function renderStaticTraceReport(model: StaticTraceReportModel): ReportArtifact {
+  assertTraceNestedHashes(model)
   if (model.schemaVersion !== STATIC_TRACE_REPORT_MODEL_SCHEMA_VERSION || !isHash(model.modelHash) || computeStaticTraceReportModelHash(model) !== model.modelHash) throw new ProviderTransportError('STATIC_TRACE_MODEL_HASH_MISMATCH', 'Static trace report model hash is invalid.')
   for (const hash of [model.contextHash, model.constraintHash, model.referencePlanHash, model.pipelinePlanHash, model.promptHash].filter((value): value is string => value !== undefined)) if (!isHash(hash)) throw new ProviderTransportError('STATIC_TRACE_HASH_INVALID', 'Static trace report contains an invalid bound hash.')
   for (const artifact of model.artifacts) if (!isHash(artifact.contentHash)) throw new ProviderTransportError('ARTIFACT_HANDLE_HASH_INVALID', 'Static trace report contains an invalid artifact hash.')
@@ -1080,8 +1341,18 @@ export async function writeStaticTraceReport(model: StaticTraceReportModel, outp
 }
 
 export function traceModelFromExecution(input: { run: ExecutionRun; receipts: StepReceipt[]; cleanup: CleanupReceipt[]; reconciliation: RemoteCallRun[]; steps?: StaticTraceStep[]; artifacts?: ArtifactHandle[]; structural?: StructuralValidationReport; semanticProposal?: SemanticReviewReport; humanAcceptance?: HumanAcceptanceDecision; budgets?: Budget[]; destinations?: string[]; comparison?: ComparisonReport; warnings?: string[]; constraintHash?: string; referencePlanHash?: string; promptHash?: string }): StaticTraceReportModel {
+  for (const hash of [input.run.contextHash, input.run.pipelinePlanHash, input.constraintHash, input.referencePlanHash, input.promptHash].filter((value): value is string => value !== undefined)) if (!isHash(hash)) throw new ProviderTransportError('TRACE_HASH_INVALID', 'Trace execution contains an invalid bound hash.')
+  assertTraceNestedHashes(input)
   const steps = input.steps ?? input.receipts.map((receipt) => ({ id: receipt.stepId, type: receipt.stepId, state: receipt.state, adapterId: receipt.adapterId, adapterVersion: receipt.adapterVersion, profileDigest: receipt.profileDigest, destination: receipt.destination, budgetId: receipt.budgetId, inputHash: receipt.inputHash, outputHashes: receipt.outputHashes, receiptId: receipt.id, ...(receipt.failureCode === undefined ? {} : { failureCode: receipt.failureCode }) }))
-  const base: Omit<StaticTraceReportModel, 'modelHash'> = { schemaVersion: STATIC_TRACE_REPORT_MODEL_SCHEMA_VERSION, caseId: input.run.caseId, revision: input.run.caseRevision, contextHash: input.run.contextHash, ...(input.constraintHash === undefined ? {} : { constraintHash: input.constraintHash }), ...(input.referencePlanHash === undefined ? {} : { referencePlanHash: input.referencePlanHash }), ...(input.run.pipelinePlanHash === undefined ? {} : { pipelinePlanHash: input.run.pipelinePlanHash }), ...(input.promptHash === undefined ? {} : { promptHash: input.promptHash }), steps: sortedBy(steps, (item) => item.id), budgets: sortedBy(input.budgets ?? [], (item) => item.id), destinations: sortedStrings(input.destinations), receipts: sortedBy(input.receipts, (item) => item.id), cleanup: sortedBy(input.cleanup, (item) => item.id), reconciliation: sortedBy(input.reconciliation, (item) => item.id), ...(input.structural === undefined ? {} : { structural: input.structural }), ...(input.semanticProposal === undefined ? {} : { semanticProposal: input.semanticProposal }), ...(input.humanAcceptance === undefined ? {} : { humanAcceptance: input.humanAcceptance }), artifacts: sortedBy(input.artifacts ?? [], (item) => item.id), ...(input.comparison === undefined ? {} : { comparison: input.comparison }), warnings: sortedStrings(input.warnings) }
+  const safeSteps = safeJson(steps) as unknown as StaticTraceStep[]
+  const safeReceipts = safeJson(input.receipts) as unknown as StepReceipt[]
+  const safeCleanup = safeJson(input.cleanup) as unknown as CleanupReceipt[]
+  const safeReconciliation = safeJson(input.reconciliation) as unknown as RemoteCallRun[]
+  const safeBudgets = safeJson(input.budgets ?? []) as unknown as Budget[]
+  const safeDestinations = safeJson(input.destinations ?? []) as unknown as string[]
+  const safeWarnings = safeJson(input.warnings ?? []) as unknown as string[]
+  const safeArtifacts = safeJson(input.artifacts ?? []) as unknown as ArtifactHandle[]
+  const base: Omit<StaticTraceReportModel, 'modelHash'> = { schemaVersion: STATIC_TRACE_REPORT_MODEL_SCHEMA_VERSION, caseId: safeJson(input.run.caseId) as string, revision: input.run.caseRevision, contextHash: input.run.contextHash, ...(input.constraintHash === undefined ? {} : { constraintHash: input.constraintHash }), ...(input.referencePlanHash === undefined ? {} : { referencePlanHash: input.referencePlanHash }), ...(input.run.pipelinePlanHash === undefined ? {} : { pipelinePlanHash: input.run.pipelinePlanHash }), ...(input.promptHash === undefined ? {} : { promptHash: input.promptHash }), steps: sortedBy(safeSteps, (item) => item.id), budgets: sortedBy(safeBudgets, (item) => item.id), destinations: sortedStrings(safeDestinations), receipts: sortedBy(safeReceipts, (item) => item.id), cleanup: sortedBy(safeCleanup, (item) => item.id), reconciliation: sortedBy(safeReconciliation, (item) => item.id), ...(input.structural === undefined ? {} : { structural: input.structural }), ...(input.semanticProposal === undefined ? {} : { semanticProposal: input.semanticProposal }), ...(input.humanAcceptance === undefined ? {} : { humanAcceptance: input.humanAcceptance }), artifacts: sortedBy(safeArtifacts, (item) => item.id), ...(input.comparison === undefined ? {} : { comparison: input.comparison }), warnings: sortedStrings(safeWarnings) }
   return clone({ ...base, modelHash: sha256(base as unknown as JsonObject) })
 }
 

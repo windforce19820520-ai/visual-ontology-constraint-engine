@@ -10,6 +10,7 @@ import type {
 } from '@voce/contracts'
 import {
   computeArtifactBytesHash,
+  computeProviderResponseEnvelopeHash,
   createRemoteCallAuthorization,
   sha256,
 } from '@voce/core'
@@ -126,5 +127,5 @@ export function fixtureStructuralArtifactInput(id = 'm6-alpha', bytes = FIXTURE_
 
 export function fixtureProviderResponse(requestHash: string, body: JsonObject, status: ProviderResponseEnvelope['status'] = 'succeeded'): ProviderResponseEnvelope {
   const base = { schemaVersion: 'voce.provider-response-envelope/v1alpha1' as const, requestHash, status, outputArtifactIds: [], body }
-  return { ...base, responseHash: sha256(base) }
+  return { ...base, responseHash: computeProviderResponseEnvelopeHash(base as unknown as ProviderResponseEnvelope) }
 }

@@ -1322,9 +1322,11 @@ export interface ProviderRequestEnvelope {
   schemaVersion: typeof PROVIDER_REQUEST_ENVELOPE_SCHEMA_VERSION
   id: string
   adapterId: string
+  adapterDigest: string
   profileId: string
   profileDigest: string
-  model?: string
+  modelId?: string
+  modelVersion?: string
   stepId: string
   destination: string
   region?: string
@@ -1365,16 +1367,23 @@ export interface ProviderError {
 
 export interface ProviderSubmissionLookup {
   schemaVersion: typeof PROVIDER_SUBMISSION_LOOKUP_SCHEMA_VERSION
+  requestId: string
   adapterId: string
+  adapterDigest: string
   profileId: string
   profileDigest: string
+  modelId?: string
+  modelVersion?: string
   destination: string
   region?: string
   stepId: string
+  purpose: RemoteCallPurpose
   providerRequestId?: string
   requestHash: string
   idempotencyKey: string
   inputHash: string
+  inputArtifactHashes: string[]
+  dataCategories: string[]
   maximumCalls: number
   maximumRetries: number
   timeoutMs: number
@@ -1475,6 +1484,7 @@ export interface SemanticReviewRequest {
   authorizationId: string
   destination: string
   region?: string
+  allowedEvidenceRegionIds?: string[]
   dataCategories: string[]
   budget: Budget
   requestHash: string
