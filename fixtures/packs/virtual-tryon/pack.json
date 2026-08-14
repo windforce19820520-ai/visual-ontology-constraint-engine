@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "voce.scenario-pack-source/v1alpha1",
+  "packId": "@voce/scenario-virtual-tryon",
+  "version": "0.1.0",
+  "kind": "root",
+  "scenarioLabel": "virtual try-on offline fixture",
+  "contributions": {
+    "rulePacks": [
+      { "id": "virtual-tryon.rules", "namespace": "voce.fixture.virtual-tryon", "rules": [
+        { "id": "preserve-reference-scopes", "kind": "reference_scope", "importance": "required" },
+        { "id": "jpeg-to-alpha-postprocess", "kind": "pipeline", "importance": "required" }
+      ] }
+    ],
+    "interpretationScopes": [
+      { "id": "virtual-tryon.reference-scopes", "value": { "assetId": "ref-01", "paths": ["person.identity", "person.hair", "person.expression", "person.pose", "wardrobe", "environment.background", "camera"] } }
+    ]
+  },
+  "fixtures": [
+    { "id": "virtual-tryon.offline", "cases": [
+      { "id": "case-virtual-tryon-001", "profileId": "mock-jpeg-plus-removal", "expectedStatus": "completed", "semanticReview": true, "humanPending": true }
+    ] }
+  ]
+}

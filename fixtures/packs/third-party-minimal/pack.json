@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "voce.scenario-pack-source/v1alpha1",
+  "packId": "example.test/third-party-minimal",
+  "version": "0.1.0",
+  "kind": "root",
+  "scenarioLabel": "third-party contract fixture",
+  "contributions": {
+    "rulePacks": [
+      { "id": "third-party.rules", "namespace": "example.test.third-party", "rules": [
+        { "id": "deterministic-fixture-rule", "kind": "declarative", "importance": "preferred" }
+      ] }
+    ]
+  },
+  "fixtures": [
+    { "id": "third-party-minimal.offline", "cases": [
+      { "id": "case-third-party-001", "profileId": "mock-native-transparent", "expectedStatus": "completed" }
+    ] }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "voce.scenario-pack-source/v1alpha1",
+  "packId": "@voce/scenario-cosplay",
+  "version": "0.1.0",
+  "kind": "root",
+  "scenarioLabel": "cosplay offline fixture",
+  "contributions": {
+    "rulePacks": [
+      { "id": "cosplay.rules", "namespace": "voce.fixture.cosplay", "rules": [
+        { "id": "identity-costume-conflict", "kind": "hard_required_conflict", "outcomes": ["clarification", "waiver", "block", "degrade"] },
+        { "id": "no-last-wins", "kind": "conservative-resolution", "outcome": "block" }
+      ] }
+    ],
+    "interpretationScopes": [
+      { "id": "cosplay.reference-scopes", "value": { "paths": ["person.identity", "wardrobe", "hair", "makeup", "props"] } }
+    ]
+  },
+  "fixtures": [
+    { "id": "cosplay.offline", "cases": [
+      { "id": "case-cosplay-001", "profileId": "mock-native-transparent", "expectedStatus": "completed", "conflictOutcomes": ["clarification", "waiver", "block", "degrade"] }
+    ] }
+  ]
+}

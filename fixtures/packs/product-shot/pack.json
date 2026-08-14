@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "voce.scenario-pack-source/v1alpha1",
+  "packId": "@voce/scenario-product-shot",
+  "version": "0.1.0",
+  "kind": "root",
+  "scenarioLabel": "product shot offline fixture",
+  "contributions": {
+    "rulePacks": [
+      { "id": "product-shot.rules", "namespace": "voce.fixture.product-shot", "rules": [
+        { "id": "zero-person-assumption", "kind": "subject-agnostic", "people": "not-required" },
+        { "id": "product-fidelity", "kind": "preservation", "importance": "required" }
+      ] }
+    ],
+    "interpretationScopes": [
+      { "id": "product-shot.reference-scopes", "value": { "paths": ["product.geometry", "product.material", "environment.background", "camera", "lighting"] } }
+    ]
+  },
+  "fixtures": [
+    { "id": "product-shot.offline", "cases": [
+      { "id": "case-product-shot-001", "profileId": "mock-native-transparent", "expectedStatus": "completed", "semanticReview": false, "humanPending": false, "peopleRequired": false }
+    ] }
+  ]
+}
