@@ -16,11 +16,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: pnpm
       - name: Install dependencies
-        run: npm install --ignore-scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Validate repository and M1 contracts
-        run: npm run validate
+        run: pnpm run validate
