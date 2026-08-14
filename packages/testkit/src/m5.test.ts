@@ -5,8 +5,8 @@ import {
   DeterministicPromptGuard,
   DeterministicPromptOptimizer,
   MockProviderAdapter,
-  MOCK_JPEG_PLUS_REMOVAL_PROFILE,
-  MOCK_NATIVE_TRANSPARENT_PROFILE,
+  MOCK_IMAGE_PROFILE,
+  MOCK_JPEG_PROFILE,
   OfflineExecutionRuntime,
   computePromptCandidateHash,
   computePromptIRHash,
@@ -161,7 +161,7 @@ test('offline execution fails closed for missing or mismatched adapters and exac
   assert.equal(mismatched.status, 'blocked')
   assert.ok(mismatched.reasons.some((reason) => reason.startsWith('ADAPTER_BINDING_MISMATCH:')))
 
-  for (const profile of [MOCK_NATIVE_TRANSPARENT_PROFILE, MOCK_JPEG_PLUS_REMOVAL_PROFILE]) {
+  for (const profile of [MOCK_IMAGE_PROFILE, MOCK_JPEG_PROFILE]) {
     const input = fixtureM5ExecutionInput(profile)
     const result = createMockRuntimeForPlan(input.pipelinePlan).execute(input)
     assert.equal(result.status, 'completed')
@@ -201,8 +201,8 @@ test('execution preflight rejects plan, destination, budget, and prompt binding 
   }
 })
 
-test('native-transparent and JPEG-plus-removal mock plans complete with per-step receipts', () => {
-  for (const profile of [MOCK_NATIVE_TRANSPARENT_PROFILE, MOCK_JPEG_PLUS_REMOVAL_PROFILE]) {
+test('standard image and JPEG-normalization mock plans complete with per-step receipts', () => {
+  for (const profile of [MOCK_IMAGE_PROFILE, MOCK_JPEG_PROFILE]) {
     const result = executeOffline(fixtureM5ExecutionInput(profile))
     assert.equal(result.status, 'completed')
     assert.equal(result.code, 'EXECUTION_COMPLETED')
@@ -210,12 +210,12 @@ test('native-transparent and JPEG-plus-removal mock plans complete with per-step
     assert.ok(result.events.length >= result.receipts.length * 2)
     assert.ok(result.receipts.every((receipt) => receipt.destination && receipt.maximumCalls >= 1 && receipt.timeoutMs > 0))
     assert.ok(result.trace?.traceHash)
-    if (profile === MOCK_JPEG_PLUS_REMOVAL_PROFILE) assert.ok(result.executionRun!.outputArtifacts.some((artifact) => artifact.mediaType === 'image/png'))
+    if (profile === MOCK_JPEG_PROFILE) assert.ok(result.executionRun!.outputArtifacts.some((artifact) => artifact.mediaType === 'image/png'))
   }
 })
 
 test('bounded failure stays inside the run budget and terminal rerun requires a new run', () => {
-  const first = fixtureM5ExecutionInput(MOCK_NATIVE_TRANSPARENT_PROFILE)
+  const first = fixtureM5ExecutionInput(MOCK_IMAGE_PROFILE)
   const generator = first.pipelinePlan.steps.find((step) => step.type === 'generate')!
   first.options = { retryableFailureStepIds: [generator.id], failStepIds: [generator.id] }
   const result = executeOffline(first)
@@ -223,7 +223,7 @@ test('bounded failure stays inside the run budget and terminal rerun requires a 
   const generatorEvents = result.events.filter((event) => event.stepId === generator.id)
   assert.equal(generatorEvents.filter((event) => event.state === 'submitted').length, 1)
   assert.equal(generatorEvents.filter((event) => event.state === 'failed').length, 1)
-  const second = executeOffline(fixtureM5ExecutionInput(MOCK_NATIVE_TRANSPARENT_PROFILE))
+  const second = executeOffline(fixtureM5ExecutionInput(MOCK_IMAGE_PROFILE))
   assert.notEqual(result.executionRun!.id, second.executionRun!.id)
 })
 

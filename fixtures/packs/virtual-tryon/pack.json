@@ -9,7 +9,7 @@
     "rulePacks": [
       { "id": "virtual-tryon.rules", "namespace": "voce.fixture.virtual-tryon", "rules": [
         { "id": "preserve-reference-scopes", "kind": "reference_scope", "importance": "required" },
-        { "id": "jpeg-to-alpha-postprocess", "kind": "pipeline", "importance": "required" }
+        { "id": "standard-image-output", "kind": "pipeline", "importance": "required" }
       ] }
     ],
     "interpretationScopes": [
@@ -24,7 +24,7 @@
   },
   "fixtures": [
       { "id": "virtual-tryon.offline", "cases": [
-      { "id": "case-virtual-tryon-001", "profileId": "mock-jpeg-plus-removal", "expectedStatus": "completed", "semanticReview": true, "humanPending": true,
+      { "id": "case-virtual-tryon-001", "profileId": "mock-jpeg", "expectedStatus": "completed", "semanticReview": true, "humanPending": true,
         "scopePaths": ["person.identity", "person.hair", "expression", "pose", "wardrobe.top", "environment.background", "camera.framing"],
         "expectedAssertions": [
           { "id": "vtryon-reference-multi-scope", "phase": "compile", "target": "reference.observationCount", "operator": "gte", "expected": 2 },
@@ -33,8 +33,7 @@
           { "id": "vtryon-constraint-hash", "phase": "compile", "target": "compile.constraintHash", "operator": "sha256" },
           { "id": "vtryon-reference-plan-hash", "phase": "compile", "target": "compile.referencePlanHash", "operator": "sha256" },
           { "id": "vtryon-jpeg-artifact", "phase": "run", "target": "run.artifactMediaTypes", "operator": "includes", "expected": "image/jpeg" },
-          { "id": "vtryon-alpha-png", "phase": "run", "target": "run.alphaArtifactCount", "operator": "gte", "expected": 1 },
-          { "id": "vtryon-background-removal-receipt", "phase": "run", "target": "run.receiptAdapters", "operator": "includes", "expected": "voce.background-removal" },
+          { "id": "vtryon-normalized-png", "phase": "run", "target": "run.artifactMediaTypes", "operator": "includes", "expected": "image/png" },
           { "id": "vtryon-structural-evidence", "phase": "run", "target": "run.structuralStatus", "operator": "exists" },
           { "id": "vtryon-semantic-proposal", "phase": "run", "target": "run.semanticStatus", "operator": "equals", "expected": "proposal" },
           { "id": "vtryon-human-pending", "phase": "run", "target": "run.humanStatus", "operator": "equals", "expected": "pending" },

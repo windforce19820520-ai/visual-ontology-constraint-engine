@@ -286,7 +286,7 @@ A bounded, acyclic execution plan that can satisfy an `OutputContract` using dec
 
 ### `Capability-aware Pipeline Planner`
 
-The deterministic planner that matches an `OutputContract` to `ProviderCapabilityProfile` records and registered processing steps. It may plan asset resolution, generation, temporary publication, background removal, normalization, validation, semantic review, and cleanup. If the output contract is unreachable within the declared budget, it fails before a paid call.
+The deterministic planner that matches an `OutputContract` to `ProviderCapabilityProfile` records and registered processing steps. It may plan asset resolution, generation, temporary publication, an explicitly registered generic postprocess, normalization, validation, semantic review, and cleanup. If the output contract is unreachable within the declared budget, it fails before a paid call.
 
 ### `Provider Adapter`
 

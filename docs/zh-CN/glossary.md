@@ -286,7 +286,7 @@ Dry-run 已经解析并固定目标选择、Catalog、锁定记录与 `Effective
 
 ### `Capability-aware Pipeline Planner`（能力感知执行流水线规划器）
 
-确定性规划器，将 `OutputContract` 与 `ProviderCapabilityProfile` 以及已注册处理步骤进行匹配。它可以规划素材解析、生成、临时发布、移除背景、画布标准化、结构校验、语义复核和清理。如果在声明的预算内无法满足输出契约，它必须在付费调用之前失败。
+确定性规划器，将 `OutputContract` 与 `ProviderCapabilityProfile` 以及已注册处理步骤进行匹配。它可以规划素材解析、生成、临时发布、显式注册的通用后处理、画布标准化、结构校验、语义复核和清理。如果在声明的预算内无法满足输出契约，它必须在付费调用之前失败。
 
 ### `Provider Adapter`（模型提供方适配器）
 

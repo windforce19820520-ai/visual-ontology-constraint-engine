@@ -8,5 +8,5 @@
 - Reproducibility compares two consecutive builds by decompressed tarball relative-path/content hashes. Gzip/tar container bytes are not treated as portable golden values because tool metadata can vary.
 - The consumer uses local package tarballs, `--ignore-scripts`, package-import copy mode, and an offline install first. It checks installed ESM imports, TypeScript declarations, schema readability, CLI doctor/pack flows, third-party renaming, vertical Mock flows, compare, and removal without workspace fallback.
 - The security corpus is small JSON metadata plus generated bundle mutations. Symlink cases are expected to run on Linux; Windows may report the existing OS permission skip. All other unsafe cases must fail before Mock execution with stable public codes.
-- The doctor output uses an `authProbe` field containing only `inspected: false`; it never reads credentials. No real HTTP, provider SDK, LLM, Seedream, or veImageX call is added.
+- The doctor output uses an `authProbe` field containing only `inspected: false`; it never reads credentials. No real HTTP, provider SDK, LLM, or Seedream call is added.
 - CI is limited to Ubuntu/Windows Node 20 release gates and a Node 22 public-consumer validation. Permissions remain `contents: read`; publish, tag, release, merge, and secrets are absent.

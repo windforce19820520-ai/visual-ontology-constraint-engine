@@ -32,6 +32,7 @@ const requiredFiles = [
   'docs/implementation-notes/m6-decisions.md',
   'docs/implementation-notes/m7-decisions.md',
   'docs/implementation-notes/m8-decisions.md',
+  'docs/implementation-notes/v0.1-scope-cleanup.md',
   'docs/release-process.md',
   'docs/release-checklist.md',
   'docs/compatibility.md',
@@ -212,7 +213,7 @@ for (const [file, expectedVersion] of [['fixtures/observation-unconfirmed.json',
   if (value.schemaVersion !== expectedVersion) throw new Error(`M3_FIXTURE_SCHEMA_VERSION_MISSING:${file}`)
 }
 
-for (const file of ['fixtures/m4-provider-native-transparent.json', 'fixtures/m4-provider-jpeg-plus-removal.json', 'fixtures/m4-provider-limited-reference.json']) {
+for (const file of ['fixtures/m4-provider-image.json', 'fixtures/m4-provider-jpeg.json', 'fixtures/m4-provider-limited-reference.json']) {
   const url = new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot)
   const value = JSON.parse(await readFile(url, 'utf8'))
   if (value.schemaVersion !== 'voce.provider-capability-profile/v1alpha1') throw new Error(`M4_FIXTURE_SCHEMA_VERSION_MISSING:${file}`)
@@ -232,6 +233,16 @@ for (const [file, expectedVersion] of [['fixtures/m6-provider-request-minimal.js
   const url = new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot)
   const value = JSON.parse(await readFile(url, 'utf8'))
   if (value.schemaVersion !== expectedVersion) throw new Error(`M6_FIXTURE_SCHEMA_VERSION_MISSING:${file}`)
+}
+
+for (const file of ['fixtures/cases/virtual-tryon.json', 'fixtures/cases/cosplay.json', 'fixtures/cases/product-shot.json', 'fixtures/cases/third-party-minimal.json']) {
+  const value = JSON.parse(await readFile(new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot), 'utf8'))
+  if (value.requestedOutput?.background !== 'opaque' || value.requestedOutput?.allowAlpha !== false) throw new Error(`V01_SCENARIO_OUTPUT_SCOPE_INVALID:${file}`)
+}
+
+for (const file of ['packages/contracts/src/index.ts', 'packages/core/src/m4.ts', 'packages/core/src/m5.ts', 'packages/core/src/m6.ts', 'packages/cli/src/index.ts', 'fixtures/packs/virtual-tryon/pack.json', 'fixtures/packs/cosplay/pack.json', 'fixtures/packs/product-shot/pack.json']) {
+  const source = await readFile(new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot), 'utf8')
+  if (/veimagex|background_removal|voce\.background-removal|MockBackgroundRemoval/i.test(source)) throw new Error(`V01_BACKGROUND_REMOVAL_SCOPE_LEAK:${file}`)
 }
 
 const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')

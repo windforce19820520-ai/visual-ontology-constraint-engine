@@ -22,7 +22,7 @@
   },
   "fixtures": [
     { "id": "cosplay.offline", "cases": [
-      { "id": "case-cosplay-001", "profileId": "mock-native-transparent", "expectedStatus": "completed",
+      { "id": "case-cosplay-001", "profileId": "mock-image", "expectedStatus": "completed",
         "scopePaths": ["person.identity", "person.hair", "wardrobe.top"],
         "coreProbes": [
           { "id": "cosplay-clarification", "unknownPaths": ["person.identity"] },

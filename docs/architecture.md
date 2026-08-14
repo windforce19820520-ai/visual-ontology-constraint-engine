@@ -145,7 +145,7 @@ The planner may produce steps such as:
 ```text
 generate source image
 publish a short-lived signed asset when required
-remove background
+run an explicitly registered optional postprocess
 normalize canvas
 validate structure
 prepare semantic review

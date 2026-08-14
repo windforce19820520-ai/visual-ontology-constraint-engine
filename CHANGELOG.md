@@ -10,5 +10,6 @@ This release candidate adds M8 release-readiness gates without claiming a stable
 - offline security regression corpus for unsafe bundle/package inputs and a static network/provider gate;
 - Ubuntu/Windows Node 20 CI coverage plus a Node 22 public consumer job;
 - explicit release-readiness and compatibility documentation.
+- scope cleanup that removes the concrete veImageX/background-removal adapter and transparent-cutout scenario assumptions, while retaining provider-neutral optional postprocessing contracts.
 
 No npm package has been published. There is no GitHub Release, tag, provenance statement, or production-ready claim. Real Provider smoke remains outside the default gate.

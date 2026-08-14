@@ -94,6 +94,8 @@ For v0.1, the candidate public compatibility surface is intentionally limited to
 
 This project does not promise physical fit, sizing accuracy, or exact real-world product behavior. It is an orchestration and evaluation layer for generative image workflows.
 
+The first-party scenarios produce complete images. Background removal, transparent cutouts, host-canvas compositing, and concrete services for those product workflows are outside the v0.1 repository scope. Hosts may register generic optional postprocessing steps without making any one postprocessor part of Core.
+
 ## Safety defaults
 
 - Standard tests and CI never call paid model providers.

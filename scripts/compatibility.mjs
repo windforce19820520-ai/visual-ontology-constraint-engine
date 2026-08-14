@@ -82,10 +82,10 @@ for (const [label, source] of [['first-party-third-party-fixture', original], ['
 const core = await import(pathToFileURL(path.join(ROOT, 'packages', 'core', 'dist', 'index.js')).href)
 const contracts = await import(pathToFileURL(path.join(ROOT, 'packages', 'contracts', 'dist', 'index.js')).href)
 const mock = new core.MockProviderAdapter()
-if (mock.offline !== true || !/^sha256:[0-9a-f]{64}$/.test(core.MOCK_NATIVE_TRANSPARENT_PROFILE.profileHash)) fail('M8_MOCK_PROFILE_UNSAFE')
+if (mock.offline !== true || !/^sha256:[0-9a-f]{64}$/.test(core.MOCK_IMAGE_PROFILE.profileHash)) fail('M8_MOCK_PROFILE_UNSAFE')
 if (contracts.BUNDLE_MANIFEST_SCHEMA_VERSION !== 'voce.bundle-manifest/v1alpha1') fail('M8_BUNDLE_SCHEMA_UNEXPECTED')
 
-const summary = { status: 'passed', suite: suite.schemaVersion, releaseCandidate: RELEASE_CANDIDATE, packages: suite.publicPackages, exports: typeChecks, schemas: schemaChecks, packRuns, providerProfile: { id: core.MOCK_NATIVE_TRANSPARENT_PROFILE.id, profileHash: core.MOCK_NATIVE_TRANSPARENT_PROFILE.profileHash, mockAdapterOffline: mock.offline === true }, bundleManifest: { schemaVersion: contracts.BUNDLE_MANIFEST_SCHEMA_VERSION, unsafeInputBehavior: 'hash-and-path validation before Mock execution' } }
+const summary = { status: 'passed', suite: suite.schemaVersion, releaseCandidate: RELEASE_CANDIDATE, packages: suite.publicPackages, exports: typeChecks, schemas: schemaChecks, packRuns, providerProfile: { id: core.MOCK_IMAGE_PROFILE.id, profileHash: core.MOCK_IMAGE_PROFILE.profileHash, mockAdapterOffline: mock.offline === true }, bundleManifest: { schemaVersion: contracts.BUNDLE_MANIFEST_SCHEMA_VERSION, unsafeInputBehavior: 'hash-and-path validation before Mock execution' } }
 await writeJson(path.join(RELEASE_ROOT, 'compatibility-summary.json'), summary)
 await rm(temp, { recursive: true, force: true })
 console.log(JSON.stringify({ status: 'passed', packages: suite.publicPackages.length, schemas: schemaChecks.length, packVariants: packRuns.length }))

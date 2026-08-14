@@ -52,7 +52,7 @@ export async function runConsumer(room = path.join(ROOT, 'clean-room', `m8-${REL
     packResults.push({ name, packId: inspected.packId, status: tested.status, lockHash: tested.lockHash, effectiveScenarioHash: tested.effectiveScenarioHash, assertionIds: tested.results.flatMap((result) => result.assertionIds), assertionStatuses: tested.results.flatMap((result) => result.assertions.map((assertion) => assertion.status)), assertionHash: tested.results.map((result) => result.assertionHash) })
   }
   const verticals = []
-  for (const [name, profile] of [['virtual-tryon', 'mock-jpeg-plus-removal'], ['cosplay', 'mock-native-transparent'], ['product-shot', 'mock-native-transparent']]) {
+  for (const [name, profile] of [['virtual-tryon', 'mock-jpeg'], ['cosplay', 'mock-image'], ['product-shot', 'mock-image']]) {
     const compiled = path.join(output, name, 'compiled'); const runDirectory = path.join(output, name, 'run'); const trace = path.join(output, name, 'trace.html')
     const compiledResult = voce(['case', 'compile', '--case', path.join(cases, `${name}.json`), '--scenario', path.join(packs, name), '--profile', path.join(profiles, `${profile}.json`), '--out', compiled]); const executed = voce(['case', 'run', '--bundle', compiled, '--provider', 'mock', '--out', runDirectory]); const traceResult = voce(['trace', 'render', '--bundle', runDirectory, '--out', trace])
     const html = await readFile(trace, 'utf8'); if (/data:|base64|https?:\/\/|[A-Za-z]:\\/i.test(html)) fail(`M8_CONSUMER_TRACE_UNSAFE:${name}`)

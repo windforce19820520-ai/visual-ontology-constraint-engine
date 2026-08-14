@@ -1300,7 +1300,7 @@ function virtualArtifact(runId: string, step: PipelineStep, role: string, mediaT
 
 function mockMediaType(step: PipelineStep): string {
   if (step.adapterId === 'mock.jpeg-generator') return 'image/jpeg'
-  if (step.type === 'background_removal' || step.type === 'normalize') return 'image/png'
+  if (step.type === 'postprocess' || step.type === 'normalize') return 'image/png'
   return step.type === 'generate' ? 'image/png' : 'application/json'
 }
 
@@ -1352,7 +1352,7 @@ export class MockProviderAdapter implements ProviderAdapter, OfflineStepAdapter 
     if (context.step.type === 'resolve_asset') artifacts.push(virtualArtifact(context.runId, context.step, 'provider-readable-reference', 'image/png'))
     if (context.step.type === 'publish_asset') artifacts.push(virtualArtifact(context.runId, context.step, 'published_reference', 'image/png'))
     if (context.step.type === 'generate') artifacts.push(virtualArtifact(context.runId, context.step, 'generated-image', mediaType))
-    if (context.step.type === 'background_removal') artifacts.push(virtualArtifact(context.runId, context.step, 'transparent-image', 'image/png'))
+    if (context.step.type === 'postprocess') artifacts.push(...context.step.outputArtifactRoles.map((role) => virtualArtifact(context.runId, context.step, role, mediaType)))
     if (context.step.type === 'normalize') artifacts.push(virtualArtifact(context.runId, context.step, 'normalized-image', mediaType === 'application/json' ? 'image/png' : mediaType))
     const remote = requiredRemoteStep(context.step)
     return { status: 'succeeded', outputArtifacts: artifacts, metadata: { offline: true, virtual: true, provider: this.id, stepType: context.step.type, destination: context.step.destination, budgetId: context.step.budget.id }, ...(remote ? { providerRequestId: `mock-request-${hashId('request', { stepId, attempt: context.attempt }).slice('request-'.length)}` } : {}), actualCost: 0 }
@@ -1375,8 +1375,8 @@ export class MockGeneratorAdapter extends MockProviderAdapter {
   constructor(options: MockProviderAdapterOptions = {}) { super(options, 'mock.image-generator') }
 }
 
-export class MockBackgroundRemovalAdapter extends MockProviderAdapter {
-  constructor(options: MockProviderAdapterOptions = {}) { super(options, 'voce.background-removal') }
+export class MockPostprocessorAdapter extends MockProviderAdapter {
+  constructor(options: MockProviderAdapterOptions = {}) { super(options, 'voce.postprocessor') }
 }
 
 export class MockNormalizerAdapter extends MockProviderAdapter {

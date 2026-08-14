@@ -39,4 +39,4 @@ The release-candidate workflow covers Ubuntu and Windows on Node 20, including t
 
 ## Deferred actions
 
-Real Seedream, veImageX, LLM, and other paid or network Provider smoke; npm publish; GitHub Release/tag; provenance or attestation; PR merge; hosted product features; marketplace/discovery; and production-readiness declarations remain separately authorized work.
+Real Seedream, LLM, and other paid or network Provider smoke; npm publish; GitHub Release/tag; provenance or attestation; PR merge; hosted product features; marketplace/discovery; and production-readiness declarations remain separately authorized work.

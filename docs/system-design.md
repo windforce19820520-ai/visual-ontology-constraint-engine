@@ -95,6 +95,8 @@ flowchart LR
 
 The host application owns authentication, user consent, asset rights, persistence, retention, deletion, moderation policy, credentials, cost authorization, and user interface. VOCE owns public semantic contracts, deterministic compilation, plan validation, safe execution boundaries, and portable evaluation artifacts.
 
+Concrete background-removal services, transparent cutout production, and host-stage compositing are product concerns outside the v0.1 repository. VOCE retains only the provider-neutral ability for a host to register an optional postprocessing step; no background-removal adapter is bundled or required by a first-party scenario.
+
 v0.1 executable plugins are trusted local code running in the host process. A plugin manifest discloses network access, possible fees, data destinations, input/output schemas, compatibility, and redaction behavior. Declarative ScenarioPack data is registered through its separate data-only Registry and is not executable plugin code; a Host-selected `RulePackPlugin` or custom loader crosses the trusted-plugin boundary separately and is never a ScenarioPack dependency. Process isolation and a public plugin marketplace are deferred.
 
 ## 5. Core terminology
@@ -626,7 +628,7 @@ The Capability-aware Pipeline Planner matches the target `OutputContract` to reg
 resolve provider-readable assets
 generate source image
 publish a short-lived signed asset when required
-remove background
+run an explicitly registered optional postprocess
 normalize canvas
 validate structure
 prepare semantic review
@@ -1055,7 +1057,7 @@ The four paired core specifications are `scenario-design`, `system-design`, `glo
 - experimental auto policy with non-bypassable high-impact gates;
 - deterministic resolver, compiler, reference planner, pipeline planner, prompt compiler, and Prompt Guard;
 - deterministic offline prompt optimizer plus one optional LLM optimizer that returns constrained `PromptCandidateIR`;
-- Mock-first execution and optional Seedream/veImageX adapter implementations;
+- Mock-first execution and an optional Seedream adapter implementation;
 - local persistent asynchronous execution for every remote step, with durable events, reconciliation, compensation cleanup, and submission-unknown protection;
 - CLI and a read-only local/static HTML trace report;
 - first-party virtual-try-on, cosplay, and product-shot ScenarioPacks registered through the same public path as third-party packs;
