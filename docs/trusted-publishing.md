@@ -1,6 +1,6 @@
 # npm trusted publishing
 
-VOCE uses npm Trusted Publishing with GitHub Actions OIDC for future package releases. The release workflow is `.github/workflows/publish-npm.yml`; it publishes the four public packages without a stored npm write token and lets npm generate provenance automatically.
+VOCE uses npm Trusted Publishing with GitHub Actions OIDC. The release workflow is `.github/workflows/publish-npm.yml`; it publishes the four public packages without a stored npm write token and lets npm generate provenance automatically. The first tokenless publication, `v0.1.0-rc.2`, completed successfully for all four packages and produced npm provenance.
 
 ## npm package configuration
 
@@ -40,9 +40,9 @@ The packages publish serially in dependency order: contracts, Core, testkit, the
 
 npm automatically publishes provenance for public packages published from this public repository through GitHub Actions Trusted Publishing. The workflow does not disable provenance and does not need a `--provenance` flag.
 
-Trusted Publisher settings can be saved before the workflow reaches `main`, but npm does not validate those settings at save time. The OIDC exchange is therefore fully proven only by the first successful publication of a new version after this workflow is merged. Do not republish an existing version merely to test OIDC.
+Trusted Publisher settings can be saved before the workflow reaches `main`, but npm does not validate those settings at save time. The OIDC exchange was proven by the successful `v0.1.0-rc.2` publication recorded in the [public acceptance report](acceptance/v0.1.0-rc.2.md). A new proof is still required after changing the publisher identity, repository, workflow filename, or environment. Do not republish an existing version merely to test OIDC.
 
-The previous short-lived RC publication token was revoked. Traditional token publishing should be disabled in npm package settings only after the first successful OIDC publication, preserving a recoverable migration path while the trust relationship is still unproven.
+The previous short-lived RC publication token was revoked. The successful RC.2 publication removed the need for a token fallback; do not restore an npm write token in repository secrets or routine release instructions.
 
 ## Security boundary
 

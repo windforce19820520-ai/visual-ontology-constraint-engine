@@ -270,7 +270,11 @@ const requiredReadmePhrases = [
   'Reference Interpreter',
   'Prompt Optimizer',
   'ScenarioPack',
-  'are planned as independent, optional `ScenarioPack` packages',
+  'What works today',
+  'Runtime workflow',
+  'currently includes data-only ScenarioPack fixtures and vertical cases',
+  'public CLI remains offline-first and Mock-first',
+  'Seedream adapter has been exercised',
   'candidate public compatibility surface',
 ]
 

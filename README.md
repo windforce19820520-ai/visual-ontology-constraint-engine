@@ -11,6 +11,14 @@ An open-source visual ontology, constraint compiler, prompt optimization, and ev
 
 The repository contains deterministic runtime packages, data-only ScenarioPack fixtures, three offline vertical cases, bundle manifests, a Mock execution path, credentialed Seedream multi-reference smoke tooling, and clean-room/release-candidate checks. The four public packages are validated from their packed tarballs, clean consumers compile against installed declarations, and package contents, checksums, and reproducibility are verified on the release path. See the [release-readiness checklist](docs/release-checklist.md), [candidate compatibility surface](docs/compatibility.md), and [changelog](CHANGELOG.md).
 
+## What works today
+
+`v0.1.0-rc.2` is publicly installable from npm. The four public `@voce-engine/*` packages have been exercised from clean consumer environments, including package imports, CLI usage, compilation, an offline Mock run, static trace generation, and a third-party data-only ScenarioPack journey. See the [RC.2 public acceptance report](docs/acceptance/v0.1.0-rc.2.md).
+
+The public CLI remains offline-first and Mock-first by default. Separately, the Seedream adapter has been exercised through explicitly authorized local multi-reference smoke tests for virtual try-on and cosplay, with successful Provider responses. Real-Provider calls are intentionally excluded from standard CI and are not the default CLI execution path. See the [M9 Seedream smoke decisions](docs/implementation-notes/m9-seedream-smoke.md).
+
+VOCE is still a release candidate rather than a production-ready framework. The current focus is stabilization, external feedback, compatibility hardening, and ecosystem validation—not establishing the initial runtime architecture from scratch.
+
 ## Project origin and repository timeline
 
 VOCE is the product-neutral public core extracted and generalized from earlier research and development for a commercial AI content platform. The public repository therefore begins at the open-source extraction, contract hardening, and release-engineering stage—not at the beginning of the underlying product research.
@@ -30,7 +38,7 @@ Prompt text alone does not reliably answer:
 - what changed during prompt optimization;
 - why an output passed or failed validation.
 
-## Proposed workflow
+## Runtime workflow
 
 ```text
 Select one root ScenarioPack + explicit extensions
@@ -88,13 +96,13 @@ Removing an earring from the result is different from ignoring one image as its 
 
 ## Initial scenarios
 
-The first three scenarios are planned as independent, optional `ScenarioPack` packages rather than built-in Core modes:
+The repository currently includes data-only ScenarioPack fixtures and vertical cases for three initial domains:
 
 - commercial virtual try-on visualization;
 - cosplay identity, costume, makeup, mask, and prop planning;
 - product-only shots used as a regression case to prevent person-only assumptions.
 
-First-party and third-party packs use the same explicit local `ScenarioPackRegistry`, resolution, validation, fixture, and activation path. Core never imports a scenario package or branches on a scenario ID. Installing a package does not activate it, authorize a remote call, select a provider, or create cost.
+These scenarios remain outside Core and use the same explicit `ScenarioPackRegistry`, resolution, validation, fixture, and activation path intended for first-party and third-party packs. Core never imports a scenario package or branches on a scenario ID. The fixtures are not independently published domain products, and installing a package does not activate it, authorize a remote call, select a provider, or create cost.
 
 For v0.1, the candidate public compatibility surface is intentionally limited to `ScenarioPack`, `ScenarioPackRegistry`, `ScenarioPackManifest`, `DeclarativeRulePackContribution`, `ProviderAdapter`, `ProviderCapabilityProfile`, and the offline testkit; it becomes stable only with released schemas and compatibility fixtures. Other ports, including `RulePackPlugin`, remain experimental. ScenarioPack runtime artifacts are declarative data; any executable plugin or adapter is separately trusted local code running with host-process privileges. Hosts register local package data explicitly; there is no dynamic package scan, marketplace, or automatic installation. A valid manifest is a declaration and compatibility input, not a sandbox or proof that third-party code is safe.
 
@@ -149,7 +157,7 @@ RC.2 was published through npm Trusted Publishing with provenance and exercised 
 
 ## Use the offline CLI
 
-After `pnpm install --ignore-scripts` and `pnpm run build`, run `node packages/cli/dist/cli.js --help` or follow [CLI usage](docs/cli.md). All pack, case, and trace inputs are explicit local paths; the default provider is disabled and `--provider mock` is the only execution path in this release candidate.
+After `pnpm install --ignore-scripts` and `pnpm run build`, run `node packages/cli/dist/cli.js --help` or follow [CLI usage](docs/cli.md). All pack, case, and trace inputs are explicit local paths. For the public CLI in this release candidate, the default Provider is disabled and `--provider mock` is the only enabled execution path. This does not mean the Provider layer is Mock-only: the Seedream adapter has been exercised separately through explicitly authorized local multi-reference smoke tests. Real-Provider calls remain intentionally outside standard CI and the default public CLI path.
 
 The first-party packs and the third-party contract fixture are redistributable data-only examples under `fixtures/`. They use `example.test`/fixture IDs and generated virtual artifacts; they contain no private images, credentials, signed URLs, or model output.
 
