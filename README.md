@@ -145,6 +145,8 @@ npm install --global @voce-engine/cli@0.1.0-rc.1
 
 The GitHub prerelease and its checksummed tarballs are available from [`v0.1.0-rc.1`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.1).
 
+The RC was also exercised through a public-registry clean consumer and a fresh-clone Quick Start journey. See the [public acceptance report](docs/acceptance/v0.1.0-rc.1.md).
+
 ## Use the offline CLI
 
 After `pnpm install --ignore-scripts` and `pnpm run build`, run `node packages/cli/dist/cli.js --help` or follow [CLI usage](docs/cli.md). All pack, case, and trace inputs are explicit local paths; the default provider is disabled and `--provider mock` is the only execution path in this release candidate.
