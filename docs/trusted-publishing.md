@@ -34,7 +34,7 @@ The workflow is manual by design. An owner supplies an existing annotated releas
 - Node.js and npm satisfy npm's OIDC minimum versions; and
 - the standard validation, compatibility, security, consumer, clean-room, release-candidate, and checksum gates pass.
 
-The packages publish serially in dependency order: contracts, Core, testkit, then CLI. The job has only `contents: read` and `id-token: write`; it does not use `NODE_AUTH_TOKEN` or an npm write secret.
+The packages publish serially in dependency order: contracts, Core, testkit, then CLI. The publish inputs are the exact release-candidate tarballs that passed the clean-consumer and checksum gates, rather than a second package assembled from the source directories. The job has only `contents: read` and `id-token: write`; it does not use `NODE_AUTH_TOKEN` or an npm write secret.
 
 ## Provenance and migration state
 

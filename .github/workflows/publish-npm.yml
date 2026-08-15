@@ -118,10 +118,12 @@ jobs:
           DIST_TAG: ${{ inputs.dist_tag }}
         run: |
           set -euo pipefail
-          npm publish ./packages/contracts --access public --tag "${DIST_TAG}"
-          npm publish ./packages/core --access public --tag "${DIST_TAG}"
-          npm publish ./packages/testkit --access public --tag "${DIST_TAG}"
-          npm publish ./packages/cli --access public --tag "${DIST_TAG}"
+          version="$(node --input-type=module -e "import pkg from './package.json' with { type: 'json' }; process.stdout.write(pkg.version)")"
+          release_dir="release-candidate/v${version}/tarballs"
+          npm publish "${release_dir}/voce-engine-contracts-${version}.tgz" --access public --tag "${DIST_TAG}"
+          npm publish "${release_dir}/voce-engine-core-${version}.tgz" --access public --tag "${DIST_TAG}"
+          npm publish "${release_dir}/voce-engine-testkit-${version}.tgz" --access public --tag "${DIST_TAG}"
+          npm publish "${release_dir}/voce-engine-cli-${version}.tgz" --access public --tag "${DIST_TAG}"
 
       - name: Verify public registry versions
         run: |
