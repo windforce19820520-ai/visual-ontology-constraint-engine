@@ -1,0 +1,133 @@
+name: Publish npm packages with OIDC
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_ref:
+        description: Existing release tag matching the workspace version (for example v0.1.0)
+        required: true
+        type: string
+      dist_tag:
+        description: npm distribution tag
+        required: true
+        default: next
+        type: choice
+        options:
+          - next
+          - latest
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish-${{ inputs.release_ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish four public packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout the requested release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_ref }}
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+
+      - name: Set up Node.js and npm registry
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Verify tag and package versions
+        env:
+          RELEASE_REF: ${{ inputs.release_ref }}
+        run: |
+          set -euo pipefail
+          root_version="$(node --input-type=module -e "import pkg from './package.json' with { type: 'json' }; process.stdout.write(pkg.version)")"
+          expected_ref="v${root_version}"
+          if [[ "${RELEASE_REF}" != "${expected_ref}" ]]; then
+            echo "release_ref ${RELEASE_REF} does not match workspace version ${root_version}" >&2
+            exit 1
+          fi
+          if [[ "$(git describe --tags --exact-match HEAD)" != "${RELEASE_REF}" ]]; then
+            echo "checked out commit is not exactly tagged ${RELEASE_REF}" >&2
+            exit 1
+          fi
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises'
+
+          const paths = [
+            'package.json',
+            'packages/contracts/package.json',
+            'packages/core/package.json',
+            'packages/testkit/package.json',
+            'packages/cli/package.json',
+          ]
+          const packages = await Promise.all(paths.map(async (path) =>
+            JSON.parse(await readFile(path, 'utf8')),
+          ))
+          const [root, ...published] = packages
+          for (const pkg of published) {
+            if (pkg.version !== root.version) {
+              throw new Error(`${pkg.name} version ${pkg.version} does not match ${root.version}`)
+            }
+            if (pkg.repository?.url !== 'https://github.com/windforce19820520-ai/visual-ontology-constraint-engine.git') {
+              throw new Error(`${pkg.name} repository.url is not bound to the publishing repository`)
+            }
+          }
+          NODE
+
+      - name: Verify supported npm OIDC toolchain
+        run: |
+          node --version
+          npm --version
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process'
+
+          const version = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim()
+          const [major, minor, patch] = version.split('.').map(Number)
+          const supported = major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1)))
+          if (!supported) throw new Error(`npm ${version} is older than the OIDC minimum 11.5.1`)
+          NODE
+
+      - name: Install without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run release gates
+        run: |
+          pnpm run validate
+          pnpm run compatibility
+          pnpm run security
+          pnpm run consumer
+          pnpm run clean-room
+          pnpm run release-candidate
+          pnpm run verify-checksums
+
+      - name: Publish packages in dependency order
+        env:
+          DIST_TAG: ${{ inputs.dist_tag }}
+        run: |
+          set -euo pipefail
+          npm publish ./packages/contracts --access public --tag "${DIST_TAG}"
+          npm publish ./packages/core --access public --tag "${DIST_TAG}"
+          npm publish ./packages/testkit --access public --tag "${DIST_TAG}"
+          npm publish ./packages/cli --access public --tag "${DIST_TAG}"
+
+      - name: Verify public registry versions
+        run: |
+          set -euo pipefail
+          version="$(node --input-type=module -e "import pkg from './package.json' with { type: 'json' }; process.stdout.write(pkg.version)")"
+          for package in contracts core testkit cli; do
+            published="$(npm view "@voce-engine/${package}@${version}" version --registry https://registry.npmjs.org)"
+            test "${published}" = "${version}"
+          done
