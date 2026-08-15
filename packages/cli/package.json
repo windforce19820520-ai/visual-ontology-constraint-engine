@@ -1,6 +1,6 @@
 {
   "name": "@voce-engine/cli",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.0-rc.2",
   "description": "Offline-first command line tools for the VOCE v0.1 release candidate.",
   "license": "Apache-2.0",
   "type": "module",
@@ -14,5 +14,5 @@
   "bugs": { "url": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues" },
   "publishConfig": { "access": "public", "tag": "next" },
   "scripts": { "build": "tsc -b" },
-  "dependencies": { "@voce-engine/contracts": "0.1.0-rc.1", "@voce-engine/core": "0.1.0-rc.1", "@voce-engine/testkit": "0.1.0-rc.1" }
+  "dependencies": { "@voce-engine/contracts": "0.1.0-rc.2", "@voce-engine/core": "0.1.0-rc.2", "@voce-engine/testkit": "0.1.0-rc.2" }
 }

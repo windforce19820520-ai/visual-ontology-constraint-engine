@@ -25,7 +25,7 @@ async function runtimeSourceFiles(directory: string): Promise<string[]> {
 
 test('CLI help and version have stable machine output', () => {
   const help = invoke(['--help']); assert.equal(help.status, 0); assert.equal(help.stdoutLines.length, 1); assert.equal(help.json?.status, 'ok')
-  const version = invoke(['--version']); assert.equal(version.status, 0); assert.deepEqual(version.json, { status: 'ok', version: '0.1.0-rc.1' })
+  const version = invoke(['--version']); assert.equal(version.status, 0); assert.deepEqual(version.json, { status: 'ok', version: '0.1.0-rc.2' })
 })
 
 test('CLI rejects unknown commands and missing arguments with stable codes', () => {

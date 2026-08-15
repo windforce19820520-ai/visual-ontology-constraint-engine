@@ -52,4 +52,4 @@ await cp(RELEASE_ROOT, tamperRoot, { recursive: true }); await writeFile(path.jo
 const manifestTamper = runAllowFailure(node, [path.join(ROOT, 'scripts', 'verify-checksums.mjs'), tamperRoot]); await rm(tamperRoot, { recursive: true, force: true })
 if (manifestTamper.status === 0) fail('M8_BUILD_MANIFEST_TAMPER_NOT_DETECTED')
 
-console.log(JSON.stringify({ status: 'passed', output: 'release-candidate/v0.1.0-rc.1', sourceRevision: revision, tests: { total: testCount, passed: passCount, skipped: skippedCount }, packages: PACKAGE_NAMES.length, consumer: 'passed', reproducibility: 'passed', checksumTamper: 'artifact-and-build-manifest-rejected', provenance: 'local-build-manifest-only' }))
+console.log(JSON.stringify({ status: 'passed', output: 'release-candidate/v0.1.0-rc.2', sourceRevision: revision, tests: { total: testCount, passed: passCount, skipped: skippedCount }, packages: PACKAGE_NAMES.length, consumer: 'passed', reproducibility: 'passed', checksumTamper: 'artifact-and-build-manifest-rejected', provenance: 'local-build-manifest-only' }))
