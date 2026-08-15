@@ -145,7 +145,7 @@ npm install --global @voce-engine/cli@0.1.0-rc.2
 
 The GitHub prerelease and its checksummed tarballs are available from [`v0.1.0-rc.2`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.2).
 
-The prior RC was exercised through a public-registry clean consumer and a fresh-clone Quick Start journey. See the [RC.1 public acceptance report](docs/acceptance/v0.1.0-rc.1.md). RC.2 public-registry acceptance is recorded only after its OIDC publication succeeds.
+RC.2 was published through npm Trusted Publishing with provenance and exercised from a clean npm consumer, including a third-party data-only ScenarioPack installation, compilation, Mock run, and static trace. See the [RC.2 public acceptance report](docs/acceptance/v0.1.0-rc.2.md). The [RC.1 report](docs/acceptance/v0.1.0-rc.1.md) remains available as historical evidence.
 
 ## Use the offline CLI
 
