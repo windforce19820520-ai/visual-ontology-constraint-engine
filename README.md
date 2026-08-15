@@ -7,7 +7,7 @@ An open-source visual ontology, constraint compiler, prompt optimization, and ev
 
 ## Incubation status and v0.1 release candidate
 
-`v0.1.0-rc.1` is the first public release candidate. It is **not production-ready**: APIs, schemas, package contracts, and behavior may change before `v0.1.0`.
+`v0.1.0-rc.2` is the current public release candidate. It is **not production-ready**: APIs, schemas, package contracts, and behavior may change before `v0.1.0`.
 
 The repository contains deterministic runtime packages, data-only ScenarioPack fixtures, three offline vertical cases, bundle manifests, a Mock execution path, credentialed Seedream multi-reference smoke tooling, and clean-room/release-candidate checks. The four public packages are validated from their packed tarballs, clean consumers compile against installed declarations, and package contents, checksums, and reproducibility are verified on the release path. See the [release-readiness checklist](docs/release-checklist.md), [candidate compatibility surface](docs/compatibility.md), and [changelog](CHANGELOG.md).
 
@@ -137,15 +137,15 @@ No API key or network model access is required.
 The RC is published under the npm `next` dist-tag. Pin the exact version when reproducibility matters:
 
 ```bash
-npm install @voce-engine/contracts@0.1.0-rc.1
-npm install @voce-engine/core@0.1.0-rc.1
-npm install --save-dev @voce-engine/testkit@0.1.0-rc.1
-npm install --global @voce-engine/cli@0.1.0-rc.1
+npm install @voce-engine/contracts@0.1.0-rc.2
+npm install @voce-engine/core@0.1.0-rc.2
+npm install --save-dev @voce-engine/testkit@0.1.0-rc.2
+npm install --global @voce-engine/cli@0.1.0-rc.2
 ```
 
-The GitHub prerelease and its checksummed tarballs are available from [`v0.1.0-rc.1`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.1).
+The GitHub prerelease and its checksummed tarballs are available from [`v0.1.0-rc.2`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.2).
 
-The RC was also exercised through a public-registry clean consumer and a fresh-clone Quick Start journey. See the [public acceptance report](docs/acceptance/v0.1.0-rc.1.md).
+The prior RC was exercised through a public-registry clean consumer and a fresh-clone Quick Start journey. See the [RC.1 public acceptance report](docs/acceptance/v0.1.0-rc.1.md). RC.2 public-registry acceptance is recorded only after its OIDC publication succeeds.
 
 ## Use the offline CLI
 

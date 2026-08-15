@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0-rc.2
+
+This maintenance release candidate adds no runtime features. It validates and exposes the release-engineering path added after RC.1:
+
+- tokenless npm Trusted Publishing through GitHub Actions OIDC for all four public packages;
+- npm provenance generation for packages published from the public GitHub repository;
+- publication of the exact release-candidate tarballs that passed clean-consumer and checksum verification;
+- a public `v0.1 stabilization` milestone and tracker for known limitations, feedback, and stable-release gates; and
+- an RC.2 compatibility snapshot with the same candidate public surface as RC.1.
+
+Standard CI, examples, and public acceptance remain offline and Mock-only. This release does not call a paid Provider and does not claim production readiness.
+
 ## 0.1.0-rc.1
 
 The first public release candidate packages the product-neutral OSS core extracted and generalized from earlier commercial AI content-platform R&D. It is not a stable release and is not production-ready.

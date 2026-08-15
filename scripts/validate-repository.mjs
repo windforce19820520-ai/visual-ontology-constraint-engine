@@ -38,6 +38,8 @@ const requiredFiles = [
   'docs/compatibility.md',
   'compatibility/v0.1.0-rc.1/manifest.json',
   'compatibility/v0.1.0-rc.1/consumer.ts',
+  'compatibility/v0.1.0-rc.2/manifest.json',
+  'compatibility/v0.1.0-rc.2/consumer.ts',
   'fixtures/security/m8/corpus.json',
 ]
 
