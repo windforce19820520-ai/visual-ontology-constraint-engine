@@ -1,56 +1,212 @@
 {
   "schemaVersion": "voce.scenario-pack-source/v1alpha1",
   "packId": "@voce-engine/scenario-cosplay",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "kind": "root",
   "scenarioLabel": "cosplay offline fixture",
   "declarations": { "mayHandlePersonImages": true, "rightsDisclosureRequired": true },
   "contributions": {
+    "ontologyVocabulary": [
+      {
+        "id": "cosplay.ontology.character-fidelity",
+        "paths": [
+          { "path": "person.identity", "valueKind": "identity", "defaultImportance": "hard" },
+          { "path": "character.hair", "valueKind": "visual-attributes", "defaultImportance": "required" },
+          { "path": "character.makeup", "valueKind": "visual-attributes", "defaultImportance": "required" },
+          { "path": "character.costume", "valueKind": "visual-attributes", "defaultImportance": "required" },
+          { "path": "character.accessories", "valueKind": "visual-attributes", "defaultImportance": "required" },
+          { "path": "character.signatureProps.primary.type", "valueKind": "category", "defaultImportance": "hard" },
+          { "path": "character.signatureProps.primary.silhouette", "valueKind": "shape", "defaultImportance": "hard" },
+          { "path": "character.signatureProps.primary.proportion", "valueKind": "ratio", "defaultImportance": "required" },
+          { "path": "character.signatureProps.primary.colorScheme", "valueKind": "palette", "defaultImportance": "required" },
+          { "path": "character.signatureProps.primary.material", "valueKind": "material", "defaultImportance": "preferred" },
+          { "path": "character.signatureProps.primary.signatureDetails", "valueKind": "visual-attributes", "defaultImportance": "required" },
+          { "path": "character.signatureProps.primary.handAssignment", "valueKind": "hand-assignment", "defaultImportance": "required" },
+          { "path": "character.signatureProps.primary.visibility", "valueKind": "visibility", "defaultImportance": "hard" },
+          { "path": "pose", "valueKind": "pose", "defaultImportance": "preferred" }
+        ]
+      }
+    ],
     "rulePacks": [
-      { "id": "cosplay.rules", "namespace": "voce.fixture.cosplay", "rules": [
-        { "id": "cosplay-hard-identity", "kind": "incompatibility", "leftPaths": ["person.identity"], "rightPaths": ["face.coverage"], "rightTokens": ["full_face"], "importance": "hard", "code": "COSPLAY_HARD_IDENTITY", "reasonCode": "COSPLAY_HARD_IDENTITY", "message": "Identity preservation and full-face coverage require an explicit hard block." },
-        { "id": "cosplay-required-costume", "kind": "incompatibility", "leftPaths": ["person.identity"], "rightPaths": ["wardrobe.costume"], "rightTokens": ["costume"], "importance": "required", "code": "COSPLAY_REQUIRED_COSTUME", "reasonCode": "COSPLAY_REQUIRED_COSTUME", "message": "Identity preservation and the costume requirement need an explicit waiver or block." },
-        { "id": "cosplay-preferred-wig", "kind": "incompatibility", "leftPaths": ["person.identity"], "rightPaths": ["hair.style"], "rightTokens": ["wig"], "importance": "preferred", "code": "COSPLAY_PREFERRED_WIG", "reasonCode": "COSPLAY_PREFERRED_WIG", "message": "A preferred wig request may be degraded deterministically when it conflicts with identity." },
-        { "id": "cosplay-no-last-wins", "kind": "resource", "leftPaths": ["accessories.hand"], "rightPaths": ["props"], "rightTokens": ["held"], "importance": "required", "resourceId": "hand", "code": "COSPLAY_NO_LAST_WINS", "reasonCode": "COSPLAY_NO_LAST_WINS", "message": "Hand resource conflicts remain explicit; neither side silently wins." }
-      ] }
+      {
+        "id": "cosplay.rules",
+        "namespace": "voce.fixture.cosplay",
+        "rules": [
+          { "id": "cosplay-hard-identity", "kind": "incompatibility", "leftPaths": ["person.identity"], "rightPaths": ["face.coverage"], "rightTokens": ["full_face"], "importance": "hard", "code": "COSPLAY_HARD_IDENTITY", "reasonCode": "COSPLAY_HARD_IDENTITY", "message": "Identity preservation and full-face coverage require an explicit hard block." },
+          { "id": "cosplay-required-costume", "kind": "incompatibility", "leftPaths": ["person.identity"], "rightPaths": ["character.costume", "wardrobe.costume"], "rightTokens": ["costume"], "importance": "required", "code": "COSPLAY_REQUIRED_COSTUME", "reasonCode": "COSPLAY_REQUIRED_COSTUME", "message": "Identity preservation and the costume requirement need an explicit waiver or block." },
+          { "id": "cosplay-preferred-wig", "kind": "incompatibility", "leftPaths": ["person.identity"], "rightPaths": ["character.hair", "hair.style"], "rightTokens": ["wig"], "importance": "preferred", "code": "COSPLAY_PREFERRED_WIG", "reasonCode": "COSPLAY_PREFERRED_WIG", "message": "A preferred wig request may be degraded deterministically when it conflicts with identity." },
+          { "id": "cosplay-no-last-wins", "kind": "resource", "leftPaths": ["accessories.hand"], "rightPaths": ["character.signatureProps.primary.handAssignment", "props"], "rightTokens": ["held", "left", "right", "two_hands"], "importance": "required", "resourceId": "hand", "code": "COSPLAY_NO_LAST_WINS", "reasonCode": "COSPLAY_NO_LAST_WINS", "message": "Hand resource conflicts remain explicit; neither side silently wins." },
+          { "id": "cosplay-prop-detail-requires-primary", "kind": "dependency", "leftPaths": ["character.signatureProps.primary.signatureDetails"], "rightPaths": ["character.signatureProps.primary.type", "character.signatureProps.primary.silhouette"], "importance": "required", "dependencyKind": "parent_detail", "code": "COSPLAY_PROP_DETAIL_REQUIRES_PRIMARY", "reasonCode": "COSPLAY_PROP_DETAIL_REQUIRES_PRIMARY", "message": "Signature details depend on an identified prop type and primary silhouette." }
+        ]
+      }
     ],
     "interpretationScopes": [
-      { "id": "cosplay.scope.identity", "ontologyPath": "person.identity", "assetId": "ref-01" },
-      { "id": "cosplay.scope.hair", "ontologyPath": "person.hair", "assetId": "ref-01" },
-      { "id": "cosplay.scope.wardrobe", "ontologyPath": "wardrobe", "assetId": "ref-01" }
+      {
+        "id": "cosplay.scope.person-identity",
+        "assetRole": "person-identity",
+        "bindings": [
+          { "assetRole": "person-identity", "targetPath": "person.identity", "relation": "preserve", "priority": "hard" },
+          { "assetRole": "person-identity", "targetPath": "character.costume", "relation": "exclude", "priority": "hard" },
+          { "assetRole": "person-identity", "targetPath": "character.signatureProps", "relation": "exclude", "priority": "hard" }
+        ]
+      },
+      {
+        "id": "cosplay.scope.character-design",
+        "assetRole": "character-design",
+        "bindings": [
+          { "assetRole": "character-design", "targetPath": "person.identity", "relation": "exclude", "priority": "hard" },
+          { "assetRole": "character-design", "targetPath": "character.hair", "relation": "reproduce", "priority": "required" },
+          { "assetRole": "character-design", "targetPath": "character.makeup", "relation": "reproduce", "priority": "required" },
+          { "assetRole": "character-design", "targetPath": "character.costume", "relation": "reproduce", "priority": "required" },
+          { "assetRole": "character-design", "targetPath": "character.accessories", "relation": "reproduce", "priority": "required" },
+          { "assetRole": "character-design", "targetPath": "character.signatureProps.primary", "relation": "reproduce", "priority": "required" }
+        ]
+      },
+      {
+        "id": "cosplay.scope.signature-prop-detail",
+        "assetRole": "signature-prop-detail",
+        "bindings": [
+          { "assetRole": "signature-prop-detail", "targetPath": "person.identity", "relation": "exclude", "priority": "hard" },
+          { "assetRole": "signature-prop-detail", "targetPath": "character.signatureProps.primary", "relation": "reproduce", "priority": "required" }
+        ]
+      },
+      {
+        "id": "cosplay.scope.pose",
+        "assetRole": "pose",
+        "bindings": [
+          { "assetRole": "pose", "targetPath": "person.identity", "relation": "exclude", "priority": "hard" },
+          { "assetRole": "pose", "targetPath": "pose", "relation": "reproduce", "priority": "preferred" }
+        ]
+      }
+    ],
+    "promptSections": [
+      {
+        "id": "cosplay.prompt.character-fidelity",
+        "requiredPaths": [
+          "person.identity",
+          "character.hair",
+          "character.makeup",
+          "character.costume",
+          "character.accessories",
+          "character.signatureProps.primary.type",
+          "character.signatureProps.primary.silhouette",
+          "character.signatureProps.primary.proportion",
+          "character.signatureProps.primary.colorScheme",
+          "character.signatureProps.primary.signatureDetails",
+          "character.signatureProps.primary.handAssignment",
+          "character.signatureProps.primary.visibility"
+        ],
+        "prohibitedInheritance": ["character-design:person.identity", "person-identity:character.costume", "person-identity:character.signatureProps"]
+      }
+    ],
+    "reviewTemplates": [
+      {
+        "id": "cosplay.review.fidelity",
+        "criteria": [
+          { "id": "cosplay.identity-fidelity", "kind": "identity_fidelity", "targetPath": "person.identity", "importance": "hard", "prompt": "Check that the generated person preserves the approved real-person identity without inheriting the character reference face." },
+          { "id": "cosplay.costume-fidelity", "kind": "costume_fidelity", "targetPath": "character.costume", "importance": "required", "prompt": "Check the approved character costume structure, main colors, accessories, and visible signature details." },
+          { "id": "cosplay.signature-prop-fidelity", "kind": "signature_prop_fidelity", "targetPath": "character.signatureProps.primary", "importance": "required", "prompt": "Check prop presence, type, silhouette, color scheme, signature details, scale, hand assignment, and required visibility." }
+        ]
+      }
     ]
   },
   "fixtures": [
-    { "id": "cosplay.offline", "cases": [
-      { "id": "case-cosplay-001", "profileId": "mock-image", "expectedStatus": "completed",
-        "scopePaths": ["person.identity", "person.hair", "wardrobe.top"],
-        "coreProbes": [
-          { "id": "cosplay-clarification", "unknownPaths": ["person.identity"] },
-          { "id": "cosplay-hard", "intents": [
-            { "id": "identity-hard", "operation": "preserve", "targetPath": "person.identity", "requestedValue": "identity", "importance": "hard" },
-            { "id": "mask-hard", "operation": "create", "targetPath": "face.coverage", "requestedValue": "full_face", "importance": "hard" }
-          ] },
-          { "id": "cosplay-waiver", "waiverTarget": "COSPLAY_REQUIRED_COSTUME", "intents": [
-            { "id": "identity-required", "operation": "preserve", "targetPath": "person.identity", "requestedValue": "identity", "importance": "required" },
-            { "id": "costume-required", "operation": "create", "targetPath": "wardrobe.costume", "requestedValue": "costume", "importance": "required" }
-          ] },
-          { "id": "cosplay-preferred", "intents": [
-            { "id": "identity-preferred", "operation": "preserve", "targetPath": "person.identity", "requestedValue": "identity", "importance": "preferred" },
-            { "id": "wig-preferred", "operation": "create", "targetPath": "hair.style", "requestedValue": "wig", "importance": "preferred" }
-          ] }
-        ],
-        "expectedAssertions": [
-          { "id": "cosplay-clarification", "phase": "compile", "target": "coreProbes.cosplay-clarification.reviewReasons", "operator": "includes", "expected": "ONTOLOGY_PATH_UNKNOWN" },
-          { "id": "cosplay-hard-block", "phase": "compile", "target": "coreProbes.cosplay-hard.status", "operator": "equals", "expected": "blocked" },
-          { "id": "cosplay-hard-conflict", "phase": "compile", "target": "coreProbes.cosplay-hard.blockingConflictCount", "operator": "gte", "expected": 1 },
-          { "id": "cosplay-required-waiver", "phase": "compile", "target": "coreProbes.cosplay-waiver.status", "operator": "equals", "expected": "ok" },
-          { "id": "cosplay-waiver-warning", "phase": "compile", "target": "coreProbes.cosplay-waiver.waivedWarnings", "operator": "includes", "expected": "REQUIRED_CONFLICT_WAIVED" },
-          { "id": "cosplay-preferred-degrade", "phase": "compile", "target": "coreProbes.cosplay-preferred.status", "operator": "equals", "expected": "ok" },
-          { "id": "cosplay-degradation", "phase": "compile", "target": "coreProbes.cosplay-preferred.degradationCount", "operator": "gte", "expected": 1 },
-          { "id": "cosplay-trace-hash", "phase": "compile", "target": "coreProbes.cosplay-preferred.constraintHash", "operator": "sha256" },
-          { "id": "cosplay-execution", "phase": "run", "target": "run.executionStatus", "operator": "equals", "expected": "completed" },
-          { "id": "cosplay-static-trace", "phase": "run", "target": "run.traceModelHash", "operator": "sha256" }
-        ] }
-    ] }
+    {
+      "id": "cosplay.offline",
+      "cases": [
+        {
+          "id": "case-cosplay-001",
+          "profileId": "mock-image",
+          "expectedStatus": "completed",
+          "semanticReview": true,
+          "scopePaths": ["person.identity", "person.hair", "wardrobe.top"],
+          "coreProbes": [
+            { "id": "cosplay-clarification", "unknownPaths": ["person.identity"] },
+            {
+              "id": "cosplay-hard",
+              "intents": [
+                { "id": "identity-hard", "operation": "preserve", "targetPath": "person.identity", "requestedValue": "identity", "importance": "hard" },
+                { "id": "mask-hard", "operation": "create", "targetPath": "face.coverage", "requestedValue": "full_face", "importance": "hard" }
+              ]
+            },
+            {
+              "id": "cosplay-waiver",
+              "waiverTarget": "COSPLAY_REQUIRED_COSTUME",
+              "intents": [
+                { "id": "identity-required", "operation": "preserve", "targetPath": "person.identity", "requestedValue": "identity", "importance": "required" },
+                { "id": "costume-required", "operation": "create", "targetPath": "wardrobe.costume", "requestedValue": "costume", "importance": "required" }
+              ]
+            },
+            {
+              "id": "cosplay-preferred",
+              "intents": [
+                { "id": "identity-preferred", "operation": "preserve", "targetPath": "person.identity", "requestedValue": "identity", "importance": "preferred" },
+                { "id": "wig-preferred", "operation": "create", "targetPath": "hair.style", "requestedValue": "wig", "importance": "preferred" }
+              ]
+            },
+            {
+              "id": "cosplay-prop-plan",
+              "maximumReferenceCount": 3,
+              "intents": [
+                { "id": "prop-plan-identity", "operation": "preserve", "targetPath": "person.identity", "requestedValue": "approved-person", "importance": "hard", "sourceHintIds": ["binding-person-identity"] },
+                { "id": "prop-plan-costume", "operation": "replace", "targetPath": "character.costume", "requestedValue": "approved-character-costume", "importance": "required", "sourceHintIds": ["binding-character-costume"] },
+                { "id": "prop-plan-type", "operation": "replace", "targetPath": "character.signatureProps.primary.type", "requestedValue": "long-polearm", "importance": "required", "sourceHintIds": ["binding-character-prop", "binding-prop-detail"] },
+                { "id": "prop-plan-silhouette", "operation": "replace", "targetPath": "character.signatureProps.primary.silhouette", "requestedValue": "distinctive-long-silhouette", "importance": "required", "sourceHintIds": ["binding-character-prop", "binding-prop-detail"] },
+                { "id": "prop-plan-color", "operation": "replace", "targetPath": "character.signatureProps.primary.colorScheme", "requestedValue": "blue-gold", "importance": "required", "sourceHintIds": ["binding-character-prop", "binding-prop-detail"] },
+                { "id": "prop-plan-visibility", "operation": "replace", "targetPath": "character.signatureProps.primary.visibility", "requestedValue": "mostly-visible", "importance": "required", "sourceHintIds": ["binding-character-prop", "binding-prop-detail"] },
+                { "id": "prop-plan-pose", "operation": "adjust", "targetPath": "pose", "requestedValue": "heroic-standing", "importance": "preferred", "sourceHintIds": ["binding-pose"] }
+              ],
+              "references": [
+                { "id": "ref-person-identity", "assetId": "ref-person", "role": "person-identity", "ontologyScopes": ["person.identity"], "importance": "hard", "sourceBindingIds": ["binding-person-identity"], "orderKey": "01-person" },
+                { "id": "ref-character-design", "assetId": "ref-character", "role": "character-design", "ontologyScopes": ["character.hair", "character.makeup", "character.costume", "character.accessories"], "importance": "hard", "sourceBindingIds": ["binding-character-costume"], "orderKey": "02-character" },
+                { "id": "ref-signature-prop", "assetId": "ref-prop-detail", "role": "signature-prop-detail", "ontologyScopes": ["character.signatureProps.primary"], "importance": "required", "sourceBindingIds": ["binding-character-prop", "binding-prop-detail"], "orderKey": "03-prop" },
+                { "id": "ref-pose", "assetId": "ref-pose", "role": "pose", "ontologyScopes": ["pose"], "importance": "preferred", "sourceBindingIds": ["binding-pose"], "orderKey": "04-pose" }
+              ]
+            },
+            {
+              "id": "cosplay-prop-budget-block",
+              "maximumReferenceCount": 2,
+              "intents": [
+                { "id": "budget-identity", "operation": "preserve", "targetPath": "person.identity", "requestedValue": "approved-person", "importance": "hard", "sourceHintIds": ["binding-person-identity"] },
+                { "id": "budget-costume", "operation": "replace", "targetPath": "character.costume", "requestedValue": "approved-character-costume", "importance": "required", "sourceHintIds": ["binding-character-costume"] },
+                { "id": "budget-prop", "operation": "replace", "targetPath": "character.signatureProps.primary.type", "requestedValue": "long-polearm", "importance": "required", "sourceHintIds": ["binding-prop-detail"] }
+              ],
+              "references": [
+                { "id": "budget-ref-person", "assetId": "ref-person", "role": "person-identity", "ontologyScopes": ["person.identity"], "importance": "hard", "sourceBindingIds": ["binding-person-identity"], "orderKey": "01-person" },
+                { "id": "budget-ref-character", "assetId": "ref-character", "role": "character-design", "ontologyScopes": ["character.costume"], "importance": "hard", "sourceBindingIds": ["binding-character-costume"], "orderKey": "02-character" },
+                { "id": "budget-ref-prop", "assetId": "ref-prop-detail", "role": "signature-prop-detail", "ontologyScopes": ["character.signatureProps.primary"], "importance": "required", "sourceBindingIds": ["binding-prop-detail"], "orderKey": "03-prop" }
+              ]
+            }
+          ],
+          "expectedAssertions": [
+            { "id": "cosplay-ontology-signature-prop", "phase": "compile", "target": "scenario.ontologyPaths", "operator": "includes", "expected": "character.signatureProps.primary.type" },
+            { "id": "cosplay-character-face-excluded", "phase": "compile", "target": "scenario.bindingPolicies", "operator": "includes", "expected": "character-design|exclude|person.identity|hard" },
+            { "id": "cosplay-person-costume-excluded", "phase": "compile", "target": "scenario.bindingPolicies", "operator": "includes", "expected": "person-identity|exclude|character.costume|hard" },
+            { "id": "cosplay-prompt-prop-path", "phase": "compile", "target": "scenario.promptTargetPaths", "operator": "includes", "expected": "character.signatureProps.primary.signatureDetails" },
+            { "id": "cosplay-review-prop-criterion", "phase": "compile", "target": "scenario.reviewCriterionIds", "operator": "includes", "expected": "cosplay.signature-prop-fidelity" },
+            { "id": "cosplay-clarification", "phase": "compile", "target": "coreProbes.cosplay-clarification.reviewReasons", "operator": "includes", "expected": "ONTOLOGY_PATH_UNKNOWN" },
+            { "id": "cosplay-hard-block", "phase": "compile", "target": "coreProbes.cosplay-hard.status", "operator": "equals", "expected": "blocked" },
+            { "id": "cosplay-hard-conflict", "phase": "compile", "target": "coreProbes.cosplay-hard.blockingConflictCount", "operator": "gte", "expected": 1 },
+            { "id": "cosplay-required-waiver", "phase": "compile", "target": "coreProbes.cosplay-waiver.status", "operator": "equals", "expected": "ok" },
+            { "id": "cosplay-waiver-warning", "phase": "compile", "target": "coreProbes.cosplay-waiver.waivedWarnings", "operator": "includes", "expected": "REQUIRED_CONFLICT_WAIVED" },
+            { "id": "cosplay-preferred-degrade", "phase": "compile", "target": "coreProbes.cosplay-preferred.status", "operator": "equals", "expected": "ok" },
+            { "id": "cosplay-degradation", "phase": "compile", "target": "coreProbes.cosplay-preferred.degradationCount", "operator": "gte", "expected": 1 },
+            { "id": "cosplay-trace-hash", "phase": "compile", "target": "coreProbes.cosplay-preferred.constraintHash", "operator": "sha256" },
+            { "id": "cosplay-prop-plan-ok", "phase": "compile", "target": "coreProbes.cosplay-prop-plan.referenceStatus", "operator": "equals", "expected": "ok" },
+            { "id": "cosplay-prop-selected", "phase": "compile", "target": "coreProbes.cosplay-prop-plan.selectedRoles", "operator": "includes", "expected": "signature-prop-detail" },
+            { "id": "cosplay-pose-omitted", "phase": "compile", "target": "coreProbes.cosplay-prop-plan.omittedRoles", "operator": "includes", "expected": "pose" },
+            { "id": "cosplay-prop-binding-traced", "phase": "compile", "target": "coreProbes.cosplay-prop-plan.selectedSourceBindingIds", "operator": "includes", "expected": "binding-prop-detail" },
+            { "id": "cosplay-prop-prompt-covered", "phase": "compile", "target": "coreProbes.cosplay-prop-plan.promptTargetPaths", "operator": "includes", "expected": "character.signatureProps.primary.type" },
+            { "id": "cosplay-prop-budget-blocks", "phase": "compile", "target": "coreProbes.cosplay-prop-budget-block.referenceStatus", "operator": "equals", "expected": "blocked" },
+            { "id": "cosplay-prop-budget-identifies-role", "phase": "compile", "target": "coreProbes.cosplay-prop-budget-block.blockedRoles", "operator": "includes", "expected": "signature-prop-detail" },
+            { "id": "cosplay-execution", "phase": "run", "target": "run.executionStatus", "operator": "equals", "expected": "completed" },
+            { "id": "cosplay-static-trace", "phase": "run", "target": "run.traceModelHash", "operator": "sha256" },
+            { "id": "cosplay-semantic-proposal", "phase": "run", "target": "run.semanticStatus", "operator": "equals", "expected": "proposal" },
+            { "id": "cosplay-semantic-prop-criterion", "phase": "run", "target": "run.semanticCriterionIds", "operator": "includes", "expected": "cosplay.signature-prop-fidelity" },
+            { "id": "cosplay-semantic-needs-review", "phase": "run", "target": "run.evaluationStatus", "operator": "equals", "expected": "needs_review" }
+          ]
+        }
+      ]
+    }
   ]
 }
