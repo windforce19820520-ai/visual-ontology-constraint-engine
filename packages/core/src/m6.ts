@@ -1089,6 +1089,7 @@ export function compileEvaluationReport(input: EvaluationCompilerInput): Evaluat
   if (input.semanticProposal && computeSemanticReviewReportHash(input.semanticProposal) !== input.semanticProposal.reportHash) throw new ProviderTransportError('SEMANTIC_REPORT_HASH_MISMATCH', 'Semantic review report hash is invalid.')
   const human = input.humanAcceptance ? normalizeHumanAcceptance(input.humanAcceptance, input.run.id) : undefined
   if (human && (human.annotations.some((annotation) => humanAnnotationHash(annotation) !== annotation.annotationHash) || computeHumanAcceptanceDecisionHash(human) !== human.decisionHash)) throw new ProviderTransportError('HUMAN_DECISION_HASH_MISMATCH', 'Human acceptance decision hash is invalid.')
+  if (human && human.runId !== input.run.id) throw new ProviderTransportError('HUMAN_DECISION_RUN_MISMATCH', 'Human acceptance decision belongs to a different execution run.')
   const cleanup = cleanupStatus(input.cleanup ?? [])
   const replay = input.replay ?? { mode: 'none', status: 'not_requested', artifactIds: [] }
   const technicalStatus: EvaluationReport['technicalStatus'] = input.run.technicalOutcome === 'succeeded' ? 'passed' : input.run.technicalOutcome === 'failed' ? 'failed' : input.run.technicalOutcome === 'pending' ? 'pending' : 'needs_review'

@@ -173,6 +173,8 @@ test('semantic review is a separately authorized proposal and does not become te
     assert.equal(adjudicated.status, 'complete')
     assert.ok(!adjudicated.warnings.includes('SEMANTIC_FINDING_REQUIRES_REVIEW'))
   }
+  const foreignHuman = createHumanAcceptanceDecision({ schemaVersion: 'voce.human-acceptance-decision/v1alpha1', id: 'human-semantic-foreign', runId: 'different-run', status: 'accepted', reviewerId: 'reviewer', decidedAt: '2026-01-01T00:00:00.000Z', reasonCode: 'SEMANTIC_ACCEPTED', annotations: [], artifactIds: [artifact.id] })
+  assert.throws(() => compileEvaluationReport({ run: { id: 'run-semantic', state: 'completed', technicalOutcome: 'succeeded', contextHash: reviewAuthorization.contextHash, pipelinePlanHash: sha256({ plan: 'semantic' }) }, semanticProposal: report, humanAcceptance: foreignHuman, artifacts: [artifact] }), /HUMAN_DECISION_RUN_MISMATCH/)
   const execution = await (await import('./m6.js')).executeSemanticReview(reviewer, request, reviewAuthorization)
   assert.equal(execution.remoteCallRun.state, 'succeeded')
   assert.equal(execution.receipt.authorizationId, reviewAuthorization.id)
