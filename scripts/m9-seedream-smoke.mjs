@@ -48,7 +48,7 @@ const INPUT_SPECS = {
   },
 }
 
-const adapterPin = { id: 'voce.seedream', version: '0.1.0-rc.2', digest: sha256({ id: 'voce.seedream', version: '0.1.0-rc.2' }) }
+const adapterPin = { id: 'voce.seedream', version: '0.1.0-rc.3', digest: sha256({ id: 'voce.seedream', version: '0.1.0-rc.3' }) }
 const profilePin = { id: 'voce.seedream.domestic.pro', version: '2026-06-28', digest: sha256({ endpoint: ENDPOINT, model: MODEL, referenceLimit: 10, outputCount: 1 }) }
 
 const jsonReady = (value) => JSON.parse(JSON.stringify(value))

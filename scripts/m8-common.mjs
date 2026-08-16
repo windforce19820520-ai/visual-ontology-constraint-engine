@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { gunzipSync } from 'node:zlib'
 
 export const ROOT = fileURLToPath(new URL('..', import.meta.url))
-export const RELEASE_CANDIDATE = '0.1.0-rc.2'
+export const RELEASE_CANDIDATE = '0.1.0-rc.3'
 export const RELEASE_ROOT = path.join(ROOT, 'release-candidate', `v${RELEASE_CANDIDATE}`)
 export const PACKAGE_NAMES = ['@voce-engine/contracts', '@voce-engine/core', '@voce-engine/testkit', '@voce-engine/cli']
 export const PACKAGE_DIRS = Object.fromEntries(PACKAGE_NAMES.map((name) => [name, path.join(ROOT, 'packages', name.split('/').at(-1))]))

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0-rc.3
+
+This release candidate repairs the Cosplay signature-prop fidelity path reported in issue #19 and keeps the repair inside the existing declarative and deterministic boundaries:
+
+- expands the data-only Cosplay ScenarioPack with explicit signature-prop ontology paths, source-isolation policies, required detail dependencies, prompt coverage, and separate semantic-review criteria;
+- makes required signature-prop references fail closed when the effective reference budget cannot retain them, while optional pose references remain omittable with a reason;
+- keeps evaluation in `needs_review` for unadjudicated semantic `fail` or `uncertain` findings and rejects human decisions bound to a different execution run;
+- binds generated CaseSpec roots to the exact loaded ScenarioPack version instead of a CLI hard-coded fixture version; and
+- adds deterministic regression coverage for the evaluation, ScenarioPack, and reference-budget behavior plus an RC.3 compatibility snapshot.
+
+Standard CI, examples, release-candidate checks, and public acceptance remain offline and Mock-only. Preparing this candidate does not publish packages, create a tag or GitHub Release, call a paid Provider, or claim production readiness.
+
 ## 0.1.0-rc.2
 
 This maintenance release candidate adds no runtime features. It validates and exposes the release-engineering path added after RC.1:

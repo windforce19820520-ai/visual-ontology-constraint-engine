@@ -1,6 +1,6 @@
 {
   "name": "@voce-engine/contracts",
-  "version": "0.1.0-rc.2",
+  "version": "0.1.0-rc.3",
   "description": "Versioned public contracts and JSON Schemas for the VOCE release candidate.",
   "license": "Apache-2.0",
   "type": "module",

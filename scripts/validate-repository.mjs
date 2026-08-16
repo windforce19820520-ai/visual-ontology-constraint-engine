@@ -40,6 +40,8 @@ const requiredFiles = [
   'compatibility/v0.1.0-rc.1/consumer.ts',
   'compatibility/v0.1.0-rc.2/manifest.json',
   'compatibility/v0.1.0-rc.2/consumer.ts',
+  'compatibility/v0.1.0-rc.3/manifest.json',
+  'compatibility/v0.1.0-rc.3/consumer.ts',
   'fixtures/security/m8/corpus.json',
 ]
 
@@ -207,6 +209,31 @@ for (const file of requiredContractSchemas) {
   }
   schemaIds.add(schema.$id)
   if (!schema.type && !schema.oneOf) throw new Error(`CONTRACT_SCHEMA_ROOT_INVALID:${file}`)
+}
+
+const workspaceManifestFiles = [
+  'package.json',
+  'packages/contracts/package.json',
+  'packages/core/package.json',
+  'packages/testkit/package.json',
+  'packages/cli/package.json',
+]
+const workspaceManifests = Object.fromEntries(await Promise.all(workspaceManifestFiles.map(async (file) => [
+  file,
+  JSON.parse(await readFile(new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot), 'utf8')),
+])))
+const releaseVersion = workspaceManifests['package.json'].version
+for (const file of workspaceManifestFiles.slice(1)) {
+  if (workspaceManifests[file].version !== releaseVersion) throw new Error(`WORKSPACE_VERSION_MISMATCH:${file}`)
+}
+for (const [file, dependencies] of [
+  ['packages/core/package.json', ['@voce-engine/contracts']],
+  ['packages/testkit/package.json', ['@voce-engine/contracts', '@voce-engine/core']],
+  ['packages/cli/package.json', ['@voce-engine/contracts', '@voce-engine/core', '@voce-engine/testkit']],
+]) {
+  for (const dependency of dependencies) {
+    if (workspaceManifests[file].dependencies?.[dependency] !== releaseVersion) throw new Error(`WORKSPACE_DEPENDENCY_VERSION_MISMATCH:${file}:${dependency}`)
+  }
 }
 
 for (const [file, expectedVersion] of [['fixtures/observation-unconfirmed.json', 'voce.observation/v1alpha1'], ['fixtures/product-shot-case.json', 'voce.case-spec/v1alpha1']]) {

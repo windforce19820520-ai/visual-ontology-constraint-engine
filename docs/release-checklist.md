@@ -1,6 +1,6 @@
-# v0.1.0-rc.2 release-readiness checklist
+# v0.1.0-rc.3 release-readiness checklist
 
-This checklist describes the local release candidate gate. Passing it does not itself authorize npm publishing, a GitHub Release, a tag, a merge, or a production-readiness claim. `v0.1.0-rc.2` publication is a separately authorized RC operation.
+This checklist describes the local release candidate gate. Passing it does not itself authorize npm publishing, a GitHub Release, a tag, a merge, or a production-readiness claim. `v0.1.0-rc.3` publication is a separately authorized RC operation.
 
 ## Local commands
 

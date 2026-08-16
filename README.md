@@ -7,7 +7,7 @@ An open-source visual ontology, constraint compiler, prompt optimization, and ev
 
 ## Incubation status and v0.1 release candidate
 
-`v0.1.0-rc.2` is the current public release candidate. It is **not production-ready**: APIs, schemas, package contracts, and behavior may change before `v0.1.0`.
+The source tree is preparing `v0.1.0-rc.3`; `v0.1.0-rc.2` remains the current public release candidate until a separately authorized publication completes. Neither candidate is **production-ready**: APIs, schemas, package contracts, and behavior may change before `v0.1.0`.
 
 The repository contains deterministic runtime packages, data-only ScenarioPack fixtures, three offline vertical cases, bundle manifests, a Mock execution path, credentialed Seedream multi-reference smoke tooling, and clean-room/release-candidate checks. The four public packages are validated from their packed tarballs, clean consumers compile against installed declarations, and package contents, checksums, and reproducibility are verified on the release path. See the [release-readiness checklist](docs/release-checklist.md), [candidate compatibility surface](docs/compatibility.md), and [changelog](CHANGELOG.md).
 
