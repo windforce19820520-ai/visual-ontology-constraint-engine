@@ -48,6 +48,14 @@ test('runtime CLI and Core source contains no first-party scenario-name branches
   }
 })
 
+test('credentialed smoke definition carries signature-prop fidelity without making a network call', async () => {
+  const source = await readFile(path.join(root, 'scripts', 'm9-seedream-smoke.mjs'), 'utf8')
+  assert.match(source, /visible signature weapon/)
+  assert.match(source, /weapon type, long primary silhouette, blue-gold color scheme/)
+  assert.match(source, /Do not inherit the illustrated character face as the real-person identity/)
+  assert.doesNotMatch(source, /ignore[^.\n]*weapons/i)
+})
+
 test('third-party declarations drive person-image disclosure independently of packId', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'voce-pack-declarations-')); const source = JSON.parse(await readFile(fixture('packs/third-party-minimal/pack.json'), 'utf8')) as Record<string, unknown>; const inspected: Array<Record<string, unknown>> = []
   try {
@@ -70,8 +78,8 @@ test('three vertical fixtures compile, run with Mock, and render a static trace'
     ] as const
     for (const [name, profile] of cases) {
       const compiled = path.join(directory, name, 'compiled'); const run = path.join(directory, name, 'run'); const html = path.join(directory, name, 'trace.html')
-      const compile = invoke(['case', 'compile', '--case', fixture(`cases/${name}.json`), '--scenario', fixture(`packs/${name}`), '--profile', fixture(`profiles/${profile}.json`), '--out', compiled]); assert.equal(compile.status, 0); const compileAcceptance = JSON.parse(await readFile(path.join(compiled, 'acceptance.json'), 'utf8')) as Record<string, unknown>; const compileAssertions = compileAcceptance.assertions as Array<Record<string, unknown>>; assert.ok(compileAssertions.length > 0); assert.ok(compileAssertions.every((item) => item.status === 'passed')); assert.ok(compileAssertions.every((item) => /^sha256:[0-9a-f]{64}$/.test(String(item.observedHash))))
-      const executed = invoke(['case', 'run', '--bundle', compiled, '--provider', 'mock', '--out', run]); assert.equal(executed.status, 0); assert.ok(executed.json?.semanticHash); const runAcceptance = JSON.parse(await readFile(path.join(run, 'acceptance.json'), 'utf8')) as Record<string, unknown>; const runAssertions = runAcceptance.assertions as Array<Record<string, unknown>>; assert.equal(runAssertions.length, compileAssertions.length + (name === 'virtual-tryon' ? 6 : name === 'cosplay' ? 2 : 2)); assert.ok(runAssertions.every((item) => item.status === 'passed')); assert.match(String(runAcceptance.assertionHash), /^sha256:[0-9a-f]{64}$/)
+      const compile = invoke(['case', 'compile', '--case', fixture(`cases/${name}.json`), '--scenario', fixture(`packs/${name}`), '--profile', fixture(`profiles/${profile}.json`), '--out', compiled]); assert.equal(compile.status, 0); const compileAcceptance = JSON.parse(await readFile(path.join(compiled, 'acceptance.json'), 'utf8')) as Record<string, unknown>; const compileAssertions = compileAcceptance.assertions as Array<Record<string, unknown>>; assert.ok(compileAssertions.length > 0); assert.ok(compileAssertions.every((item) => item.status === 'passed')); assert.ok(compileAssertions.every((item) => /^sha256:[0-9a-f]{64}$/.test(String(item.observedHash)))); const compiledCase = JSON.parse(await readFile(path.join(compiled, 'case.json'), 'utf8')) as { scenario: { root: { packId: string; versionRange: string } } }; const compiledScenario = JSON.parse(await readFile(path.join(compiled, 'scenario.json'), 'utf8')) as { lock: { entries: Array<{ packId: string; version: string }> } }; const compiledManifest = JSON.parse(await readFile(path.join(compiled, 'manifest.json'), 'utf8')) as { pins: { scenario: { version: string } } }; const rootLock = compiledScenario.lock.entries.find((entry) => entry.packId === compiledCase.scenario.root.packId); assert.ok(rootLock); assert.equal(compiledCase.scenario.root.versionRange, rootLock.version); assert.equal(compiledManifest.pins.scenario.version, rootLock.version)
+      const executed = invoke(['case', 'run', '--bundle', compiled, '--provider', 'mock', '--out', run]); assert.equal(executed.status, 0); assert.ok(executed.json?.semanticHash); const runAcceptance = JSON.parse(await readFile(path.join(run, 'acceptance.json'), 'utf8')) as Record<string, unknown>; const runAssertions = runAcceptance.assertions as Array<Record<string, unknown>>; const compiledFixture = JSON.parse(await readFile(path.join(compiled, 'fixture.json'), 'utf8')) as Record<string, unknown>; const expectedAssertions = compiledFixture.expectedAssertions as Array<Record<string, unknown>>; assert.equal(runAssertions.length, expectedAssertions.length); assert.ok(runAssertions.every((item) => item.status === 'passed')); assert.match(String(runAcceptance.assertionHash), /^sha256:[0-9a-f]{64}$/)
       const trace = invoke(['trace', 'render', '--bundle', run, '--out', html]); assert.equal(trace.status, 0); const htmlContent = await readFile(html, 'utf8'); assert.doesNotMatch(htmlContent, /data:|base64|https?:\/\/|[A-Za-z]:\\/i)
     }
   } finally { await rm(directory, { recursive: true, force: true }) }

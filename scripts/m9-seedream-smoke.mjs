@@ -44,7 +44,7 @@ const INPUT_SPECS = {
   costume: {
     id: 'user-synthetic-cosplay',
     stem: 'cosplay-01',
-    binding: 'Use the blue hair, horn ornaments, makeup, earrings, arm ornaments, and blue-white-gold costume; ignore text, logos, ratings, UI, graphic background, and weapons.',
+    binding: 'Use the blue hair, horn ornaments, makeup, earrings, arm ornaments, blue-white-gold costume, and visible signature weapon; preserve the weapon type, long silhouette, blue-gold color scheme, scale, and hand assignment; ignore text, logos, ratings, UI, and graphic background.',
   },
 }
 
@@ -406,7 +406,7 @@ async function main() {
       id: 'm9-cosplay',
       title: 'Multi-reference character cosplay',
       references: ['person', 'costume'],
-      prompt: 'Create a realistic cosplay transformation from two references. Preserve from the first reference the adult person identity, facial structure, body proportions, and full-body presentation. From the second reference reproduce the blue hairstyle, horn-like hair ornaments, makeup, earrings, arm ornaments, and the complete blue-white-gold costume design. Adapt the illustrated character styling into a coherent wearable photorealistic cosplay while keeping the person recognizable. Ignore all source text, logos, ratings, interface elements, graphic background, and weapons. Use a clean opaque photographic background and add no extra people, text, or watermark.',
+      prompt: 'Create a realistic cosplay transformation from two references. Preserve from the first reference the adult person identity, facial structure, body proportions, and full-body presentation; do not inherit that person\'s original clothing as the target costume. From the second reference reproduce the blue hairstyle, horn-like hair ornaments, makeup, earrings, arm ornaments, the complete blue-white-gold costume design, and the visible signature weapon. Preserve the weapon type, long primary silhouette, blue-gold color scheme, character-relative scale, major signature details, hand assignment, and visible presence. Do not inherit the illustrated character face as the real-person identity. Adapt the illustrated character styling into a coherent wearable photorealistic cosplay while keeping the person recognizable. Ignore all source text, logos, ratings, interface elements, and graphic background. Use a clean opaque photographic background and add no extra people, unrelated props, text, or watermark.',
     },
   ]
   const cases = []

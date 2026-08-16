@@ -163,6 +163,18 @@ test('semantic review is a separately authorized proposal and does not become te
   const report = await reviewer.review(request, reviewAuthorization)
   assert.equal(report.status, 'proposal')
   assert.equal(report.findings[0].proposal, true)
+  const evaluation = compileEvaluationReport({ run: { id: 'run-semantic', state: 'completed', technicalOutcome: 'succeeded', contextHash: reviewAuthorization.contextHash, pipelinePlanHash: sha256({ plan: 'semantic' }) }, semanticProposal: report, artifacts: [artifact] })
+  assert.equal(evaluation.technicalStatus, 'passed')
+  assert.equal(evaluation.status, 'needs_review')
+  assert.ok(evaluation.warnings.includes('SEMANTIC_FINDING_REQUIRES_REVIEW'))
+  for (const status of ['accepted', 'waived'] as const) {
+    const human = createHumanAcceptanceDecision({ schemaVersion: 'voce.human-acceptance-decision/v1alpha1', id: `human-semantic-${status}`, runId: 'run-semantic', status, reviewerId: 'reviewer', decidedAt: '2026-01-01T00:00:00.000Z', reasonCode: `SEMANTIC_${status.toUpperCase()}`, annotations: [], artifactIds: [artifact.id] })
+    const adjudicated = compileEvaluationReport({ run: { id: 'run-semantic', state: 'completed', technicalOutcome: 'succeeded', contextHash: reviewAuthorization.contextHash, pipelinePlanHash: sha256({ plan: 'semantic' }) }, semanticProposal: report, humanAcceptance: human, artifacts: [artifact] })
+    assert.equal(adjudicated.status, 'complete')
+    assert.ok(!adjudicated.warnings.includes('SEMANTIC_FINDING_REQUIRES_REVIEW'))
+  }
+  const foreignHuman = createHumanAcceptanceDecision({ schemaVersion: 'voce.human-acceptance-decision/v1alpha1', id: 'human-semantic-foreign', runId: 'different-run', status: 'accepted', reviewerId: 'reviewer', decidedAt: '2026-01-01T00:00:00.000Z', reasonCode: 'SEMANTIC_ACCEPTED', annotations: [], artifactIds: [artifact.id] })
+  assert.throws(() => compileEvaluationReport({ run: { id: 'run-semantic', state: 'completed', technicalOutcome: 'succeeded', contextHash: reviewAuthorization.contextHash, pipelinePlanHash: sha256({ plan: 'semantic' }) }, semanticProposal: report, humanAcceptance: foreignHuman, artifacts: [artifact] }), /HUMAN_DECISION_RUN_MISMATCH/)
   const execution = await (await import('./m6.js')).executeSemanticReview(reviewer, request, reviewAuthorization)
   assert.equal(execution.remoteCallRun.state, 'succeeded')
   assert.equal(execution.receipt.authorizationId, reviewAuthorization.id)
