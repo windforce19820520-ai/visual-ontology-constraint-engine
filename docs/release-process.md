@@ -1,6 +1,19 @@
 # Release-candidate process
 
-This repository produces an auditable local release candidate before any external publication. Publication is a separate, explicitly owner-authorized operation. The source tree prepares `v0.1.0-rc.3`; `v0.1.0-rc.2` remains the published npm `next` candidate and GitHub prerelease until RC.3 publication is separately authorized. Neither is production-ready.
+This repository produces an auditable local release candidate before any external publication. Publication is a separate, explicitly owner-authorized operation. `v0.1.0-rc.3` is the current GitHub prerelease; `v0.1.0-rc.2` remains the published npm `next` candidate until the RC.3 npm workflow and post-publication acceptance are separately authorized and completed. Neither is production-ready.
+
+## Current v0.1.0-rc.3 publication status
+
+As of 2026-08-17:
+
+- PR [#21](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/pull/21) was merged to `main` as `f424705bbf554e23336e8b4179f24b287145cdf6`;
+- the annotated [`v0.1.0-rc.3`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.3) tag and GitHub prerelease point to that source revision;
+- the post-merge release-candidate, clean-room, checksum, and tracked-diff gates passed;
+- the four public npm packages have not been published at RC.3, and their `next` distribution tags remain on `0.1.0-rc.2`;
+- no paid or real Provider acceptance was performed as part of publication; and
+- issue [#19](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues/19) remains open pending separately authorized real-Provider acceptance.
+
+This is a split publication state, not a full public acceptance result. Add an RC.3 acceptance report only after the exact tagged packages are published and exercised from a clean public-registry consumer. A real-Provider result remains a separate acceptance record and must not be inferred from deterministic or Mock-only gates.
 
 ## Local gates
 

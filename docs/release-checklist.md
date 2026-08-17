@@ -2,6 +2,17 @@
 
 This checklist describes the local release candidate gate. Passing it does not itself authorize npm publishing, a GitHub Release, a tag, a merge, or a production-readiness claim. `v0.1.0-rc.3` publication is a separately authorized RC operation.
 
+## Recorded publication state
+
+The reviewed PR, annotated tag, and GitHub prerelease were completed on 2026-08-17 at source revision `f424705bbf554e23336e8b4179f24b287145cdf6`. The post-merge release-candidate, clean-room, checksum, and tracked-diff gates passed.
+
+This record is intentionally not a completed public-acceptance claim:
+
+- RC.3 is not yet published to npm; all four `next` tags remain on `0.1.0-rc.2`.
+- A clean consumer has not yet installed RC.3 from the public npm registry.
+- No real Provider was called during the RC.3 publication step.
+- Issue [#19](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues/19) remains open pending separately authorized real-Provider acceptance.
+
 ## Local commands
 
 Run from a clean tracked working tree with Node 20 or newer:
