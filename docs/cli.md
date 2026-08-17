@@ -1,6 +1,6 @@
 # VOCE CLI
 
-The `0.1.0-rc.2` release candidate provides the `voce` command through `packages/cli`. It is safe-by-default, deterministic, explicit-path, and offline-first.
+The `0.1.0-rc.3` release candidate provides the `voce` command through `packages/cli`. It is safe-by-default, deterministic, explicit-path, and offline-first.
 
 ## 10–15 minute clean-room quickstart
 
@@ -19,7 +19,7 @@ Open `.local-output/product-shot.html` in a local viewer. The page is a static, 
 
 ## Commands
 
-`voce --help` and `voce --version` report the CLI surface and `0.1.0-rc.2`.
+`voce --help` and `voce --version` report the CLI surface and `0.1.0-rc.3`.
 
 `pack inspect|validate|test --source <explicit path>` reads one explicit data-only `pack.json` or a standard `scenario-pack/manifest.json` directory. `test` runs the declared FixtureSuite through the same Registry/Resolver and offline Mock path. It does not execute JavaScript, lifecycle hooks, package scripts, or network access.
 

@@ -26,10 +26,10 @@ import {
 } from '@voce-engine/testkit'
 import { BUNDLE_MANIFEST_SCHEMA_VERSION } from '@voce-engine/contracts'
 
-export const CLI_VERSION = '0.1.0-rc.2'
+export const CLI_VERSION = '0.1.0-rc.3'
 const TOOL_ID = '@voce-engine/cli'
-const CONTRACTS_VERSION = '0.1.0-rc.2'
-const CORE_VERSION = '0.1.0-rc.2'
+const CONTRACTS_VERSION = '0.1.0-rc.3'
+const CORE_VERSION = '0.1.0-rc.3'
 const SOURCE_SCHEMA = 'voce.scenario-pack-source/v1alpha1'
 const PACK_SCHEMA = 'voce.scenario-pack/v1alpha1'
 const HASH = /^sha256:[0-9a-f]{64}$/

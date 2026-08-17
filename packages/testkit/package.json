@@ -1,6 +1,6 @@
 {
   "name": "@voce-engine/testkit",
-  "version": "0.1.0-rc.2",
+  "version": "0.1.0-rc.3",
   "description": "Deterministic fixtures and Mock-only helpers for offline VOCE contract and runtime tests.",
   "license": "Apache-2.0",
   "type": "module",
@@ -12,5 +12,5 @@
   "homepage": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine#readme",
   "bugs": { "url": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues" },
   "publishConfig": { "access": "public", "tag": "next" },
-  "dependencies": { "@voce-engine/core": "0.1.0-rc.2", "@voce-engine/contracts": "0.1.0-rc.2" }
+  "dependencies": { "@voce-engine/core": "0.1.0-rc.3", "@voce-engine/contracts": "0.1.0-rc.3" }
 }

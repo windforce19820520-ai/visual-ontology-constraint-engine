@@ -1,6 +1,6 @@
 # Candidate public compatibility surface
 
-The current versioned machine-readable checklist is [`compatibility/v0.1.0-rc.2/manifest.json`](../compatibility/v0.1.0-rc.2/manifest.json). It is a candidate compatibility fixture for `0.1.0-rc.2`, not a stable-major compatibility promise. The RC.1 fixture remains available as a historical snapshot.
+The current versioned machine-readable checklist is [`compatibility/v0.1.0-rc.3/manifest.json`](../compatibility/v0.1.0-rc.3/manifest.json). It is a candidate compatibility fixture for `0.1.0-rc.3`, not a stable-major compatibility promise. The RC.1 and RC.2 fixtures remain available as historical snapshots.
 
 The candidate surface is limited to:
 
