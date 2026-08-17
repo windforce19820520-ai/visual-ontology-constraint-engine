@@ -7,13 +7,13 @@ An open-source visual ontology, constraint compiler, prompt optimization, and ev
 
 ## Incubation status and v0.1 release candidate
 
-The source tree is preparing `v0.1.0-rc.3`; `v0.1.0-rc.2` remains the current public release candidate until a separately authorized publication completes. Neither candidate is **production-ready**: APIs, schemas, package contracts, and behavior may change before `v0.1.0`.
+`v0.1.0-rc.3` is available as a GitHub prerelease from the reviewed `f424705bbf554e23336e8b4179f24b287145cdf6` source revision. The four public npm packages remain on `v0.1.0-rc.2` under the `next` distribution tag until the separately authorized npm workflow and post-publication acceptance complete. Neither candidate is **production-ready**: APIs, schemas, package contracts, and behavior may change before `v0.1.0`.
 
 The repository contains deterministic runtime packages, data-only ScenarioPack fixtures, three offline vertical cases, bundle manifests, a Mock execution path, credentialed Seedream multi-reference smoke tooling, and clean-room/release-candidate checks. The four public packages are validated from their packed tarballs, clean consumers compile against installed declarations, and package contents, checksums, and reproducibility are verified on the release path. See the [release-readiness checklist](docs/release-checklist.md), [candidate compatibility surface](docs/compatibility.md), and [changelog](CHANGELOG.md).
 
 ## What works today
 
-`v0.1.0-rc.2` is publicly installable from npm. The four public `@voce-engine/*` packages have been exercised from clean consumer environments, including package imports, CLI usage, compilation, an offline Mock run, static trace generation, and a third-party data-only ScenarioPack journey. See the [RC.2 public acceptance report](docs/acceptance/v0.1.0-rc.2.md).
+[`v0.1.0-rc.3`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.3) is the current GitHub release candidate. Its post-merge release-candidate, clean-room, and checksum gates passed, including the deterministic Cosplay signature-prop regressions added for issue [#19](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues/19). The four public `@voce-engine/*` packages have not yet been published at RC.3; `v0.1.0-rc.2` remains publicly installable from npm and is covered by the [RC.2 public acceptance report](docs/acceptance/v0.1.0-rc.2.md). RC.3 still requires the separately authorized npm workflow, clean public-package acceptance, and real-Provider validation before issue #19 can close.
 
 The public CLI remains offline-first and Mock-first by default. Separately, the Seedream adapter has been exercised through explicitly authorized local multi-reference smoke tests for virtual try-on and cosplay, with successful Provider responses. Real-Provider calls are intentionally excluded from standard CI and are not the default CLI execution path. See the [M9 Seedream smoke decisions](docs/implementation-notes/m9-seedream-smoke.md).
 
