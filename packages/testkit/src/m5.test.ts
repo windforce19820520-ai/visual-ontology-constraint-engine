@@ -10,6 +10,8 @@ import {
   OfflineExecutionRuntime,
   computePromptCandidateHash,
   computePromptIRHash,
+  computeConstraintHash,
+  computeConstraintIRSignature,
   computeExecutionRunHash,
   computeExecutionTraceHash,
   computeRemoteCallAuthorizationHash,
@@ -122,6 +124,13 @@ test('PromptCompiler emits composition sections for compatible choices and exclu
   const guard = guardPromptCandidate(guardInput)
   assert.equal(guard.status, 'rejected')
   assert.ok(guard.findings.some((finding) => finding.code === 'EXCLUDED_CONSTRAINT_REINTRODUCED'))
+
+  const malformed = copy(conflicting)
+  const activeDegradation = malformed.constraintIR.constraints.find((constraint) => constraint.id === exclusion.constraintId)!
+  activeDegradation.status = 'active'
+  activeDegradation.constraintHash = computeConstraintHash(activeDegradation)
+  malformed.constraintIR.deterministicSignature = computeConstraintIRSignature(malformed.constraintIR)
+  assert.throws(() => compilePromptIR(malformed), /CONSTRAINT_IR_INVALID/)
 })
 
 test('PromptCompiler rejects a tampered Effective Scenario instead of falling back to hard-coded sections', () => {
@@ -189,7 +198,7 @@ test('free-text changes are unverifiable and fallback remains deterministic', ()
   assert.ok(result.findings.some((finding) => finding.code === 'PROMPT_CANDIDATE_UNVERIFIABLE'))
   assert.equal(result.deterministicFallback.deterministicSignature, prompt.deterministicSignature)
 
-  const safe = optimizePromptIRWithFallback({ schemaVersion: 'voce.prompt-optimization-input/v1alpha1', promptIR: prompt, mode: 'invalid' as never })
+  const safe = optimizePromptIRWithFallback({ schemaVersion: 'voce.prompt-optimization-input/v1alpha2', promptIR: prompt, mode: 'invalid' as never })
   assert.ok(safe.warnings.includes('OPTIMIZER_FALLBACK_DETERMINISTIC_PROMPT_IR'))
   assert.equal(computePromptCandidateHash(safe), safe.candidateHash)
   const optimizer = new DeterministicPromptOptimizer()

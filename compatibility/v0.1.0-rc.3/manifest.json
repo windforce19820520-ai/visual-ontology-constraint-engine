@@ -14,14 +14,6 @@
       "ScenarioPackRegistry",
       "ScenarioPackManifest",
       "DeclarativeRulePackContribution",
-      "OntologyPathDefinition",
-      "OntologyVocabularyContribution",
-      "DeclarativeRule",
-      "PromptSectionDefinition",
-      "PromptSectionContribution",
-      "PromptConstraintExclusion",
-      "PromptIR",
-      "PromptCompilationInput",
       "ProviderAdapter",
       "ProviderCapabilityProfile",
       "BundleManifest"
@@ -32,12 +24,7 @@
       "MOCK_IMAGE_PROFILE",
       "MockProviderAdapter",
       "createMockRuntimeForPlan",
-      "replayArtifacts",
-      "VISUAL_COMPOSITION_CATALOG",
-      "VISUAL_COMPOSITION_PATHS",
-      "VISUAL_COMPOSITION_PRESETS",
-      "computeVisualCompositionCatalogHash",
-      "expandVisualCompositionPreset"
+      "replayArtifacts"
     ],
     "@voce-engine/testkit": [
       "fixtureM4ConstraintInput",
@@ -54,21 +41,7 @@
     { "file": "ProviderCapabilityProfile.schema.json", "id": "voce.provider-capability-profile/v1alpha1" },
     { "file": "BundleManifest.schema.json", "id": "voce.bundle-manifest/v1alpha1" },
     { "file": "EffectiveScenario.schema.json", "id": "voce.effective-scenario/v1alpha1" },
-    { "file": "ScenarioCompositionLock.schema.json", "id": "voce.scenario-pack-lock/v1alpha1" },
-    { "file": "OntologyPathDefinition.schema.json", "id": "voce.ontology-path-definition/v1alpha1" },
-    { "file": "OntologyVocabularyContribution.schema.json", "id": "voce.ontology-vocabulary-contribution/v1alpha1" },
-    { "file": "DeclarativeRuleCondition.schema.json", "id": "voce.declarative-rule-condition/v1alpha1" },
-    { "file": "DeclarativeRuleOperand.schema.json", "id": "voce.declarative-rule-operand/v1alpha1" },
-    { "file": "DeclarativeRuleResolution.schema.json", "id": "voce.declarative-rule-resolution/v1alpha1" },
-    { "file": "DeclarativeRule.schema.json", "id": "voce.declarative-rule/v1alpha1" },
-    { "file": "DeclarativeRulePackContribution.schema.json", "id": "voce.declarative-rule-pack-contribution/v1alpha1" },
-    { "file": "PromptSectionDefinition.schema.json", "id": "voce.prompt-section-definition/v1alpha1" },
-    { "file": "PromptSectionContribution.schema.json", "id": "voce.prompt-section-contribution/v1alpha1" },
-    { "file": "PromptConstraintExclusion.schema.json", "id": "voce.prompt-constraint-exclusion/v1alpha1" },
-    { "file": "PromptIR.schema.json", "id": "voce.prompt-ir/v1alpha1" },
-    { "file": "PromptCompilationInput.schema.json", "id": "voce.prompt-compilation-input/v1alpha1" },
-    { "file": "VisualCompositionPreset.schema.json", "id": "voce.visual-composition-preset/v1alpha1" },
-    { "file": "VisualCompositionCatalog.schema.json", "id": "voce.visual-composition-catalog/v1alpha1" }
+    { "file": "ScenarioCompositionLock.schema.json", "id": "voce.scenario-pack-lock/v1alpha1" }
   ],
   "consumerFixture": "consumer.ts",
   "deterministicFields": [

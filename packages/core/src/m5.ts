@@ -458,6 +458,18 @@ function integrityReasonsForConstraintIR(ir: ConstraintIR, context: CompilationC
   for (const item of ir.resourceClaims) if (!isHash(item.resourceHash) || computeResourceClaimHash(item) !== item.resourceHash) reasons.push('RESOURCE_CLAIM_HASH_MISMATCH')
   for (const item of ir.conflicts) if (!isHash(item.conflictHash) || computeConstraintConflictHash(item) !== item.conflictHash) reasons.push('CONSTRAINT_CONFLICT_HASH_MISMATCH')
   for (const item of ir.degradedPreferences) if (!isHash(item.degradationHash) || computeDegradationHash(item) !== item.degradationHash) reasons.push('DEGRADATION_HASH_MISMATCH')
+  const degradationCounts = new Map<string, number>()
+  for (const degradation of ir.degradedPreferences) {
+    if (!degradation.constraintId) { reasons.push('DEGRADATION_CONSTRAINT_MISSING'); continue }
+    degradationCounts.set(degradation.constraintId, (degradationCounts.get(degradation.constraintId) ?? 0) + 1)
+    const constraint = ir.constraints.find((item) => item.id === degradation.constraintId)
+    if (!constraint || constraint.importance !== 'preferred' || constraint.status !== 'unsatisfied') reasons.push('DEGRADATION_DISPOSITION_INVALID')
+  }
+  for (const constraint of ir.constraints) {
+    const count = degradationCounts.get(constraint.id) ?? 0
+    if (constraint.status === 'unsatisfied' && count !== 1) reasons.push('UNSATISFIED_CONSTRAINT_DEGRADATION_MISMATCH')
+    if (constraint.status !== 'unsatisfied' && count > 0) reasons.push('DEGRADATION_DISPOSITION_INVALID')
+  }
   for (const item of ir.reviewRequirements) if (!isHash(item.reviewHash) || computeReviewRequirementHash(item) !== item.reviewHash) reasons.push('REVIEW_REQUIREMENT_HASH_MISMATCH')
   for (const item of ir.ruleTraces) if (!isHash(item.traceHash) || computeRuleTraceHash(item) !== item.traceHash) reasons.push('RULE_TRACE_HASH_MISMATCH')
   return sortedStrings(reasons)
@@ -861,7 +873,7 @@ function guardFinding(value: Omit<PromptGuardFinding, 'schemaVersion'|'id'>): Pr
 
 function guardInputReasons(input: PromptGuardInput): string[] {
   const reasons: string[] = []
-  if (!input || input.schemaVersion !== 'voce.prompt-guard-input/v1alpha1') reasons.push('PROMPT_GUARD_INPUT_SCHEMA_INVALID')
+  if (!input || input.schemaVersion !== 'voce.prompt-guard-input/v1alpha2') reasons.push('PROMPT_GUARD_INPUT_SCHEMA_INVALID')
   if (!input.promptIR || input.promptIR.schemaVersion !== PROMPT_IR_SCHEMA_VERSION || !isHash(input.promptIR.deterministicSignature) || computePromptIRHash(input.promptIR) !== input.promptIR.deterministicSignature) reasons.push('PROMPT_IR_SIGNATURE_MISMATCH')
   if (!input.candidate || input.candidate.schemaVersion !== PROMPT_CANDIDATE_IR_SCHEMA_VERSION || !isHash(input.candidate.candidateHash) || computePromptCandidateHash(input.candidate) !== input.candidate.candidateHash) reasons.push('PROMPT_CANDIDATE_HASH_MISMATCH')
   if (input.candidate && input.promptIR && input.candidate.basePromptIRHash !== input.promptIR.deterministicSignature) reasons.push('PROMPT_CANDIDATE_BASE_MISMATCH')

@@ -277,6 +277,8 @@ interface FixtureSuite {
 }
 ```
 
+`ScenarioPack` 内的贡献项是源记录，保留 `id`、`schemaVersion` 与 `contentDigest`。解析阶段会生成独立的 `Resolved*Contribution`，其中包含 `packId`、`contributionKind`、`contributionId` 与 `sourcePackIds`；源记录与解析后记录不得混用。重复本体路径或规则 ID 只有在规范化语义内容完全一致时才允许组合。
+
 Loader 会重新计算每个贡献 Digest、Canonical Manifest Hash 与 Package Digest。Manifest 不能证明任意已安装代码是安全的，也绝不能被表述为沙箱或安全签名。
 
 `supportedInteractionModes` 只声明 Pack 能编译的交互形态。输入与输出 Expectation 是带类型、带 Namespace 的声明，用于 Host UI、Preflight 与 Output-contract Negotiation；它们既不检查 Asset，也不授权调用。每个 `requiredIn` 和 `producedIn` 值都必须同时出现在 `supportedInteractionModes` 中。Cardinality Bound 必须非负且 `max >= min`；Media Type 使用标准化 MIME 字符串。Expectation 可以通过 `outputContract` 收窄一个带版本的 Core Contract，但不能重定义该 Core Contract。

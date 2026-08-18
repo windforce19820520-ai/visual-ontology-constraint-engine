@@ -65,6 +65,6 @@ The CLI documentation is currently English-only; the bilingual ScenarioPack/syst
 
 ## Visual composition evidence
 
-Pack inspection and offline fixture evidence now expose the shared visual-composition catalog through Core: preset expansion, validated vocabulary paths, rule traces, conflict/degradation records, effective and excluded constraint IDs, ordered composition prompt sections, and the planned-reference count before and after a preset-only selection. A selector is reported as ontology intent and does not create a reference attachment.
+Pack inspection and offline fixture evidence now expose the shared visual-composition catalog through Core: preset expansion, validated vocabulary paths, rule traces, conflict/degradation records, effective and excluded constraint IDs, ordered composition prompt sections, and independently compiled/planned reference counts before and after a preset-only selection. The evidence records separate constraint and reference-plan hashes for both passes. A selector is reported as ontology intent and does not create a reference attachment.
 
 The evidence path remains local and Mock-first. It does not load card artwork, discover packs, infer a missing leading-room direction or reflection surface, call a real Provider, or turn CLI field parsing into a second Prompt policy compiler.

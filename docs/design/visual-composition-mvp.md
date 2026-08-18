@@ -250,7 +250,11 @@ interface OntologyPathDefinition {
   defaultImportance?: Importance
 }
 
-interface OntologyVocabularyContribution extends ResolvedContribution {
+interface OntologyVocabularyContribution extends ScenarioPackContribution {
+  paths: OntologyPathDefinition[]
+}
+
+interface ResolvedOntologyVocabularyContribution extends ResolvedContribution {
   paths: OntologyPathDefinition[]
 }
 
@@ -294,7 +298,11 @@ interface PromptSectionDefinition {
   templateKey: string
 }
 
-interface PromptSectionContribution extends ResolvedContribution {
+interface PromptSectionContribution extends ScenarioPackContribution {
+  sections: PromptSectionDefinition[]
+}
+
+interface ResolvedPromptSectionContribution extends ResolvedContribution {
   sections: PromptSectionDefinition[]
 }
 ```

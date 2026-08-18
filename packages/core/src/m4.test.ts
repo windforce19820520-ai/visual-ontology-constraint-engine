@@ -5,6 +5,7 @@ import type {
   ChangeIntent,
   CompilationContext,
   ConstraintCompilationInput,
+  DeclarativeRule,
   EffectiveScenario,
   ConstraintIR,
   JsonValue,
@@ -130,17 +131,17 @@ function refPlan(profile: ProviderCapabilityProfile, candidates = [candidate('re
   return new ReferenceBudgetOptimizer().plan({ schemaVersion: 'voce.reference-planning-input/v1alpha1', caseId: CASE_ID, caseRevision: REVISION, contextHash: ir.contextHash, constraintIR: ir, candidates, dependencies: [], profile })
 }
 
-function compositionScenario(): EffectiveScenario {
+function compositionScenario(rules: DeclarativeRule[] = []): EffectiveScenario {
   const base = {
     lockHash: sha256({ fixture: 'composition-lock' }), rootPackId: 'composition.fixture', extensionPackIds: [], compositionOrder: ['composition.fixture'], configurations: {},
     ontologyVocabulary: [{ packId: 'composition.fixture', contributionKind: 'ontologyVocabulary', contributionId: 'composition.vocabulary', contentDigest: sha256({ fixture: 'composition-vocabulary' }), paths: VISUAL_COMPOSITION_PATHS }],
-    rulePacks: [], interpretationScopes: [], promptSections: [], reviewTemplates: [], defaults: [], capabilityRequirements: [], declarations: [], appliedOverrides: [], effectiveScenarioHash: '',
+    rulePacks: rules.length ? [{ packId: 'composition.fixture', contributionKind: 'rulePacks', contributionId: 'composition.rules', contentDigest: sha256(rules as unknown as JsonValue), namespace: 'composition.fixture', rules }] : [], interpretationScopes: [], promptSections: [], reviewTemplates: [], defaults: [], capabilityRequirements: [], declarations: [], appliedOverrides: [], effectiveScenarioHash: '',
   } as unknown as EffectiveScenario
   return { ...base, effectiveScenarioHash: hashWithoutSelf(base as unknown as Record<string, unknown>, 'effectiveScenarioHash') }
 }
 
-function compileComposition(intents: ChangeIntent[]): ConstraintIR {
-  const scenario = compositionScenario()
+function compileComposition(intents: ChangeIntent[], rules: DeclarativeRule[] = []): ConstraintIR {
+  const scenario = compositionScenario(rules)
   const currentContext = context({ effectiveScenarioHash: scenario.effectiveScenarioHash })
   return compile(intents, ontology([], { contextHash: currentContext.contextHash }), currentContext, { effectiveScenario: scenario })
 }
@@ -169,6 +170,19 @@ test('visual composition catalog expands full shot atomically and preserves sele
   assert.ok(full.every((item) => item.sourceHintIds?.includes('full-shot')))
   assert.throws(() => expandVisualCompositionPreset('leading-room'), /COMPOSITION_PRESET_INPUT_REQUIRED/)
   assert.throws(() => expandVisualCompositionPreset('reflection-composition'), /COMPOSITION_PRESET_INPUT_REQUIRED/)
+  assert.throws(() => expandVisualCompositionPreset('negative-space', { inputs: { direction: 'banana' } }), /COMPOSITION_PRESET_INPUT_INVALID/)
+  assert.throws(() => expandVisualCompositionPreset('reflection-composition', { inputs: { surface: 'banana' } }), /COMPOSITION_PRESET_INPUT_INVALID/)
+})
+
+test('visual composition catalog is immutable and expansion returns defensive provenance copies', () => {
+  const before = expandVisualCompositionPreset('full-shot')[0].requestedValue
+  assert.throws(() => { (VISUAL_COMPOSITION_PRESETS as unknown as Array<{ changes: Array<{ requestedValue?: JsonValue }> }>).find((item) => item.changes[0]?.requestedValue === 'full_shot')!.changes[0].requestedValue = 'close_up' }, TypeError)
+  assert.equal(expandVisualCompositionPreset('full-shot')[0].requestedValue, before)
+  const provenance = { source: 'user_explicit' as const, sourceIds: ['selection'], createdBy: 'm4-test', createdAt: FIXED_M4_TIME }
+  const expanded = expandVisualCompositionPreset('full-shot', { provenance })
+  expanded[0].provenance.sourceIds.push('mutated')
+  assert.deepEqual(expanded[1].provenance.sourceIds, ['selection'])
+  assert.deepEqual(provenance.sourceIds, ['selection'])
 })
 
 test('cardinality one keeps required full shot, marks preferred close-up unsatisfied, and blocks two required values', () => {
@@ -213,11 +227,60 @@ test('mask/identity, sleeve/bracelet, and hand/prop declarative rules block befo
   })
 })
 
-test('preferred conflicts degrade with a complete rule trace and remain executable', () => {
+test('preferred conflicts block unless a declarative rule identifies the degradable operand', () => {
   const result = compile([intent('identity', 'preserve', 'person.identity', 'preferred'), intent('mask', 'replace', 'accessories.mask', 'preferred', { coverage: 'full_face' })])
-  assert.equal(result.status, 'ok')
-  assert.equal(result.degradedPreferences.length, 1)
-  assert.ok(result.ruleTraces.some((trace) => trace.outcome === 'degraded' && trace.reasonCode === 'MASK_IDENTITY_VISIBILITY_CONFLICT'))
+  assert.equal(result.status, 'blocked')
+  assert.equal(result.degradedPreferences.length, 0)
+  assert.ok(result.conflicts.some((conflict) => conflict.code === 'MASK_IDENTITY_VISIBILITY_CONFLICT' && conflict.blocking))
+
+  const degradableRule: DeclarativeRule = {
+    id: 'composition-preference', kind: 'incompatibility',
+    operands: [{ id: 'thirds', conditions: [{ path: 'camera.composition.patterns.ruleOfThirds', operator: 'present' }] }, { id: 'lines', conditions: [{ path: 'camera.composition.patterns.leadingLines', operator: 'present' }] }],
+    resolution: { strategy: 'degrade_operand', operandId: 'lines', reasonCode: 'COMPOSITION_PREFERENCE_DEGRADED' }, importance: 'preferred', explanation: 'The fixture chooses rule of thirds over leading lines.',
+  }
+  const resolved = compileComposition([expandVisualCompositionPreset('rule-of-thirds')[0], expandVisualCompositionPreset('leading-lines')[0]], [degradableRule])
+  assert.equal(resolved.status, 'ok')
+  const thirds = resolved.constraints.find((item) => item.targetPath === 'camera.composition.patterns.ruleOfThirds')!
+  const lines = resolved.constraints.find((item) => item.targetPath === 'camera.composition.patterns.leadingLines')!
+  assert.equal(thirds.status, 'active')
+  assert.equal(lines.status, 'unsatisfied')
+  assert.equal(resolved.degradedPreferences.filter((item) => item.constraintId === lines.id).length, 1)
+})
+
+test('dependency operands preserve the declared trigger and absent distinguishes presence', () => {
+  const dependency: DeclarativeRule = {
+    id: 'leading-room-direction', kind: 'dependency',
+    operands: [{ id: 'z-trigger', conditions: [{ path: 'camera.composition.leadingRoom.enabled', operator: 'equals', value: true }] }, { id: 'a-required', conditions: [{ path: 'camera.composition.leadingRoom.direction', operator: 'present' }] }],
+    resolution: { strategy: 'block', reasonCode: 'LEADING_ROOM_DIRECTION_REQUIRED' }, importance: 'required', explanation: 'Leading room requires a direction.',
+  }
+  const enabled = { ...expandVisualCompositionPreset('rule-of-thirds')[0], id: 'leading-room-enabled', targetPath: 'camera.composition.leadingRoom.enabled', requestedValue: true, importance: 'required' as const }
+  const missing = compileComposition([enabled], [dependency])
+  assert.equal(missing.status, 'blocked')
+  assert.ok(missing.conflicts.some((item) => item.code === 'CONSTRAINT_DEPENDENCY_MISSING'))
+
+  const absenceRule: DeclarativeRule = {
+    id: 'direction-must-be-absent', kind: 'dependency',
+    operands: [{ id: 'trigger', conditions: [{ path: 'camera.composition.leadingRoom.enabled', operator: 'present' }] }, { id: 'absence', conditions: [{ path: 'camera.composition.leadingRoom.direction', operator: 'absent' }] }],
+    resolution: { strategy: 'block', reasonCode: 'DIRECTION_MUST_BE_ABSENT' }, importance: 'required', explanation: 'Fixture rule proving absent semantics.',
+  }
+  const absent = compileComposition([enabled], [absenceRule])
+  assert.equal(absent.status, 'ok')
+  const direction = { ...enabled, id: 'leading-room-direction', targetPath: 'camera.composition.leadingRoom.direction', requestedValue: 'right' }
+  const present = compileComposition([enabled, direction], [absenceRule])
+  assert.equal(present.status, 'blocked')
+  assert.ok(present.conflicts.some((item) => item.code === 'CONSTRAINT_DEPENDENCY_MISSING'))
+})
+
+test('typed composition values and conflicting path definitions fail closed', () => {
+  const invalid = { ...expandVisualCompositionPreset('rule-of-thirds')[0], id: 'invalid-placement', targetPath: 'camera.composition.placement', requestedValue: 'banana' }
+  assert.ok(compileComposition([invalid]).warnings.includes('ONTOLOGY_VALUE_INVALID'))
+  const scenario = compositionScenario()
+  scenario.ontologyVocabulary.push({ packId: 'composition.extension', contributionKind: 'ontologyVocabulary', contributionId: 'conflicting.vocabulary', contentDigest: sha256({ fixture: 'conflict' }), paths: [{ path: 'camera.composition.placement', valueKind: 'enum', cardinality: 'one', allowedValues: ['banana'] }] } as never)
+  scenario.effectiveScenarioHash = hashWithoutSelf(scenario as unknown as Record<string, unknown>, 'effectiveScenarioHash')
+  const currentContext = context({ effectiveScenarioHash: scenario.effectiveScenarioHash })
+  const result = compile([invalid], ontology([], { contextHash: currentContext.contextHash }), currentContext, { effectiveScenario: scenario })
+  assert.equal(result.status, 'blocked')
+  assert.ok(result.warnings.includes('ONTOLOGY_PATH_DEFINITION_COLLISION'))
 })
 
 test('required conflicts need a scoped waiver and hard conflicts remain non-waivable', () => {
@@ -352,8 +415,8 @@ test('authorization preflight fails closed on any bound plan or destination chan
 })
 
 test('explain and semantic diff ignore volatile hashes and identify degradation/blocking changes', () => {
-  const before = compile([intent('identity', 'preserve', 'person.identity', 'preferred')])
-  const after = compile([intent('identity', 'preserve', 'person.identity', 'preferred'), intent('mask', 'replace', 'accessories.mask', 'preferred', { coverage: 'full_face' })])
+  const before = compile([intent('identity', 'preserve', 'person.identity', 'required')])
+  const after = compile([intent('identity', 'preserve', 'person.identity', 'required'), intent('mask', 'replace', 'accessories.mask', 'preferred', { coverage: 'full_face' })])
   const explanation = explainConstraintIR(after)
   assert.ok(explanation.entries.some((entry) => entry.reasonCode === 'MASK_IDENTITY_VISIBILITY_CONFLICT'))
   const diff = diffConstraintIR(before, after)

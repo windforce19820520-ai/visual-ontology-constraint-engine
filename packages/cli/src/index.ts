@@ -292,7 +292,10 @@ function referenceProbeCandidates(probe: FixtureCoreProbe, ir: ReturnType<typeof
   })
 }
 function coreProbeEvidence(probe: FixtureCoreProbe, resolution: ResolvedPackResolution, caseSpec: CaseSpec, profile: ProviderCapabilityProfile): JsonObject {
-  const ir = compileConstraints(probeInput(probe, resolution, caseSpec))
+  const baseInput = probeInput(probe, resolution, caseSpec)
+  const ir = compileConstraints(baseInput)
+  const presetInput: ConstraintCompilationInput = { ...baseInput, changeIntents: [...baseInput.changeIntents, ...expandVisualCompositionPreset('rule-of-thirds')] }
+  const presetIr = compileConstraints(presetInput)
   const evidence: JsonObject = {
     status: ir.status, constraintHash: ir.deterministicSignature, blockingConflictCount: ir.conflicts.filter((item) => item.blocking).length,
     conflictCodes: ir.conflicts.map((item) => item.code).sort(compare), reviewRequirementCount: ir.reviewRequirements.length,
@@ -300,11 +303,13 @@ function coreProbeEvidence(probe: FixtureCoreProbe, resolution: ResolvedPackReso
     degradationCount: ir.degradedPreferences.length, personIntentCount: (probe.intents ?? []).filter((item) => item.targetPath.startsWith('person.')).length,
     constraintTargetPaths: ir.constraints.flatMap((item) => item.targetPaths).sort(compare),
     constraintSourceIds: [...new Set(ir.constraints.flatMap((item) => item.sourceIds))].sort(compare),
+    presetId: 'rule-of-thirds', presetConstraintStatus: presetIr.status, presetConstraintHashBefore: ir.deterministicSignature, presetConstraintHashAfter: presetIr.deterministicSignature,
   }
-  if (!probe.references?.length) return { ...evidence, presetReferenceCountBefore: 0, presetReferenceCountAfter: 0 }
   const candidates = referenceProbeCandidates(probe, ir)
+  const presetCandidates = referenceProbeCandidates(probe, presetIr)
   const maximumReferenceCount = probe.maximumReferenceCount ?? profile.maximumReferenceCount
   const plan = planReferences({ schemaVersion: 'voce.reference-planning-input/v1alpha1', caseId: caseSpec.id, caseRevision: caseSpec.revision, contextHash: ir.contextHash, constraintIR: ir, candidates, dependencies: [], profile, budget: { maximumReferenceCount, usedReferenceCount: 0, byteLengthKnown: true, unknownByteLengthAssetIds: [] } })
+  const presetPlan = planReferences({ schemaVersion: 'voce.reference-planning-input/v1alpha1', caseId: caseSpec.id, caseRevision: caseSpec.revision, contextHash: presetIr.contextHash, constraintIR: presetIr, candidates: presetCandidates, dependencies: [], profile, budget: { maximumReferenceCount, usedReferenceCount: 0, byteLengthKnown: true, unknownByteLengthAssetIds: [] } })
   evidence.referenceStatus = plan.status
   evidence.referencePlanHash = plan.planHash
   evidence.selectedRoles = plan.ordered.map((item) => item.role).sort(compare)
@@ -312,12 +317,15 @@ function coreProbeEvidence(probe: FixtureCoreProbe, resolution: ResolvedPackReso
   evidence.blockedRoles = plan.blockedReferences.map((item) => candidates.find((candidate) => candidate.id === item.candidateId)?.role ?? item.candidateId).sort(compare)
   evidence.selectedSourceBindingIds = [...new Set(plan.ordered.flatMap((item) => item.sourceBindingIds))].sort(compare)
   evidence.presetReferenceCountBefore = plan.ordered.length
-  evidence.presetReferenceCountAfter = plan.ordered.length
+  evidence.presetReferenceCountAfter = presetPlan.ordered.length
+  evidence.presetReferencePlanHashBefore = plan.planHash
+  evidence.presetReferencePlanHashAfter = presetPlan.planHash
+  if (!probe.references?.length) return evidence
   if (ir.status !== 'ok' || plan.status !== 'ok') { evidence.promptStatus = 'blocked'; return evidence }
   const pipelineResult = planPipeline({ schemaVersion: 'voce.pipeline-planning-input/v1alpha1', caseId: caseSpec.id, caseRevision: caseSpec.revision, contextHash: ir.contextHash, outputContract: probeInput(probe, resolution, caseSpec).outputContract, constraintIR: ir, referencePlan: plan, profile })
   if (!pipelineResult.pipelinePlan) { evidence.promptStatus = 'blocked'; return evidence }
   const outputContract = probeInput(probe, resolution, caseSpec).outputContract
-  const prompt = compilePromptIR({ schemaVersion: 'voce.prompt-compilation-input/v1alpha1', caseId: caseSpec.id, caseRevision: caseSpec.revision, context: probeInput(probe, resolution, caseSpec).context, contextHash: ir.contextHash, constraintIR: ir, referencePlan: plan, pipelinePlan: pipelineResult.pipelinePlan, outputContract, targetAdapter: { id: profile.adapterId, version: profile.version, digest: profile.adapterDigest! }, targetCapabilityProfile: { id: profile.id, version: profile.version, digest: profile.profileHash! }, effectiveScenario: resolution.effectiveScenario })
+  const prompt = compilePromptIR({ schemaVersion: 'voce.prompt-compilation-input/v1alpha2', caseId: caseSpec.id, caseRevision: caseSpec.revision, context: probeInput(probe, resolution, caseSpec).context, contextHash: ir.contextHash, constraintIR: ir, referencePlan: plan, pipelinePlan: pipelineResult.pipelinePlan, outputContract, targetAdapter: { id: profile.adapterId, version: profile.version, digest: profile.adapterDigest! }, targetCapabilityProfile: { id: profile.id, version: profile.version, digest: profile.profileHash! }, effectiveScenario: resolution.effectiveScenario })
   evidence.promptStatus = 'ok'
   evidence.promptHash = prompt.deterministicSignature
   evidence.promptTargetPaths = ir.constraints.filter((constraint) => prompt.constraintCoverage.some((coverage) => coverage.constraintId === constraint.id && (coverage.sectionIds.length > 0 || coverage.referenceMappingIds.length > 0 || coverage.parameterIds.length > 0))).flatMap((constraint) => constraint.targetPaths).sort(compare)

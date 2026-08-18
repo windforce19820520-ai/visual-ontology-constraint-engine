@@ -341,6 +341,33 @@ function composeCategory(category: 'ontologyVocabulary' | 'rulePacks' | 'interpr
   return { values: [...byId.values()].map((item) => withSource(item.value, item.packId, category, item.sourcePackIds)) }
 }
 
+function ontologyPathDefinitionCollision(contributions: ResolvedContribution[]): ReturnType<typeof conflict> | undefined {
+  const byPath = new Map<string, Array<{ canonical: string; packId: string; contributionId: string }>>()
+  for (const contribution of contributions) {
+    const paths = Array.isArray(contribution.paths) ? contribution.paths : []
+    for (const raw of paths) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+      const definition = raw as JsonObject
+      if (typeof definition.path !== 'string') continue
+      const entries = byPath.get(definition.path) ?? []
+      entries.push({ canonical: canonicalize(raw), packId: contribution.packId, contributionId: contribution.contributionId })
+      byPath.set(definition.path, entries)
+    }
+  }
+  for (const path of [...byPath.keys()].sort(compareCodeUnits)) {
+    const entries = byPath.get(path)!
+    if (new Set(entries.map((entry) => entry.canonical)).size <= 1) continue
+    return conflict(
+      'PACK_RULE_CONFLICT',
+      [...new Set(entries.map((entry) => entry.packId))].sort(compareCodeUnits),
+      `Ontology path ${path} has conflicting definitions after ScenarioPack composition.`,
+      'Make duplicate path definitions canonically identical or use distinct ontology paths.',
+      [...new Set(entries.map((entry) => entry.contributionId))].sort(compareCodeUnits),
+    )
+  }
+  return undefined
+}
+
 function overridePayload(override: { id: string; operation: unknown; reasonCode: string }): JsonObject {
   return { id: override.id, operation: override.operation as JsonValue, reasonCode: override.reasonCode }
 }
@@ -521,6 +548,8 @@ export function resolveScenario(selection: ScenarioPackSelection, catalog: Scena
     if (composed.collision) return { status: 'blocked', report: failureReport(selected, dependencyTrace, compositionTrace, overrideTraces, [composed.collision], warnings) }
     effectiveValues[category] = composed.values
   }
+  const pathCollision = ontologyPathDefinitionCollision(effectiveValues.ontologyVocabulary)
+  if (pathCollision) return { status: 'blocked', report: failureReport(selected, dependencyTrace, compositionTrace, overrideTraces, [pathCollision], warnings) }
   const entries: ScenarioCompositionLock['entries'] = ordered.map((entry) => ({
     packId: entry.manifest.packId,
     version: entry.manifest.version,

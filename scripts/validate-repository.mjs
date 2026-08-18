@@ -106,13 +106,16 @@ const requiredContractSchemas = [
   'packages/contracts/schemas/PromptSection.schema.json',
   'packages/contracts/schemas/OntologyPathDefinition.schema.json',
   'packages/contracts/schemas/OntologyVocabularyContribution.schema.json',
+  'packages/contracts/schemas/ResolvedOntologyVocabularyContribution.schema.json',
   'packages/contracts/schemas/DeclarativeRuleCondition.schema.json',
   'packages/contracts/schemas/DeclarativeRuleOperand.schema.json',
   'packages/contracts/schemas/DeclarativeRuleResolution.schema.json',
   'packages/contracts/schemas/DeclarativeRule.schema.json',
   'packages/contracts/schemas/DeclarativeRulePackContribution.schema.json',
+  'packages/contracts/schemas/ResolvedDeclarativeRulePackContribution.schema.json',
   'packages/contracts/schemas/PromptSectionDefinition.schema.json',
   'packages/contracts/schemas/PromptSectionContribution.schema.json',
+  'packages/contracts/schemas/ResolvedPromptSectionContribution.schema.json',
   'packages/contracts/schemas/PromptConstraintExclusion.schema.json',
   'packages/contracts/schemas/VisualCompositionPreset.schema.json',
   'packages/contracts/schemas/VisualCompositionCatalog.schema.json',
@@ -120,13 +123,19 @@ const requiredContractSchemas = [
   'packages/contracts/schemas/PromptReferenceMapping.schema.json',
   'packages/contracts/schemas/PromptConstraintCoverage.schema.json',
   'packages/contracts/schemas/PromptIR.schema.json',
+  'packages/contracts/schemas/PromptIRV1Alpha2.schema.json',
   'packages/contracts/schemas/PromptCompilationInput.schema.json',
+  'packages/contracts/schemas/PromptCompilationInputV1Alpha2.schema.json',
   'packages/contracts/schemas/PromptTransformation.schema.json',
   'packages/contracts/schemas/PromptCandidateIR.schema.json',
+  'packages/contracts/schemas/PromptCandidateIRV1Alpha2.schema.json',
   'packages/contracts/schemas/PromptGuardFinding.schema.json',
   'packages/contracts/schemas/PromptGuardInput.schema.json',
+  'packages/contracts/schemas/PromptGuardInputV1Alpha2.schema.json',
   'packages/contracts/schemas/PromptGuardResult.schema.json',
+  'packages/contracts/schemas/PromptGuardResultV1Alpha2.schema.json',
   'packages/contracts/schemas/PromptOptimizationInput.schema.json',
+  'packages/contracts/schemas/PromptOptimizationInputV1Alpha2.schema.json',
   'packages/contracts/schemas/ProviderRenderRequest.schema.json',
   'packages/contracts/schemas/ProviderRenderResult.schema.json',
   'packages/contracts/schemas/ExecutionRun.schema.json',
@@ -262,7 +271,7 @@ for (const file of ['fixtures/m4-provider-image.json', 'fixtures/m4-provider-jpe
   if (!/^sha256:[0-9a-f]{64}$/.test(value.profileHash ?? '') || !/^sha256:[0-9a-f]{64}$/.test(value.adapterDigest ?? '')) throw new Error(`M4_FIXTURE_PROFILE_HASH_MISSING:${file}`)
 }
 
-for (const [file, expectedVersion] of [['fixtures/m5-prompt-ir-minimal.json', 'voce.prompt-ir/v1alpha1'], ['fixtures/m5-execution-trace-minimal.json', 'voce.execution-trace/v1alpha1']]) {
+for (const [file, expectedVersion] of [['fixtures/m5-prompt-ir-minimal.json', 'voce.prompt-ir/v1alpha2'], ['fixtures/m5-execution-trace-minimal.json', 'voce.execution-trace/v1alpha1']]) {
   const url = new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot)
   const value = JSON.parse(await readFile(url, 'utf8'))
   if (value.schemaVersion !== expectedVersion) throw new Error(`M5_FIXTURE_SCHEMA_VERSION_MISSING:${file}`)

@@ -1,16 +1,8 @@
 import type {
   BundleManifest,
-  DeclarativeRule,
   DeclarativeRulePackContribution,
-  OntologyPathDefinition,
-  OntologyVocabularyContribution,
   ProviderAdapter,
   ProviderCapabilityProfile,
-  PromptCompilationInput,
-  PromptConstraintExclusion,
-  PromptIR,
-  PromptSectionContribution,
-  PromptSectionDefinition,
   ScenarioPack,
   ScenarioPackManifest,
   ScenarioPackRegistry,
@@ -19,12 +11,7 @@ import { BUNDLE_MANIFEST_SCHEMA_VERSION } from '@voce-engine/contracts'
 import {
   MOCK_IMAGE_PROFILE,
   MockProviderAdapter,
-  VISUAL_COMPOSITION_CATALOG,
-  VISUAL_COMPOSITION_PATHS,
-  VISUAL_COMPOSITION_PRESETS,
   createMockRuntimeForPlan,
-  computeVisualCompositionCatalogHash,
-  expandVisualCompositionPreset,
   createScenarioPackRegistry,
   replayArtifacts,
 } from '@voce-engine/core'
@@ -34,14 +21,6 @@ import { CLI_VERSION, runCli } from '@voce-engine/cli'
 declare const pack: ScenarioPack
 declare const manifest: ScenarioPackManifest
 declare const contribution: DeclarativeRulePackContribution
-declare const rule: DeclarativeRule
-declare const pathDefinition: OntologyPathDefinition
-declare const vocabulary: OntologyVocabularyContribution
-declare const promptInput: PromptCompilationInput
-declare const promptExclusion: PromptConstraintExclusion
-declare const prompt: PromptIR
-declare const promptContribution: PromptSectionContribution
-declare const sectionDefinition: PromptSectionDefinition
 declare const profile: ProviderCapabilityProfile
 declare const adapter: ProviderAdapter
 declare const bundle: BundleManifest
@@ -50,4 +29,4 @@ const registry: ScenarioPackRegistry = createScenarioPackRegistry()
 const mockProfile: ProviderCapabilityProfile = MOCK_IMAGE_PROFILE
 const mockAdapter: ProviderAdapter = new MockProviderAdapter()
 const bundleSchema: typeof BUNDLE_MANIFEST_SCHEMA_VERSION = 'voce.bundle-manifest/v1alpha1'
-void [pack, manifest, contribution, rule, pathDefinition, vocabulary, promptInput, promptExclusion, prompt, promptContribution, sectionDefinition, profile, adapter, bundle, registry, mockProfile, mockAdapter, bundleSchema, VISUAL_COMPOSITION_CATALOG, VISUAL_COMPOSITION_PATHS, VISUAL_COMPOSITION_PRESETS, createMockRuntimeForPlan, computeVisualCompositionCatalogHash, expandVisualCompositionPreset, replayArtifacts, fixtureM4ConstraintInput, fixtureM5ExecutionInput, fixtureM6Artifact, CLI_VERSION, runCli]
+void [pack, manifest, contribution, profile, adapter, bundle, registry, mockProfile, mockAdapter, bundleSchema, createMockRuntimeForPlan, replayArtifacts, fixtureM4ConstraintInput, fixtureM5ExecutionInput, fixtureM6Artifact, CLI_VERSION, runCli]

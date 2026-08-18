@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "voce.prompt-ir/v1alpha1",
+  "schemaVersion": "voce.prompt-ir/v1alpha2",
   "id": "prompt-ir-fixture",
   "caseId": "case-m5-fixture",
   "caseRevision": 1,

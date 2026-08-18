@@ -618,7 +618,7 @@ function internalRule(value: unknown, contributionId?: string): InternalRule | u
     contributionId,
     code,
     kind,
-    operands: operands.sort((left, right) => compareCodeUnits(left.id, right.id)),
+    operands,
     resolution,
     importance: severity,
     reasonCode,
@@ -638,7 +638,8 @@ function allRules(effectiveScenario: ConstraintCompilationInput['effectiveScenar
   const byId = new Map<string, InternalRule>()
   const add = (rule: InternalRule): void => {
     const prior = byId.get(rule.id)
-    if (prior && canonicalize(jsonReady(rule)) !== canonicalize(jsonReady(prior))) collisionIds.push(rule.id)
+    const semantic = (value: InternalRule): string => canonicalize(jsonReady(cleanWithout(value as unknown as Record<string, unknown>, 'contributionId')))
+    if (prior && semantic(rule) !== semantic(prior)) collisionIds.push(rule.id)
     if (!prior || canonicalize(jsonReady(rule)) < canonicalize(jsonReady(prior))) byId.set(rule.id, rule)
   }
   for (const value of M4_DECLARATIVE_RULE_FIXTURES) {
@@ -686,26 +687,46 @@ function semanticItems(input: ConstraintCompilationInput): SemanticItem[] {
 
 interface RuleMatch { operands: Map<string, SemanticItem[]>; missingOperandIds: string[] }
 
-function conditionMatches(condition: DeclarativeRuleCondition, items: SemanticItem[]): SemanticItem[] {
+interface ConditionMatch { matched: boolean; items: SemanticItem[] }
+
+function conditionMatches(condition: DeclarativeRuleCondition, items: SemanticItem[]): ConditionMatch {
   const candidates = items.filter((item) => pathMatches(item.path, condition.path))
-  if (condition.operator === 'absent') return candidates.length === 0 ? [] : []
-  if (condition.operator === 'present') return candidates
-  if (condition.operator === 'equals') return candidates.filter((item) => canonicalize(item.value) === canonicalize(condition.value as JsonValue))
+  if (condition.operator === 'absent') return { matched: candidates.length === 0, items: [] }
+  if (condition.operator === 'present') return { matched: candidates.length > 0, items: candidates }
+  if (condition.operator === 'equals') {
+    const matched = candidates.filter((item) => canonicalize(item.value) === canonicalize(condition.value as JsonValue))
+    return { matched: matched.length > 0, items: matched }
+  }
   const value = condition.value
-  if (typeof value === 'string') return candidates.filter((item) => valueHasToken(item.value, [value]))
-  return candidates.filter((item) => Array.isArray(item.value) && item.value.some((entry) => canonicalize(entry) === canonicalize(value as JsonValue)))
+  const matched = typeof value === 'string'
+    ? candidates.filter((item) => valueHasToken(item.value, [value]))
+    : candidates.filter((item) => Array.isArray(item.value) && item.value.some((entry) => canonicalize(entry) === canonicalize(value as JsonValue)))
+  return { matched: matched.length > 0, items: matched }
 }
 
-function compositionVocabulary(effectiveScenario: ConstraintCompilationInput['effectiveScenario']): Map<string, OntologyPathDefinition> {
+function compositionVocabulary(effectiveScenario: ConstraintCompilationInput['effectiveScenario'], collisionPaths: string[] = []): Map<string, OntologyPathDefinition> {
   const definitions = new Map<string, OntologyPathDefinition>()
   for (const contribution of effectiveScenario?.ontologyVocabulary ?? []) {
     for (const raw of ((contribution as unknown as { paths?: OntologyPathDefinition[] }).paths ?? [])) {
       if (!raw || typeof raw.path !== 'string' || !raw.path) continue
       const prior = definitions.get(raw.path)
-      if (!prior || canonicalize(jsonReady(raw)) < canonicalize(jsonReady(prior))) definitions.set(raw.path, clone(raw))
+      if (prior && canonicalize(jsonReady(raw)) !== canonicalize(jsonReady(prior))) collisionPaths.push(raw.path)
+      else if (!prior) definitions.set(raw.path, clone(raw))
     }
   }
   return definitions
+}
+
+function ontologyScalarMatches(definition: OntologyPathDefinition, value: JsonValue): boolean {
+  if (definition.valueKind === 'boolean') return typeof value === 'boolean'
+  if (definition.valueKind === 'string') return typeof value === 'string'
+  if (definition.valueKind === 'number') return typeof value === 'number' && Number.isFinite(value)
+  return Array.isArray(definition.allowedValues) && definition.allowedValues.some((allowed) => canonicalize(allowed) === canonicalize(value))
+}
+
+function ontologyValueMatches(definition: OntologyPathDefinition, value: JsonValue): boolean {
+  if (definition.cardinality === 'many' && Array.isArray(value)) return value.every((entry) => ontologyScalarMatches(definition, entry))
+  return ontologyScalarMatches(definition, value)
 }
 
 function applyCardinalityResolution(constraints: Constraint[], goals: Goal[], vocabulary: Map<string, OntologyPathDefinition>): {
@@ -803,14 +824,12 @@ function applyCardinalityResolution(constraints: Constraint[], goals: Goal[], vo
 
 function operandMatches(operand: InternalOperand, items: SemanticItem[]): SemanticItem[] | undefined {
   const matches = operand.conditions.map((condition) => conditionMatches(condition, items))
-  const absentOnly = operand.conditions.every((condition) => condition.operator === 'absent')
-  if (absentOnly && matches.every((value) => value.length === 0)) return []
   if (operand.match === 'any') {
-    const union = matches.flat()
-    return union.length > 0 ? uniqueSortedObjects(union, (item) => item.id) : undefined
+    const matched = matches.filter((value) => value.matched)
+    return matched.length > 0 ? uniqueSortedObjects(matched.flatMap((value) => value.items), (item) => item.id) : undefined
   }
-  if (matches.some((value, index) => operand.conditions[index].operator !== 'absent' && value.length === 0)) return undefined
-  return uniqueSortedObjects(matches.flat(), (item) => item.id)
+  if (matches.some((value) => !value.matched)) return undefined
+  return uniqueSortedObjects(matches.flatMap((value) => value.items), (item) => item.id)
 }
 
 function ruleMatches(rule: InternalRule, items: SemanticItem[]): RuleMatch | undefined {
@@ -1080,6 +1099,14 @@ export class ConstraintGraphCompiler {
     const ruleCollisionIds: string[] = []
     allRules(input.effectiveScenario, ruleCollisionIds)
     if (ruleCollisionIds.length) return blockedConstraintIR(input, ['DECLARATIVE_RULE_ID_COLLISION'])
+    const vocabularyCollisionPaths: string[] = []
+    const vocabulary = compositionVocabulary(input.effectiveScenario, vocabularyCollisionPaths)
+    if (vocabularyCollisionPaths.length) return blockedConstraintIR(input, ['ONTOLOGY_PATH_DEFINITION_COLLISION'])
+    const invalidOntologyValues = semanticItems(input).filter((item) => {
+      const definition = vocabulary.get(item.path)
+      return definition !== undefined && !ontologyValueMatches(definition, item.value)
+    })
+    if (invalidOntologyValues.length) return blockedConstraintIR(input, ['ONTOLOGY_VALUE_INVALID'])
 
     const goals: Goal[] = []
     const constraints: Constraint[] = []
@@ -1141,7 +1168,7 @@ export class ConstraintGraphCompiler {
     constraints.push(...output)
     traces.push(createRuleTrace({ schemaVersion: RULE_TRACE_SCHEMA_VERSION, id: hashId('rule-trace', { kind: 'output', id: output[0].id }), ruleId: 'rule.output-contract', inputIds: [], outputIds: output.map((item) => item.id), outcome: 'applied', reasonCode: 'OUTPUT_CONTRACT_REQUIRED', message: 'OutputContract was compiled into provider-neutral output constraints.' }))
 
-    const cardinality = applyCardinalityResolution(constraints, goals, compositionVocabulary(input.effectiveScenario))
+    const cardinality = applyCardinalityResolution(constraints, goals, vocabulary)
     constraints.splice(0, constraints.length, ...cardinality.constraints)
     conflicts.push(...cardinality.conflicts)
     degradations.push(...cardinality.degradations)
@@ -1159,10 +1186,11 @@ export class ConstraintGraphCompiler {
       constraint.constraintHash = computeConstraintHash(constraint)
     }
     const degrade = (constraint: Constraint, rule: InternalRule, conflict: ConstraintConflict, affectedIds: string[]): Degradation | undefined => {
-      if (constraint.importance !== 'preferred' || degradedConstraintIds.has(constraint.id)) return undefined
-      markUnsatisfied(constraint, rule, rule.resolution.reasonCode)
-      degradedConstraintIds.add(constraint.id)
-      const degradation = createDegradation({ schemaVersion: DEGRADATION_SCHEMA_VERSION, id: hashId('degradation', { conflictId: conflict.id, constraintId: constraint.id }), preferenceId: constraint.id, constraintId: constraint.id, reasonCode: rule.resolution.reasonCode, impact: conflict.message, affectedIds: sortedStrings([constraint.id, ...affectedIds]), explanation: `Preferred constraint ${constraint.id} was excluded because ${conflict.message}` })
+      const target = constraints.find((item) => item.id === constraint.id)
+      if (!target || target.importance !== 'preferred' || degradedConstraintIds.has(target.id)) return undefined
+      markUnsatisfied(target, rule, rule.resolution.reasonCode)
+      degradedConstraintIds.add(target.id)
+      const degradation = createDegradation({ schemaVersion: DEGRADATION_SCHEMA_VERSION, id: hashId('degradation', { conflictId: conflict.id, constraintId: target.id }), preferenceId: target.id, constraintId: target.id, reasonCode: rule.resolution.reasonCode, impact: conflict.message, affectedIds: sortedStrings([target.id, ...affectedIds]), explanation: `Preferred constraint ${target.id} was excluded because ${conflict.message}` })
       degradations.push(degradation)
       return degradation
     }
@@ -1246,13 +1274,6 @@ export class ConstraintGraphCompiler {
       } else if (conflict.severity === 'required' && covered) {
         adjustedConflicts.push(rehashConflict({ ...conflict, blocking: false, message: `${conflict.message} Proceeding only under an explicit scoped waiver.` }))
         warnings.push('REQUIRED_CONFLICT_WAIVED')
-      } else if (conflict.severity === 'preferred' && !(conflict.code === 'CARDINALITY_CONFLICT' && conflict.blocking)) {
-        adjustedConflicts.push(rehashConflict({ ...conflict, blocking: false }))
-        if (!degradations.some((item) => item.constraintId !== undefined && conflict.constraintIds.includes(item.constraintId))) {
-          const degradation = createDegradation({ schemaVersion: DEGRADATION_SCHEMA_VERSION, id: hashId('degradation', { conflictId: conflict.id }), preferenceId: conflict.id, constraintId: conflict.constraintIds[0], reasonCode: conflict.code, impact: conflict.message, affectedIds: conflict.constraintIds, explanation: `Preferred constraint was degraded deterministically because ${conflict.message}` })
-          degradations.push(degradation)
-          traces.push(createRuleTrace({ schemaVersion: RULE_TRACE_SCHEMA_VERSION, id: hashId('rule-trace', { degradation: degradation.id }), ruleId: 'rule.preferred-degradation', inputIds: conflict.constraintIds, outputIds: [degradation.id], outcome: 'degraded', reasonCode: conflict.code, message: degradation.explanation }))
-        }
       } else adjustedConflicts.push(conflict)
     }
     const blocked = adjustedConflicts.some((conflict) => conflict.blocking)

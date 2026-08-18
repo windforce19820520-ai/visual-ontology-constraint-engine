@@ -83,27 +83,31 @@ export interface ScenarioContributionIndex { ontologyVocabulary:ScenarioContribu
 export interface DistributionInventoryEntry { path:string; role:'contribution'|'fixture'|'migration'|'readme'|'license'|'package_metadata'; contentDigest:string }
 export interface PackageProvenance { publisher:string; sourceRepository?:string; sourceRevision?:string; sourceDigest?:string }
 export interface PackageAcquisition { sourceKind:'memory'|'directory'|'file_archive'|'npm_tarball'|'github_release'; sourceLocator:string; distributionDigest:string; lifecycleScriptsExecuted:false }
+export interface ScenarioPackContribution extends JsonObject { id:string; schemaVersion:string; contentDigest:string }
 export interface ResolvedContribution extends JsonObject { packId:string; contributionKind:ScenarioContributionKind; contributionId:string; contentDigest:string }
 export type OntologyValueKind = 'boolean'|'enum'|'string'|'number'
 export type OntologyCardinality = 'one'|'many'
 export interface OntologyPathDefinition { path:string; valueKind:OntologyValueKind; cardinality:OntologyCardinality; allowedValues?:JsonValue[]; defaultImportance?:Importance }
-export type OntologyVocabularyContribution = ResolvedContribution & { paths:OntologyPathDefinition[] }
+export type OntologyVocabularyContribution = ScenarioPackContribution & { paths:OntologyPathDefinition[] }
+export type ResolvedOntologyVocabularyContribution = ResolvedContribution & { paths:OntologyPathDefinition[] }
 export type DeclarativeConditionOperator = 'present'|'absent'|'equals'|'contains'
 export interface DeclarativeRuleCondition { path:string; operator:DeclarativeConditionOperator; value?:JsonValue }
 export interface DeclarativeRuleOperand { id:string; conditions:DeclarativeRuleCondition[] }
 export type DeclarativeRuleKind = 'incompatibility'|'dependency'|'cardinality'|'occlusion'|'resource'
 export interface DeclarativeRuleResolution { strategy:'block'|'degrade_operand'; operandId?:string; reasonCode:string }
 export interface DeclarativeRule { id:string; kind:DeclarativeRuleKind; operands:DeclarativeRuleOperand[]; resolution:DeclarativeRuleResolution; importance?:Importance; explanation:string; code?:string; resourceId?:string; dependencyKind?:ConstraintDependencyKind }
-export type DeclarativeRulePackContribution = ResolvedContribution & { namespace:string; rules:DeclarativeRule[] }
+export type DeclarativeRulePackContribution = ScenarioPackContribution & { namespace:string; rules:DeclarativeRule[] }
+export type ResolvedDeclarativeRulePackContribution = ResolvedContribution & { namespace:string; rules:DeclarativeRule[] }
 export interface PromptSectionDefinition { id:string; group:string; order:number; pathPrefixes:string[]; requiredPaths?:string[]; templateKey:string }
-export type PromptSectionContribution = ResolvedContribution & { sections:PromptSectionDefinition[] }
+export type PromptSectionContribution = ScenarioPackContribution & { sections:PromptSectionDefinition[] }
+export type ResolvedPromptSectionContribution = ResolvedContribution & { sections:PromptSectionDefinition[] }
 export interface OverridePoint { id:string; targetKind:'configuration'|'declared_default'|'contribution_activation'; targetPath:string; valueSchema?:JsonSchemaRef; allowDisable:boolean; maximumImportance:'preferred'; contentDigest?:string }
 export type HostOverrideOperation = {kind:'set_configuration';packId:string;overridePointId:string;value:JsonValue}|{kind:'set_declared_default';packId:string;overridePointId:string;value:JsonValue}|{kind:'set_contribution_activation';packId:string;overridePointId:string;active:boolean}
 export interface HostOverride { id:string; operation:HostOverrideOperation; reasonCode:string; contentHash:string }
 export interface HostPolicyOverlay { id:string; caseId:string; caseRevision:number; overrides:HostOverride[]; authority:'user'|'host_policy'; reasonCode:string; overlayHash:string }
 export interface ScenarioPackManifest { schemaVersion:'voce.scenario-pack/v1alpha1'; packId:string; version:string; kind:'root'|'extension'; supportedInteractionModes:ScenarioInteractionMode[]; inputExpectations:ScenarioInputExpectation[]; outputExpectations:ScenarioOutputExpectation[]; extensionOf?:{rootPackId:string;rootVersionRange:string}; license:string; provenance:PackageProvenance; coreRange:string; contractRanges:Record<string,string>; configurationSchema?:JsonSchemaRef; ui:UIMetadata; dependencies:ScenarioPackDependency[]; conflicts:ScenarioPackConflict[]; composition:{before:string[];after:string[]}; contributions:ScenarioContributionIndex; fixtures:ScenarioContributionDescriptor[]; migrations:ScenarioContributionDescriptor[]; capabilityRequirements:ScenarioCapabilityRequirement[]; declarations:ScenarioPackDeclarations; permissions:ScenarioPackPermissions; distributionInventory:DistributionInventoryEntry[] }
 export interface FixtureSuite { id:string; schemaVersion:string; cases:JsonValue[]; contentDigest:string }
-export interface ScenarioPack { manifest:ScenarioPackManifest; contributions:{ontologyVocabulary:ResolvedContribution[];rulePacks:DeclarativeRulePackContribution[];interpretationScopes:ResolvedContribution[];promptSections:ResolvedContribution[];reviewTemplates:ResolvedContribution[];defaults:ResolvedContribution[];overridePoints:OverridePoint[];fixtureSuites:FixtureSuite[]}; migrations:JsonValue[] }
+export interface ScenarioPack { manifest:ScenarioPackManifest; contributions:{ontologyVocabulary:OntologyVocabularyContribution[];rulePacks:DeclarativeRulePackContribution[];interpretationScopes:ScenarioPackContribution[];promptSections:PromptSectionContribution[];reviewTemplates:ScenarioPackContribution[];defaults:ScenarioPackContribution[];overridePoints:OverridePoint[];fixtureSuites:FixtureSuite[]}; migrations:JsonValue[] }
 export type LocalScenarioPackSource = {kind:'memory';definition:ScenarioPack;logicalFiles:Array<{path:string;bytes:Uint8Array}>}|{kind:'directory';rootPath:string}|{kind:'archive';archivePath:string;acquisitionKind:'file_archive'|'npm_tarball'|'github_release'}
 export interface ScenarioPackDescriptor { manifest:ScenarioPackManifest; manifestHash:string; packageDigest:string; distributionDigest:string; provenance:PackageProvenance; acquisition:PackageAcquisition }
 export interface PackDeactivation { availabilityPolicyId:string; packId:string; version?:string; registryRevision:number; allowNewActivations:false; changedBy:string; reasonCode:string; changedAt:string; policyHash:string }
@@ -113,7 +117,7 @@ export interface ScenarioPackSelection { root:ScenarioPackRequest; extensions:Sc
 export interface ScenarioCompositionLockEntry { packId:string;version:string;kind:'root'|'extension';manifestHash:string;packageDigest:string;configurationHash:string;resolvedDependencies:Array<{packId:string;version:string;packageDigest:string}>;contributionDigests:Record<string,string> }
 export interface ScenarioCompositionLock { schemaVersion:'voce.scenario-pack-lock/v1alpha1';contractVersion:'voce.scenario-pack/v1alpha1';resolverVersion:string;catalogHash:string;canonicalization:'voce.canonical-json/v1alpha1';rootPackId:string;entries:ScenarioCompositionLockEntry[];compositionOrder:string[];hostPolicyOverlayHash?:string;hostOverrideHashes:string[];compositionHash:string;lockHash:string }
 export interface AppliedOverrideRef { packId:string;overridePointId:string;hostOverrideId:string;contentHash:string }
-export interface EffectiveScenario { lockHash:string;rootPackId:string;extensionPackIds:string[];compositionOrder:string[];configurations:Record<string,JsonObject>;ontologyVocabulary:ResolvedContribution[];rulePacks:ResolvedContribution[];interpretationScopes:ResolvedContribution[];promptSections:ResolvedContribution[];reviewTemplates:ResolvedContribution[];defaults:ResolvedContribution[];capabilityRequirements:ScenarioCapabilityRequirement[];declarations:JsonValue[];appliedOverrides:AppliedOverrideRef[];effectiveScenarioHash:string }
+export interface EffectiveScenario { lockHash:string;rootPackId:string;extensionPackIds:string[];compositionOrder:string[];configurations:Record<string,JsonObject>;ontologyVocabulary:ResolvedOntologyVocabularyContribution[];rulePacks:ResolvedDeclarativeRulePackContribution[];interpretationScopes:ResolvedContribution[];promptSections:ResolvedPromptSectionContribution[];reviewTemplates:ResolvedContribution[];defaults:ResolvedContribution[];capabilityRequirements:ScenarioCapabilityRequirement[];declarations:JsonValue[];appliedOverrides:AppliedOverrideRef[];effectiveScenarioHash:string }
 export interface ResolvedScenarioPack { packId:string;version:string;kind:'root'|'extension';packageDigest:string;manifestHash:string }
 export interface ScenarioDependencyTrace { packId:string;dependencyPackId:string;status:'resolved'|'missing'|'incompatible'|'cycle';reasonCode:string }
 export interface ScenarioCompositionTrace { from:string;to:string;reasonCode:string }
@@ -785,14 +789,14 @@ export const PROMPT_SECTION_SCHEMA_VERSION = 'voce.prompt-section/v1alpha1' as c
 export const PROMPT_PARAMETER_SCHEMA_VERSION = 'voce.prompt-parameter/v1alpha1' as const
 export const PROMPT_REFERENCE_MAPPING_SCHEMA_VERSION = 'voce.prompt-reference-mapping/v1alpha1' as const
 export const PROMPT_CONSTRAINT_COVERAGE_SCHEMA_VERSION = 'voce.prompt-constraint-coverage/v1alpha1' as const
-export const PROMPT_IR_SCHEMA_VERSION = 'voce.prompt-ir/v1alpha1' as const
+export const PROMPT_IR_SCHEMA_VERSION = 'voce.prompt-ir/v1alpha2' as const
 export const PROMPT_TRANSFORMATION_SCHEMA_VERSION = 'voce.prompt-transformation/v1alpha1' as const
-export const PROMPT_CANDIDATE_IR_SCHEMA_VERSION = 'voce.prompt-candidate-ir/v1alpha1' as const
+export const PROMPT_CANDIDATE_IR_SCHEMA_VERSION = 'voce.prompt-candidate-ir/v1alpha2' as const
 export const PROMPT_GUARD_FINDING_SCHEMA_VERSION = 'voce.prompt-guard-finding/v1alpha1' as const
-export const PROMPT_GUARD_INPUT_SCHEMA_VERSION = 'voce.prompt-guard-input/v1alpha1' as const
-export const PROMPT_GUARD_RESULT_SCHEMA_VERSION = 'voce.prompt-guard-result/v1alpha1' as const
-export const PROMPT_COMPILATION_INPUT_SCHEMA_VERSION = 'voce.prompt-compilation-input/v1alpha1' as const
-export const PROMPT_OPTIMIZATION_INPUT_SCHEMA_VERSION = 'voce.prompt-optimization-input/v1alpha1' as const
+export const PROMPT_GUARD_INPUT_SCHEMA_VERSION = 'voce.prompt-guard-input/v1alpha2' as const
+export const PROMPT_GUARD_RESULT_SCHEMA_VERSION = 'voce.prompt-guard-result/v1alpha2' as const
+export const PROMPT_COMPILATION_INPUT_SCHEMA_VERSION = 'voce.prompt-compilation-input/v1alpha2' as const
+export const PROMPT_OPTIMIZATION_INPUT_SCHEMA_VERSION = 'voce.prompt-optimization-input/v1alpha2' as const
 export const PROVIDER_RENDER_REQUEST_SCHEMA_VERSION = 'voce.provider-render-request/v1alpha1' as const
 export const PROVIDER_RENDER_RESULT_SCHEMA_VERSION = 'voce.provider-render-result/v1alpha1' as const
 export const EXECUTION_RUN_SCHEMA_VERSION = 'voce.execution-run/v1alpha1' as const

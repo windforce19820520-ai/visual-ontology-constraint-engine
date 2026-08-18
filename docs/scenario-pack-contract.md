@@ -276,6 +276,8 @@ interface FixtureSuite {
 }
 ```
 
+The contribution records inside `ScenarioPack` are source records and retain `id`, `schemaVersion`, and `contentDigest`. Resolution creates separate `Resolved*Contribution` records with `packId`, `contributionKind`, `contributionId`, and `sourcePackIds`; source and resolved records are not interchangeable. Duplicate ontology paths or rule IDs may compose only when their canonical semantic content is identical.
+
 The Loader recomputes every contribution digest, the canonical manifest hash, and the package digest. The manifest does not prove that arbitrary installed code is safe and must never be presented as a sandbox or security signature.
 
 `supportedInteractionModes` declares only the interaction shapes the Pack can compile. Input and output expectations are typed, namespaced declarations used for Host UI, preflight, and output-contract negotiation; they neither inspect an Asset nor authorize a call. Every `requiredIn` and `producedIn` value must also appear in `supportedInteractionModes`. Cardinality bounds must be non-negative with `max >= min`; media types use normalized MIME strings. An expectation may narrow a versioned Core contract through `outputContract`, but it cannot redefine that Core contract.

@@ -32,6 +32,14 @@ export interface VisualCompositionCatalog {
 
 const enumPath = (path: string, allowedValues: string[], defaultImportance: OntologyPathDefinition['defaultImportance'] = 'preferred'): OntologyPathDefinition => ({ path, valueKind: 'enum', cardinality: 'one', allowedValues, defaultImportance })
 const boolPath = (path: string, defaultImportance: OntologyPathDefinition['defaultImportance'] = 'preferred'): OntologyPathDefinition => ({ path, valueKind: 'boolean', cardinality: 'one', defaultImportance })
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child)
+    Object.freeze(value)
+  }
+  return value
+}
 
 export const VISUAL_COMPOSITION_PATHS: OntologyPathDefinition[] = [
   enumPath('camera.framing.shotScale', ['extreme_close_up', 'close_up', 'head_and_shoulders', 'bust_shot', 'medium_close_up', 'medium_shot', 'knee_shot', 'full_shot', 'long_shot', 'extreme_long_shot']),
@@ -81,23 +89,32 @@ export const VISUAL_COMPOSITION_PRESETS: VisualCompositionPreset[] = [
   preset('environmental-portrait', 'depth', [{ operation: 'adjust', targetPath: 'camera.composition.framingDevices.environmentalPortrait', requestedValue: true }, { operation: 'adjust', targetPath: 'camera.composition.environmentRelationship', requestedValue: 'contextual' }]),
 ]
 
+deepFreeze(VISUAL_COMPOSITION_PATHS)
+deepFreeze(VISUAL_COMPOSITION_PRESETS)
+
 const VISUAL_COMPOSITION_CATALOG_BODY = { schemaVersion: VISUAL_COMPOSITION_SCHEMA_VERSION, id: VISUAL_COMPOSITION_CATALOG_ID, paths: VISUAL_COMPOSITION_PATHS, presets: VISUAL_COMPOSITION_PRESETS }
 
-export const VISUAL_COMPOSITION_CATALOG: VisualCompositionCatalog = { ...VISUAL_COMPOSITION_CATALOG_BODY, catalogHash: sha256(VISUAL_COMPOSITION_CATALOG_BODY as unknown as JsonValue) }
+export const VISUAL_COMPOSITION_CATALOG: VisualCompositionCatalog = deepFreeze({ ...VISUAL_COMPOSITION_CATALOG_BODY, catalogHash: sha256(VISUAL_COMPOSITION_CATALOG_BODY as unknown as JsonValue) })
 
 export function computeVisualCompositionCatalogHash(catalog: VisualCompositionCatalog = VISUAL_COMPOSITION_CATALOG): string {
   return sha256({ schemaVersion: catalog.schemaVersion, id: catalog.id, paths: catalog.paths, presets: catalog.presets } as unknown as JsonValue)
 }
 
 function valueForTemplate(template: CompositionChangeTemplate, options: Record<string, JsonValue>): JsonValue | undefined {
-  if (template.valueFrom === undefined) return template.requestedValue
-  const value = options[template.valueFrom]
-  if (value === undefined) throw new Error('COMPOSITION_PRESET_INPUT_REQUIRED')
+  let value = template.valueFrom === undefined ? template.requestedValue : options[template.valueFrom]
+  if (template.valueFrom !== undefined && value === undefined) throw new Error('COMPOSITION_PRESET_INPUT_REQUIRED')
   if (template.targetPath === 'camera.roll.mode') {
     if (value !== 'left' && value !== 'right') throw new Error('COMPOSITION_DIRECTION_INVALID')
-    return value === 'left' ? 'dutch_left' : 'dutch_right'
+    value = value === 'left' ? 'dutch_left' : 'dutch_right'
   }
-  return value
+  if (value === undefined) return undefined
+  const definition = VISUAL_COMPOSITION_PATHS.find((item) => item.path === template.targetPath)
+  const valid = definition?.valueKind === 'boolean' ? typeof value === 'boolean'
+    : definition?.valueKind === 'string' ? typeof value === 'string'
+      : definition?.valueKind === 'number' ? typeof value === 'number' && Number.isFinite(value)
+        : definition?.valueKind === 'enum' && definition.allowedValues?.some((allowed) => canonicalize(allowed) === canonicalize(value))
+  if (!definition || !valid) throw new Error('COMPOSITION_PRESET_INPUT_INVALID')
+  return clone(value)
 }
 
 export function expandVisualCompositionPreset(presetId: string, options: { inputs?: Record<string, JsonValue>; provenance?: Provenance; sourceHintIds?: string[] } = {}): ChangeIntent[] {
@@ -109,9 +126,9 @@ export function expandVisualCompositionPreset(presetId: string, options: { input
   const sourceHintIds = [...new Set([presetId, ...(options.sourceHintIds ?? [])])].sort()
   const changes = selected.changes.map((template, index) => {
     const requestedValue = valueForTemplate(template, inputs)
-    return { schemaVersion: 'voce.change-intent/v1alpha1' as const, id: `composition.${presetId}.${index + 1}`, operation: template.operation, targetPath: template.targetPath, ...(requestedValue === undefined ? {} : { requestedValue }), sourceHintIds, importance: 'preferred' as const, provenance }
+    return { schemaVersion: 'voce.change-intent/v1alpha1' as const, id: `composition.${presetId}.${index + 1}`, operation: template.operation, targetPath: template.targetPath, ...(requestedValue === undefined ? {} : { requestedValue }), sourceHintIds: [...sourceHintIds], importance: 'preferred' as const, provenance: clone(provenance) }
   })
-  if (presetId === 'profile-silhouette' && inputs.silhouette === true) changes.push({ schemaVersion: 'voce.change-intent/v1alpha1' as const, id: `composition.${presetId}.silhouette`, operation: 'adjust', targetPath: 'lighting.subjectRendering', requestedValue: 'silhouette', sourceHintIds, importance: 'preferred' as const, provenance })
+  if (presetId === 'profile-silhouette' && inputs.silhouette === true) changes.push({ schemaVersion: 'voce.change-intent/v1alpha1' as const, id: `composition.${presetId}.silhouette`, operation: 'adjust', targetPath: 'lighting.subjectRendering', requestedValue: 'silhouette', sourceHintIds: [...sourceHintIds], importance: 'preferred' as const, provenance: clone(provenance) })
   return changes
 }
 

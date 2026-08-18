@@ -89,7 +89,7 @@ export function fixtureM5CompilationInput(profile: ProviderCapabilityProfile = M
   const pipelineResult = overrides.pipelinePlan ? { status: 'ok' as const, pipelinePlan: overrides.pipelinePlan } : planPipeline({ schemaVersion: 'voce.pipeline-planning-input/v1alpha1', caseId: M4_FIXTURE_CASE_ID, caseRevision: M4_FIXTURE_CASE_REVISION, contextHash: context.contextHash, outputContract, constraintIR, referencePlan, profile })
   if (!pipelineResult.pipelinePlan) throw new Error('M5_FIXTURE_PIPELINE_BLOCKED')
   return {
-    schemaVersion: 'voce.prompt-compilation-input/v1alpha1',
+    schemaVersion: 'voce.prompt-compilation-input/v1alpha2',
     caseId: M4_FIXTURE_CASE_ID,
     caseRevision: M4_FIXTURE_CASE_REVISION,
     context,
@@ -117,7 +117,7 @@ export function fixtureM5GuardInput(prompt: PromptIR = fixtureM5PromptIR(), cand
   const profile = profileForPrompt(prompt)
   const compilation = fixtureM5CompilationInput(profile)
   return {
-    schemaVersion: 'voce.prompt-guard-input/v1alpha1',
+    schemaVersion: 'voce.prompt-guard-input/v1alpha2',
     promptIR: prompt,
     candidate,
     constraintIR: compilation.constraintIR,

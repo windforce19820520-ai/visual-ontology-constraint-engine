@@ -172,6 +172,25 @@ test('leading-zero SemVer and unequal duplicate contributions are rejected', () 
   const first = contribution('same', { value: 'first' }); const second = contribution('same', { value: 'second' }); const root = makePack(manifest('first.party.root'), { defaults: [first] }); const extension = makePack(manifest('ext.same', 'extension'), { defaults: [second] }); registry.register(source(root)); registry.register(source(extension)); const result = registry.resolve(selection('first.party.root', [{ packId: 'ext.same', versionRange: '1.0.0' }])); assert.equal(result.status, 'blocked'); assert.equal(result.report.conflicts[0].code, 'PACK_RULE_CONFLICT')
 })
 
+test('ontology path definitions compose only when canonical content is identical', () => {
+  const path = { path: 'camera.composition.placement', valueKind: 'enum', cardinality: 'one', allowedValues: ['center', 'left_third'] }
+  const rootVocabulary = contribution('root.vocabulary', { paths: [path] })
+  const identicalVocabulary = contribution('identical.vocabulary', { paths: [{ ...path }] })
+  const conflictingVocabulary = contribution('conflicting.vocabulary', { paths: [{ ...path, allowedValues: ['banana'] }] })
+
+  const identicalRegistry = createScenarioPackRegistry()
+  identicalRegistry.register(source(makePack(manifest('first.party.root'), { ontologyVocabulary: [rootVocabulary] })))
+  identicalRegistry.register(source(makePack(manifest('ext.identical', 'extension'), { ontologyVocabulary: [identicalVocabulary] })))
+  assert.equal(identicalRegistry.resolve(selection('first.party.root', [{ packId: 'ext.identical', versionRange: '1.0.0' }])).status, 'resolved')
+
+  const conflictingRegistry = createScenarioPackRegistry()
+  conflictingRegistry.register(source(makePack(manifest('first.party.root'), { ontologyVocabulary: [rootVocabulary] })))
+  conflictingRegistry.register(source(makePack(manifest('ext.conflicting', 'extension'), { ontologyVocabulary: [conflictingVocabulary] })))
+  const result = conflictingRegistry.resolve(selection('first.party.root', [{ packId: 'ext.conflicting', versionRange: '1.0.0' }]))
+  assert.equal(result.status, 'blocked')
+  assert.equal(result.report.conflicts[0].code, 'PACK_RULE_CONFLICT')
+})
+
 test('Core has no scenario-name branches', async () => {
   const source = await readFile(new URL('../src/index.ts', import.meta.url), 'utf8')
   assert.doesNotMatch(source, /virtual[-_ ]try[-_ ]on|cosplay|product[-_ ]shot/i)
