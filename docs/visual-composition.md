@@ -122,3 +122,4 @@ If a product later lets a user upload a prepared example image, register that im
 
 The 30 JPEGs are original documentation artwork generated for this repository from style-only references. The source screenshots are not included. The images intentionally contain no copied labels, numbering, logos, or watermarks. Repository validation requires exactly one JPEG named `<preset-id>.jpg` for every canonical preset.
 
+`assets/visual-composition-overview.jpg` is a derived contact sheet used by the README. It combines the same 30 canonical examples with their stable preset IDs and does not add another preset or model reference.

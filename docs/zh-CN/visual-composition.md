@@ -121,3 +121,4 @@ const compilation = compileConstraints({
 
 这 30 张 JPEG 是为本仓库生成的原创说明图，仅借用了附件的黑白漫画线稿和浅蓝点缀作为风格参考。附件截图本身没有进入仓库，生成图也没有复制其中的文字、编号、标识或具体人物。仓库校验要求每个规范预设都必须存在且只能存在一张同名 `<preset-id>.jpg` 示例图。
 
+`../assets/visual-composition-overview.jpg` 是 README 使用的派生总览图，只把同一批 30 张规范示例与稳定预设 ID 拼在一起；它不代表新增预设，也不是传给图像模型的参考图。

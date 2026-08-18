@@ -13,6 +13,14 @@ The repository contains deterministic runtime packages, data-only ScenarioPack f
 
 The runtime also includes 30 declarative visual-composition presets. A host displays the bundled example artwork, submits a stable preset ID plus any required typed inputs, and expands that selection into ordinary `ChangeIntent` records before constraint and prompt compilation. The artwork is UI/documentation guidance, not a model reference image and does not consume reference budget. See [visual composition presets and integration](docs/visual-composition.md) or the [简体中文指南](docs/zh-CN/visual-composition.md).
 
+### Visual-composition preset overview
+
+Each card below pairs the bundled selection artwork with the exact stable `presetId` submitted by a host. Click the overview for the full Simplified Chinese guide, including behavior, required inputs, conflict handling, prompt generation, and integration code.
+
+[![Overview of all 30 visual-composition presets, with example artwork and stable preset IDs](docs/assets/visual-composition-overview.jpg)](docs/zh-CN/visual-composition.md)
+
+Full guides: [English](docs/visual-composition.md) · [简体中文](docs/zh-CN/visual-composition.md)
+
 ## What works today
 
 [`v0.1.0-rc.3`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.3) is the current GitHub release candidate. Its post-merge release-candidate, clean-room, and checksum gates passed, including the deterministic Cosplay signature-prop regressions added for issue [#19](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues/19). The four public `@voce-engine/*` packages have not yet been published at RC.3; `v0.1.0-rc.2` remains publicly installable from npm and is covered by the [RC.2 public acceptance report](docs/acceptance/v0.1.0-rc.2.md). RC.3 still requires the separately authorized npm workflow, clean public-package acceptance, and real-Provider validation before issue #19 can close.
