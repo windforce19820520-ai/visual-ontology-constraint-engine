@@ -16,6 +16,7 @@ English is the normative language for public contracts and architecture decision
 - [Release-readiness checklist](release-checklist.md)
 - [Candidate public compatibility surface](compatibility.md)
 - [Release-candidate process](release-process.md)
+- [v0.1.0-rc.4 composition and release acceptance](acceptance/v0.1.0-rc.4.md)
 - [v0.1.0-rc.3 public and real-Provider acceptance](acceptance/v0.1.0-rc.3.md)
 - [Visual-composition main-branch acceptance note](acceptance/visual-composition-main.md)
 

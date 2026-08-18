@@ -37,6 +37,7 @@ const requiredFiles = [
   'docs/implementation-notes/v0.1-scope-cleanup.md',
   'docs/release-process.md',
   'docs/release-checklist.md',
+  'docs/acceptance/v0.1.0-rc.4.md',
   'docs/compatibility.md',
   'compatibility/v0.1.0-rc.1/manifest.json',
   'compatibility/v0.1.0-rc.1/consumer.ts',
@@ -44,6 +45,8 @@ const requiredFiles = [
   'compatibility/v0.1.0-rc.2/consumer.ts',
   'compatibility/v0.1.0-rc.3/manifest.json',
   'compatibility/v0.1.0-rc.3/consumer.ts',
+  'compatibility/v0.1.0-rc.4/manifest.json',
+  'compatibility/v0.1.0-rc.4/consumer.ts',
   'fixtures/security/m8/corpus.json',
   'fixtures/shared/visual-composition.v1.json',
 ]

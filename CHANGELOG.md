@@ -2,10 +2,19 @@
 
 ## Unreleased
 
+## 0.1.0-rc.4
+
+This release candidate publishes the visual-composition work that followed RC.3:
+
 - Adds host-facing documentation for all 30 declarative visual-composition presets, including typed-input examples, prompt-compilation flow, reference-budget semantics, and original manga-line-art selection examples; repository validation now requires one example image for every canonical preset ID.
+- Exposes the catalog through the public Core package and reports its stable ID, hash, 29 ontology paths, and 30 presets through `voce doctor --json`.
+- Compiles preset selections into ordinary typed `ChangeIntent` records, resolves incompatible shot-scale preferences deterministically, and carries active and excluded composition choices into PromptIR without treating selection artwork as a model reference.
+- Adds an explicitly authorized, ignored-local Seedream composition acceptance runner capped at three paid calls with no retries. All three transport calls succeeded; the samples are recorded as qualitative evidence rather than an automated release blocker.
 - Hardens the offline execution result contract so `OfflineExecutionResult.status` reflects the full `ExecutionRunState` set instead of silently narrowing it through a type cast; reconciliation to an in-flight state now reports the pending status without resubmitting.
 - Makes `RecordingMockTransport` match enqueued provider responses by `requestHash` (with an empty-hash wildcard fallback) instead of FIFO-only consumption, so concurrent sends cannot bind a queued response to the wrong request.
 - Documents the M9 Seedream runner's `RemoteCallAuthorization` as a self-attested data claim at a trusted, human-operated tool boundary rather than a cryptographic authorization mechanism.
+
+Standard CI, examples, and release gates remain offline and Mock-only. Private inputs, generated outputs, credentials, and temporary Provider URLs are not release artifacts. This release candidate does not claim production readiness.
 
 ## 0.1.0-rc.3
 
