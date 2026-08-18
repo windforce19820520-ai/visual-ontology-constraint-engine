@@ -162,7 +162,7 @@ npm install --save-dev @voce-engine/testkit@0.1.0-rc.4
 npm install --global @voce-engine/cli@0.1.0-rc.4
 ```
 
-The GitHub prerelease and its checksummed tarballs are available from [`v0.1.0-rc.4`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.4).
+The tagged source archive is available from the [`v0.1.0-rc.4` GitHub prerelease](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.4). The four package tarballs are distributed through npm with registry integrity metadata, signatures, and SLSA provenance. The repository's release-candidate gate also verifies a local 93-file checksum manifest; no separate package tarballs are attached to the GitHub Release.
 
 RC.4 is published through the same npm Trusted Publishing boundary and is exercised from a clean npm consumer, including the 30-preset catalog, CLI doctor summary, and all three bundled ScenarioPack compilation, Mock run, and static trace paths. See the [RC.4 acceptance report](docs/acceptance/v0.1.0-rc.4.md). The [RC.3](docs/acceptance/v0.1.0-rc.3.md), [RC.2](docs/acceptance/v0.1.0-rc.2.md), and [RC.1](docs/acceptance/v0.1.0-rc.1.md) reports remain historical evidence.
 

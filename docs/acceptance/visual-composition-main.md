@@ -1,5 +1,7 @@
 # Visual-composition main-branch acceptance note
 
+> Historical record: this deterministic check was completed after RC.3 and before RC.4. It is superseded by the [v0.1.0-rc.4 composition and release acceptance report](v0.1.0-rc.4.md), which records public npm consumption and three separately authorized real-Provider composition calls. The observations below remain unchanged as evidence of that earlier point in time.
+
 ## Scope
 
 This note records a deterministic check of the visual-composition feature on `main@1e8baf8dc4049a34e9d14d621cc9d864047cf0db`. The feature was merged after the RC.3 source tag and is not part of the RC.3 npm packages.
