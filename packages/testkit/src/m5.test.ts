@@ -241,6 +241,19 @@ test('submission_unknown does not resubmit and explicit reconcile changes only s
   assert.ok(reconciled.events.some((event) => event.state === 'reconciling'))
 })
 
+test('reconcile to an in-flight state reports the pending status without resubmitting', () => {
+  const input = fixtureM5ExecutionInput()
+  const remoteStep = input.pipelinePlan.steps.find((step) => step.mayCreateChargedSubmission)!
+  input.options = { unknownStepIds: [remoteStep.id] }
+  const runtime = createMockRuntimeForPlan(input.pipelinePlan)
+  const unknown = runtime.execute(input)
+  assert.equal(unknown.status, 'submission_unknown')
+  const pending = runtime.reconcile(unknown.executionRun!.id, 'running')
+  assert.equal(pending.status, 'running')
+  assert.equal(pending.executionRun!.state, 'running')
+  assert.equal(pending.events.filter((event) => event.stepId === remoteStep.id && event.state === 'submitted').length, 1)
+})
+
 test('completed reconciliation resumes downstream steps without resubmitting the unknown step', () => {
   const input = fixtureM5ExecutionInput()
   const generation = input.pipelinePlan.steps.find((step) => step.type === 'generate')!
