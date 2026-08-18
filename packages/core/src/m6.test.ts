@@ -251,6 +251,29 @@ test('RecordingMockTransport matches enqueued responses by request hash under co
   assert.equal(transport.calls.length, 2)
 })
 
+test('RecordingMockTransport never consumes a response bound to another send or lookup', async () => {
+  const transport = new RecordingMockTransport()
+  const instance = new SeedreamAdapter(seedreamConfig(transport, new TestAssetSink()))
+  const authorizationA = auth({ stepId: 'mismatch-a', purpose: 'generation', inputHash: sha256({ mismatch: 'a' }), adapter, profileDigest: profile.digest, dataCategories: ['prompt'] })
+  const authorizationB = auth({ stepId: 'mismatch-b', purpose: 'generation', inputHash: sha256({ mismatch: 'b' }), adapter, profileDigest: profile.digest, dataCategories: ['prompt'] })
+  const first = instance.buildRequest({ prompt: 'first' }, authorizationA)
+  const second = instance.buildRequest({ prompt: 'second' }, authorizationB)
+
+  transport.enqueue(response(second.requestHash, { marker: 'second-send' }))
+  const missingSend = await transport.send(first, { authorization: authorizationA, credential })
+  const matchedSend = await transport.send(second, { authorization: authorizationB, credential })
+  assert.equal(missingSend.status, 'failed')
+  assert.equal(missingSend.error?.code, 'MOCK_RESPONSE_MISSING')
+  assert.equal((matchedSend.body as { marker: string }).marker, 'second-send')
+
+  transport.enqueueLookup(response(second.requestHash, { marker: 'second-lookup' }))
+  const missingLookup = await transport.lookup(createProviderSubmissionLookup(first), { authorization: authorizationA, credential })
+  const matchedLookup = await transport.lookup(createProviderSubmissionLookup(second), { authorization: authorizationB, credential })
+  assert.equal(missingLookup.status, 'failed')
+  assert.equal(missingLookup.error?.code, 'MOCK_LOOKUP_RESPONSE_MISSING')
+  assert.equal((matchedLookup.body as { marker: string }).marker, 'second-lookup')
+})
+
 test('provider hashes bind sensitive bytes and URLs without exposing them', async () => {
   const transport = new RecordingMockTransport()
   const instance = new SeedreamAdapter(seedreamConfig(transport, new TestAssetSink()))

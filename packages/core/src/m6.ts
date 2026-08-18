@@ -517,8 +517,6 @@ export class RecordingMockTransport implements ProviderTransport {
     if (exactIndex >= 0) return queued.splice(exactIndex, 1)[0]
     const wildcardIndex = queued.findIndex((item) => item.requestHash === '')
     if (wildcardIndex >= 0) return queued.splice(wildcardIndex, 1)[0]
-    const next = queued.shift()
-    if (next) return next
     return errorResponse(requestHash, missingCode, missingMessage)
   }
 
