@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_ref:
-        description: Existing release tag matching the workspace version (for example v0.1.0)
+        description: Existing release tag matching both the selected workflow ref and workspace version (for example v0.1.0)
         required: true
         type: string
       dist_tag:
@@ -55,8 +55,14 @@ jobs:
           set -euo pipefail
           root_version="$(node --input-type=module -e "import pkg from './package.json' with { type: 'json' }; process.stdout.write(pkg.version)")"
           expected_ref="v${root_version}"
+          expected_github_ref="refs/tags/${RELEASE_REF}"
           if [[ "${RELEASE_REF}" != "${expected_ref}" ]]; then
             echo "release_ref ${RELEASE_REF} does not match workspace version ${root_version}" >&2
+            exit 1
+          fi
+          if [[ "${GITHUB_REF}" != "${expected_github_ref}" ]]; then
+            echo "workflow ref ${GITHUB_REF} does not match requested release tag ${expected_github_ref}" >&2
+            echo "Dispatch this workflow with the release tag selected in 'Use workflow from'." >&2
             exit 1
           fi
           if [[ "$(git describe --tags --exact-match HEAD)" != "${RELEASE_REF}" ]]; then
@@ -130,6 +136,16 @@ jobs:
           set -euo pipefail
           version="$(node --input-type=module -e "import pkg from './package.json' with { type: 'json' }; process.stdout.write(pkg.version)")"
           for package in contracts core testkit cli; do
-            published="$(npm view "@voce-engine/${package}@${version}" version --registry https://registry.npmjs.org)"
-            test "${published}" = "${version}"
+            published=""
+            for attempt in $(seq 1 12); do
+              published="$(npm view "@voce-engine/${package}@${version}" version --registry https://registry.npmjs.org 2>/dev/null || true)"
+              if [[ "${published}" == "${version}" ]]; then
+                break
+              fi
+              if [[ "${attempt}" == "12" ]]; then
+                echo "@voce-engine/${package}@${version} did not become visible after ${attempt} registry checks" >&2
+                exit 1
+              fi
+              sleep 5
+            done
           done

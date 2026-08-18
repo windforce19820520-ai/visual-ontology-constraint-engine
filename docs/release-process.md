@@ -1,19 +1,20 @@
 # Release-candidate process
 
-This repository produces an auditable local release candidate before any external publication. Publication is a separate, explicitly owner-authorized operation. `v0.1.0-rc.3` is the current GitHub prerelease; `v0.1.0-rc.2` remains the published npm `next` candidate until the RC.3 npm workflow and post-publication acceptance are separately authorized and completed. Neither is production-ready.
+This repository produces an auditable local release candidate before any external publication. Publication is a separate, explicitly owner-authorized operation. `v0.1.0-rc.3` is the current GitHub prerelease and npm `next` candidate. It is not production-ready.
 
 ## Current v0.1.0-rc.3 publication status
 
-As of 2026-08-17:
+As of 2026-08-18:
 
 - PR [#21](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/pull/21) was merged to `main` as `f424705bbf554e23336e8b4179f24b287145cdf6`;
 - the annotated [`v0.1.0-rc.3`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.3) tag and GitHub prerelease point to that source revision;
 - the post-merge release-candidate, clean-room, checksum, and tracked-diff gates passed;
-- the four public npm packages have not been published at RC.3, and their `next` distribution tags remain on `0.1.0-rc.2`;
-- no paid or real Provider acceptance was performed as part of publication; and
-- issue [#19](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues/19) remains open pending separately authorized real-Provider acceptance.
+- the four public npm packages are published at `0.1.0-rc.3`, and all four `next` distribution tags resolve to RC.3;
+- a clean consumer outside the development checkout installed the exact public packages and passed ESM, schema, CLI, and three-scenario offline acceptance;
+- a separately authorized one-call Seedream Cosplay acceptance passed without recording credentials or committing private inputs/results; and
+- issue [#19](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues/19) is closed as completed.
 
-This is a split publication state, not a full public acceptance result. Add an RC.3 acceptance report only after the exact tagged packages are published and exercised from a clean public-registry consumer. A real-Provider result remains a separate acceptance record and must not be inferred from deterministic or Mock-only gates.
+The [RC.3 public acceptance report](acceptance/v0.1.0-rc.3.md) records the npm and real-Provider evidence. The paid call remains a separate explicit operation and must not be inferred from deterministic or Mock-only gates.
 
 ## Local gates
 
@@ -54,4 +55,4 @@ The container bytes of `.tgz` files are not required to match across tar/gzip to
 
 The local gates and standard validation or release-candidate workflows never publish to npm, create a GitHub Release or tag, merge a pull request, call a real Provider, send credentials, or claim production readiness. The dedicated, manually dispatched `publish-npm.yml` workflow is the only npm publishing exception; it runs only after explicit owner authorization and a separate review of the tag, release permissions, and provenance.
 
-For an authorized release, create the reviewed annotated tag, then manually dispatch `publish-npm.yml` with that exact tag and the intended npm distribution tag. The OIDC workflow reruns the release gates and publishes contracts, Core, testkit, and CLI in dependency order. Verify each registry result before creating or finalizing the GitHub Release. A browser login is not publication authorization, and credentials must never enter Git or release artifacts.
+For an authorized release, create the reviewed annotated tag, select that same tag in the workflow's **Use workflow from** control, then dispatch `publish-npm.yml` with the exact tag and intended npm distribution tag. The workflow rejects a trigger ref that differs from `release_ref`, reruns the release gates, publishes contracts, Core, testkit, and CLI in dependency order, and tolerates bounded npm registry propagation delay during verification. Verify each registry result before creating or finalizing the GitHub Release. A browser login is not publication authorization, and credentials must never enter Git or release artifacts.
