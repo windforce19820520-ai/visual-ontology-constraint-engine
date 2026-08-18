@@ -83,8 +83,20 @@ export interface ScenarioContributionIndex { ontologyVocabulary:ScenarioContribu
 export interface DistributionInventoryEntry { path:string; role:'contribution'|'fixture'|'migration'|'readme'|'license'|'package_metadata'; contentDigest:string }
 export interface PackageProvenance { publisher:string; sourceRepository?:string; sourceRevision?:string; sourceDigest?:string }
 export interface PackageAcquisition { sourceKind:'memory'|'directory'|'file_archive'|'npm_tarball'|'github_release'; sourceLocator:string; distributionDigest:string; lifecycleScriptsExecuted:false }
-export interface DeclarativeRulePackContribution { id:string; schemaVersion:string; contentDigest:string; namespace:string; rules:JsonValue[] }
 export interface ResolvedContribution extends JsonObject { packId:string; contributionKind:ScenarioContributionKind; contributionId:string; contentDigest:string }
+export type OntologyValueKind = 'boolean'|'enum'|'string'|'number'
+export type OntologyCardinality = 'one'|'many'
+export interface OntologyPathDefinition { path:string; valueKind:OntologyValueKind; cardinality:OntologyCardinality; allowedValues?:JsonValue[]; defaultImportance?:Importance }
+export type OntologyVocabularyContribution = ResolvedContribution & { paths:OntologyPathDefinition[] }
+export type DeclarativeConditionOperator = 'present'|'absent'|'equals'|'contains'
+export interface DeclarativeRuleCondition { path:string; operator:DeclarativeConditionOperator; value?:JsonValue }
+export interface DeclarativeRuleOperand { id:string; conditions:DeclarativeRuleCondition[] }
+export type DeclarativeRuleKind = 'incompatibility'|'dependency'|'cardinality'|'occlusion'|'resource'
+export interface DeclarativeRuleResolution { strategy:'block'|'degrade_operand'; operandId?:string; reasonCode:string }
+export interface DeclarativeRule { id:string; kind:DeclarativeRuleKind; operands:DeclarativeRuleOperand[]; resolution:DeclarativeRuleResolution; importance?:Importance; explanation:string; code?:string; resourceId?:string; dependencyKind?:ConstraintDependencyKind }
+export type DeclarativeRulePackContribution = ResolvedContribution & { namespace:string; rules:DeclarativeRule[] }
+export interface PromptSectionDefinition { id:string; group:string; order:number; pathPrefixes:string[]; requiredPaths?:string[]; templateKey:string }
+export type PromptSectionContribution = ResolvedContribution & { sections:PromptSectionDefinition[] }
 export interface OverridePoint { id:string; targetKind:'configuration'|'declared_default'|'contribution_activation'; targetPath:string; valueSchema?:JsonSchemaRef; allowDisable:boolean; maximumImportance:'preferred'; contentDigest?:string }
 export type HostOverrideOperation = {kind:'set_configuration';packId:string;overridePointId:string;value:JsonValue}|{kind:'set_declared_default';packId:string;overridePointId:string;value:JsonValue}|{kind:'set_contribution_activation';packId:string;overridePointId:string;active:boolean}
 export interface HostOverride { id:string; operation:HostOverrideOperation; reasonCode:string; contentHash:string }
@@ -881,6 +893,13 @@ export interface PromptConstraintCoverage {
   locked: boolean
 }
 
+export interface PromptConstraintExclusion {
+  constraintId:string
+  degradationId:string
+  reasonCode:string
+  sourceIds:string[]
+}
+
 export interface PromptIR {
   schemaVersion: typeof PROMPT_IR_SCHEMA_VERSION
   id: string
@@ -902,6 +921,7 @@ export interface PromptIR {
   forbidden: PromptProhibition[]
   output: OutputContract
   constraintCoverage: PromptConstraintCoverage[]
+  excludedConstraints: PromptConstraintExclusion[]
   sourceIds: string[]
   constraintIds: string[]
   decisionIds: string[]
@@ -921,6 +941,7 @@ export interface PromptCompilationInput {
   outputContract: OutputContract
   targetAdapter: VersionPin
   targetCapabilityProfile: VersionPin
+  effectiveScenario: EffectiveScenario
   objective?: string
   positiveDescription?: string
 }
@@ -1002,6 +1023,7 @@ export interface PromptCandidateIR {
   parameters: PromptParameter[]
   referenceMappings: PromptReferenceMapping[]
   constraintCoverage: PromptConstraintCoverage[]
+  excludedConstraints: PromptConstraintExclusion[]
   transformations: PromptTransformation[]
   optimizer: VersionPin
   mode: 'strict'|'balanced'|'creative'

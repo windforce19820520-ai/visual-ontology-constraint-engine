@@ -266,7 +266,7 @@ function excludedBy(plan: RequestedScopePlan, path: string): boolean {
 function scenarioPathAllowed(scenario: EffectiveScenario | undefined, path: string): boolean {
   if (!scenario || scenario.interpretationScopes.length === 0) return true
   return scenario.interpretationScopes.some((raw) => {
-    const value = raw as Record<string, JsonValue>
+    const value = raw as unknown as Record<string, JsonValue>
     const candidate = typeof value.ontologyPath === 'string' ? value.ontologyPath : typeof value.scopePath === 'string' ? value.scopePath : undefined
     return candidate ? scopeContainsPath(candidate, path) : false
   })

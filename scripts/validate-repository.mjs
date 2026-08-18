@@ -43,6 +43,7 @@ const requiredFiles = [
   'compatibility/v0.1.0-rc.3/manifest.json',
   'compatibility/v0.1.0-rc.3/consumer.ts',
   'fixtures/security/m8/corpus.json',
+  'fixtures/shared/visual-composition.v1.json',
 ]
 
 const requiredContractSchemas = [
@@ -103,6 +104,18 @@ const requiredContractSchemas = [
   'packages/contracts/schemas/ExplainResult.schema.json',
   'packages/contracts/schemas/SemanticDiff.schema.json',
   'packages/contracts/schemas/PromptSection.schema.json',
+  'packages/contracts/schemas/OntologyPathDefinition.schema.json',
+  'packages/contracts/schemas/OntologyVocabularyContribution.schema.json',
+  'packages/contracts/schemas/DeclarativeRuleCondition.schema.json',
+  'packages/contracts/schemas/DeclarativeRuleOperand.schema.json',
+  'packages/contracts/schemas/DeclarativeRuleResolution.schema.json',
+  'packages/contracts/schemas/DeclarativeRule.schema.json',
+  'packages/contracts/schemas/DeclarativeRulePackContribution.schema.json',
+  'packages/contracts/schemas/PromptSectionDefinition.schema.json',
+  'packages/contracts/schemas/PromptSectionContribution.schema.json',
+  'packages/contracts/schemas/PromptConstraintExclusion.schema.json',
+  'packages/contracts/schemas/VisualCompositionPreset.schema.json',
+  'packages/contracts/schemas/VisualCompositionCatalog.schema.json',
   'packages/contracts/schemas/PromptParameter.schema.json',
   'packages/contracts/schemas/PromptReferenceMapping.schema.json',
   'packages/contracts/schemas/PromptConstraintCoverage.schema.json',
@@ -258,6 +271,28 @@ for (const [file, expectedVersion] of [['fixtures/m5-prompt-ir-minimal.json', 'v
   }
 }
 
+const visualComposition = JSON.parse(await readFile(new URL('../fixtures/shared/visual-composition.v1.json', import.meta.url), 'utf8'))
+if (visualComposition.schemaVersion !== 'voce.visual-composition/v1alpha1' || visualComposition.paths?.length !== 29 || visualComposition.presets?.length !== 30 || !/^sha256:[0-9a-f]{64}$/.test(visualComposition.catalogHash ?? '')) throw new Error('VISUAL_COMPOSITION_CATALOG_SHAPE_INVALID')
+if (new Set(visualComposition.paths.map((item) => item.path)).size !== visualComposition.paths.length || new Set(visualComposition.presets.map((item) => item.id)).size !== visualComposition.presets.length) throw new Error('VISUAL_COMPOSITION_CATALOG_IDS_INVALID')
+const shotScale = visualComposition.paths.find((item) => item.path === 'camera.framing.shotScale')
+if (shotScale?.valueKind !== 'enum' || shotScale.cardinality !== 'one') throw new Error('VISUAL_COMPOSITION_SHOT_SCALE_INVALID')
+const fullShot = visualComposition.presets.find((item) => item.id === 'full-shot')
+if (!fullShot?.changes?.some((item) => item.targetPath === 'camera.framing.shotScale' && item.requestedValue === 'full_shot') || !fullShot?.changes?.some((item) => item.targetPath === 'camera.framing.crop.keepBothFeet' && item.requestedValue === true)) throw new Error('VISUAL_COMPOSITION_FULL_SHOT_INVALID')
+if (JSON.stringify(visualComposition).match(/https?:\/\//i)) throw new Error('VISUAL_COMPOSITION_EXTERNAL_URL')
+
+for (const file of ['fixtures/packs/virtual-tryon/pack.json', 'fixtures/packs/cosplay/pack.json', 'fixtures/packs/product-shot/pack.json']) {
+  const pack = JSON.parse(await readFile(new URL(`../${file}`, import.meta.url), 'utf8'))
+  if (!Array.isArray(pack.contributions?.ontologyVocabulary) || !Array.isArray(pack.contributions?.rulePacks) || !Array.isArray(pack.contributions?.promptSections)) throw new Error(`VISUAL_COMPOSITION_TYPED_CONTRIBUTIONS_MISSING:${file}`)
+  const compositionVocabulary = pack.contributions.ontologyVocabulary.find((contribution) => contribution.id === 'visual-composition.ontology')
+  if (!compositionVocabulary || JSON.stringify(compositionVocabulary.paths) !== JSON.stringify(visualComposition.paths)) throw new Error(`VISUAL_COMPOSITION_VOCABULARY_DRIFT:${file}`)
+  for (const contribution of pack.contributions.ontologyVocabulary) if (!Array.isArray(contribution.paths)) throw new Error(`VISUAL_COMPOSITION_VOCABULARY_INVALID:${file}`)
+  for (const contribution of pack.contributions.rulePacks) if (!Array.isArray(contribution.rules) || contribution.rules.some((rule) => !Array.isArray(rule.operands) || !rule.resolution)) throw new Error(`VISUAL_COMPOSITION_RULES_INVALID:${file}`)
+  for (const contribution of pack.contributions.promptSections) if (!Array.isArray(contribution.sections)) throw new Error(`VISUAL_COMPOSITION_PROMPT_POLICY_INVALID:${file}`)
+}
+
+const coreSourceForScenarioCheck = await readFile(new URL('../packages/core/src/index.ts', import.meta.url), 'utf8')
+if (/virtual[-_ ]try[-_ ]on|cosplay|product[-_ ]shot/i.test(coreSourceForScenarioCheck)) throw new Error('CORE_SCENARIO_NAME_BRANCH')
+
 for (const [file, expectedVersion] of [['fixtures/m6-provider-request-minimal.json', 'voce.provider-request-envelope/v1alpha1'], ['fixtures/m6-structural-input-minimal.json', 'voce.structural-validation-input/v1alpha1'], ['fixtures/m6-evaluation-report-minimal.json', 'voce.evaluation-report/v1alpha1']]) {
   const url = new URL(file.split('/').map(encodeURIComponent).join('/'), repositoryRoot)
   const value = JSON.parse(await readFile(url, 'utf8'))
@@ -404,9 +439,9 @@ assertSameInlineCodeTokens('SCENARIO_PACK', scenarioPackContract, chineseScenari
 assertSameInlineCodeTokens('SYSTEM', systemDesign, chineseSystemDesign)
 
 const requiredScenarioIds = ['CP-001', 'DEV-001', 'PS-001', 'REV-001', 'RPK-001', 'SCN-001', 'SPK-001', 'VT-001']
-const requiredSystemIds = Array.from({ length: 22 }, (_, index) => `SYS-${String(index + 1).padStart(3, '0')}`)
+const requiredSystemIds = Array.from({ length: 23 }, (_, index) => `SYS-${String(index + 1).padStart(3, '0')}`)
 const requiredScenarioPackAcceptanceIds = Array.from(
-  { length: 15 },
+  { length: 16 },
   (_, index) => `SPK-AC-${String(index + 1).padStart(3, '0')}`,
 )
 const requiredSystemErrorCodes = [
