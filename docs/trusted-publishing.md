@@ -44,6 +44,12 @@ Trusted Publisher settings can be saved before the workflow reaches `main`, but 
 
 The previous short-lived RC publication token was revoked. The successful RC.2 publication removed the need for a token fallback; do not restore an npm write token in repository secrets or routine release instructions.
 
+## RC.3 publication note
+
+RC.3 package publication succeeded in [workflow run 32119035821](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/actions/runs/32119035821). The job checked out and verified the exact annotated `v0.1.0-rc.3` tag at `f424705bbf554e23336e8b4179f24b287145cdf6`, reran the release gates, and published all four release-candidate tarballs. Its immediate final CLI registry lookup saw a transient 404 before propagation completed; direct registry verification then confirmed all four immutable versions and `next` tags, so the publish job was not retried.
+
+The workflow was dispatched from `main@1e8baf8dc4049a34e9d14d621cc9d864047cf0db`. npm's SLSA provenance therefore records that workflow invocation ref in `resolvedDependencies`, even though the package checkout and release gates used the RC.3 tag. Existing npm versions cannot be overwritten to change that provenance record. Future publication now fails unless the selected workflow ref is the same tag supplied as `release_ref`, and the final registry check retries only within a bounded propagation window.
+
 ## Security boundary
 
 - Use GitHub-hosted runners; npm does not support self-hosted runners for Trusted Publishing.

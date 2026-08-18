@@ -4,14 +4,17 @@ This checklist describes the local release candidate gate. Passing it does not i
 
 ## Recorded publication state
 
-The reviewed PR, annotated tag, and GitHub prerelease were completed on 2026-08-17 at source revision `f424705bbf554e23336e8b4179f24b287145cdf6`. The post-merge release-candidate, clean-room, checksum, and tracked-diff gates passed.
+The reviewed PR, annotated tag, and GitHub prerelease were completed on 2026-08-17 at source revision `f424705bbf554e23336e8b4179f24b287145cdf6`. The post-merge release-candidate, clean-room, checksum, and tracked-diff gates passed. On 2026-08-18 the separately authorized npm and real-Provider acceptance steps completed.
 
-This record is intentionally not a completed public-acceptance claim:
+Completed external evidence:
 
-- RC.3 is not yet published to npm; all four `next` tags remain on `0.1.0-rc.2`.
-- A clean consumer has not yet installed RC.3 from the public npm registry.
-- No real Provider was called during the RC.3 publication step.
-- Issue [#19](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues/19) remains open pending separately authorized real-Provider acceptance.
+- all four public packages are published at `0.1.0-rc.3` and resolve from `next`;
+- a clean consumer installed the exact public packages with lifecycle scripts disabled and no workspace/link dependency;
+- ESM, schema, CLI doctor, and the virtual-tryon, cosplay, and product-shot offline paths passed;
+- one explicitly authorized Seedream Cosplay call returned HTTP 200 and passed visual signature-prop review; and
+- issue [#19](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues/19) is closed.
+
+See the [RC.3 public acceptance report](acceptance/v0.1.0-rc.3.md). This remains release-candidate evidence, not a production-readiness claim.
 
 ## Local commands
 
