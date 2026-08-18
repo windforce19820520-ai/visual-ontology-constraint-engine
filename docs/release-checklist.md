@@ -2,17 +2,18 @@
 
 This checklist describes the local release candidate gate. Passing it does not itself authorize npm publishing, a GitHub Release, a tag, a merge, or a production-readiness claim. `v0.1.0-rc.4` publication remains an explicitly owner-authorized RC operation.
 
-## Recorded candidate state
+## Recorded publication state
 
-RC.4 adds the 30-preset visual-composition catalog to the four-package public surface. Local validation and clean-room installation passed on 2026-08-18. A separately authorized three-call Seedream run then exercised representative composition combinations with no retries and no credential recording.
+RC.4 adds the 30-preset visual-composition catalog to the four-package public surface. PR [#28](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/pull/28) was squash-merged as `70ecee52665c0d0002751e00896618ac0b74877a`; the annotated tag, GitHub prerelease, OIDC workflow checkout, and npm packages use that source revision. Local and public-registry clean consumers passed on 2026-08-18. A separately authorized three-call Seedream run exercised representative composition combinations with no retries and no credential recording.
 
-Required release evidence:
+Completed release evidence:
 
 - all four package manifests, internal pins, CLI output, compatibility fixtures, and release directories use `0.1.0-rc.4`;
 - a clean tarball consumer reports 29 visual-composition paths and 30 presets through Core and CLI doctor;
 - ESM, schemas, the virtual-tryon, Cosplay, and product-shot offline paths pass;
-- the annotated tag, GitHub prerelease, npm `next` versions, and checked-out publication revision must be identical; and
-- an exact public-registry consumer must repeat the package and offline-path checks after publication.
+- the annotated tag, GitHub prerelease, npm `next` versions, and checked-out publication revision are aligned at RC.4 / `70ecee5`;
+- all four registry records contain integrity metadata, npm signatures, and SLSA provenance; and
+- an exact public-registry consumer repeated the package, composition-catalog, declaration, schema, CLI, and three offline-path checks after publication.
 
 See the [RC.4 acceptance report](acceptance/v0.1.0-rc.4.md). The real images remain qualitative evidence and are not committed release artifacts or an automatic pass/fail gate.
 
