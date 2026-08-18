@@ -1,6 +1,6 @@
 {
   "name": "visual-ontology-constraint-engine",
-  "version": "0.1.0-rc.3",
+  "version": "0.1.0-rc.4",
   "private": true,
   "description": "Visual ontology, constraint compilation, prompt optimization, and evaluation for reference-guided image generation.",
   "type": "module",
@@ -23,7 +23,10 @@
     "verify-checksums": "node scripts/verify-checksums.mjs",
     "m9:preflight": "node scripts/m9-seedream-smoke.mjs --preflight-only",
     "m9:prepare": "node scripts/m9-seedream-smoke.mjs --prepare-assets-only",
-    "m9:smoke": "node scripts/m9-seedream-smoke.mjs"
+    "m9:smoke": "node scripts/m9-seedream-smoke.mjs",
+    "rc4:composition:preflight": "node scripts/m9-seedream-smoke.mjs --composition-acceptance --preflight-only",
+    "rc4:composition:prepare": "node scripts/m9-seedream-smoke.mjs --composition-acceptance --prepare-assets-only",
+    "rc4:composition:acceptance": "node scripts/m9-seedream-smoke.mjs --composition-acceptance"
   },
   "workspaces": ["packages/*"],
   "devDependencies": { "typescript": "^5.6.3", "@types/node": "^22.0.0" },

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "voce.compatibility-suite/v1alpha1",
+  "releaseCandidate": "0.1.0-rc.4",
+  "status": "candidate-not-stable",
+  "publicPackages": [
+    "@voce-engine/contracts",
+    "@voce-engine/core",
+    "@voce-engine/testkit",
+    "@voce-engine/cli"
+  ],
+  "candidatePublicSurface": {
+    "@voce-engine/contracts": [
+      "ScenarioPack",
+      "ScenarioPackRegistry",
+      "ScenarioPackManifest",
+      "OntologyPathDefinition",
+      "DeclarativeRulePackContribution",
+      "PromptConstraintExclusion",
+      "ProviderAdapter",
+      "ProviderCapabilityProfile",
+      "BundleManifest"
+    ],
+    "@voce-engine/core": [
+      "MemoryScenarioPackRegistry",
+      "createScenarioPackRegistry",
+      "VISUAL_COMPOSITION_CATALOG",
+      "VISUAL_COMPOSITION_PRESETS",
+      "VisualCompositionCatalog",
+      "VisualCompositionPreset",
+      "expandVisualCompositionPreset",
+      "compileConstraints",
+      "compilePromptIR",
+      "MOCK_IMAGE_PROFILE",
+      "MockProviderAdapter",
+      "createMockRuntimeForPlan",
+      "replayArtifacts"
+    ],
+    "@voce-engine/testkit": [
+      "fixtureM4ConstraintInput",
+      "fixtureM5ExecutionInput",
+      "fixtureM6Artifact"
+    ],
+    "@voce-engine/cli": [
+      "CLI_VERSION",
+      "runCli"
+    ]
+  },
+  "schemaIds": [
+    { "file": "ScenarioPackManifest.schema.json", "id": "voce.scenario-pack/v1alpha1" },
+    { "file": "ProviderCapabilityProfile.schema.json", "id": "voce.provider-capability-profile/v1alpha1" },
+    { "file": "BundleManifest.schema.json", "id": "voce.bundle-manifest/v1alpha1" },
+    { "file": "EffectiveScenario.schema.json", "id": "voce.effective-scenario/v1alpha1" },
+    { "file": "ScenarioCompositionLock.schema.json", "id": "voce.scenario-pack-lock/v1alpha1" },
+    { "file": "OntologyPathDefinition.schema.json", "id": "voce.ontology-path-definition/v1alpha1" },
+    { "file": "DeclarativeRule.schema.json", "id": "voce.declarative-rule/v1alpha1" },
+    { "file": "DeclarativeRulePackContribution.schema.json", "id": "voce.declarative-rule-pack-contribution/v1alpha1" },
+    { "file": "VisualCompositionCatalog.schema.json", "id": "voce.visual-composition-catalog/v1alpha1" },
+    { "file": "VisualCompositionPreset.schema.json", "id": "voce.visual-composition-preset/v1alpha1" },
+    { "file": "PromptIRV1Alpha2.schema.json", "id": "voce.prompt-ir/v1alpha2" },
+    { "file": "PromptCandidateIRV1Alpha2.schema.json", "id": "voce.prompt-candidate-ir/v1alpha2" },
+    { "file": "PromptCompilationInputV1Alpha2.schema.json", "id": "voce.prompt-compilation-input/v1alpha2" },
+    { "file": "PromptGuardInputV1Alpha2.schema.json", "id": "voce.prompt-guard-input/v1alpha2" },
+    { "file": "PromptGuardResultV1Alpha2.schema.json", "id": "voce.prompt-guard-result/v1alpha2" }
+  ],
+  "consumerFixture": "consumer.ts",
+  "deterministicFields": [
+    "manifestHash",
+    "packageDigest",
+    "distributionDigest",
+    "lockHash",
+    "effectiveScenarioHash",
+    "catalogHash",
+    "deterministicSignature",
+    "profileHash",
+    "semanticHash",
+    "assertionHash"
+  ],
+  "safetyBehaviors": [
+    "mock-adapter-is-offline",
+    "visual-composition-presets-are-data-only",
+    "composition-conflicts-fail-closed-or-degrade-explicitly",
+    "excluded-prompt-constraints-cannot-reenter",
+    "bundle-manifest-hash-is-checked",
+    "bundle-input-output-overlap-is-rejected",
+    "trace-is-static-and-redacted"
+  ],
+  "notStable": [
+    "This candidate does not claim production readiness or a stable compatibility promise.",
+    "Visual-composition records and Prompt v1alpha2 schemas remain alpha contracts.",
+    "ProviderAdapter and executable plugin loading remain trusted local-code boundaries.",
+    "No compatibility promise is made for ports outside this candidate surface."
+  ]
+}

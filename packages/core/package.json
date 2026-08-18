@@ -1,6 +1,6 @@
 {
   "name": "@voce-engine/core",
-  "version": "0.1.0-rc.3",
+  "version": "0.1.0-rc.4",
   "description": "Deterministic visual ontology, constraint, reference, prompt, execution-planning, and evaluation runtime.",
   "license": "Apache-2.0",
   "type": "module",
@@ -12,6 +12,6 @@
   "homepage": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine#readme",
   "bugs": { "url": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues" },
   "publishConfig": { "access": "public", "tag": "next" },
-  "dependencies": { "@voce-engine/contracts": "0.1.0-rc.3", "semver": "7.7.2" },
+  "dependencies": { "@voce-engine/contracts": "0.1.0-rc.4", "semver": "7.7.2" },
   "devDependencies": { "@types/semver": "7.7.0" }
 }

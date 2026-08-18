@@ -1,20 +1,17 @@
 # Release-candidate process
 
-This repository produces an auditable local release candidate before any external publication. Publication is a separate, explicitly owner-authorized operation. `v0.1.0-rc.3` is the current GitHub prerelease and npm `next` candidate. It is not production-ready.
+This repository produces an auditable local release candidate before any external publication. Publication is a separate, explicitly owner-authorized operation. `v0.1.0-rc.4` is the current visual-composition candidate for GitHub and npm `next`. It is not production-ready.
 
-## Current v0.1.0-rc.3 publication status
+## Current v0.1.0-rc.4 candidate status
 
-As of 2026-08-18:
+As of 2026-08-18, before external publication reconciliation:
 
-- PR [#21](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/pull/21) was merged to `main` as `f424705bbf554e23336e8b4179f24b287145cdf6`;
-- the annotated [`v0.1.0-rc.3`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.3) tag and GitHub prerelease point to that source revision;
-- the post-merge release-candidate, clean-room, checksum, and tracked-diff gates passed;
-- the four public npm packages are published at `0.1.0-rc.3`, and all four `next` distribution tags resolve to RC.3;
-- a clean consumer outside the development checkout installed the exact public packages and passed ESM, schema, CLI, and three-scenario offline acceptance;
-- a separately authorized one-call Seedream Cosplay acceptance passed without recording credentials or committing private inputs/results; and
-- issue [#19](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues/19) is closed as completed.
+- version, internal dependency pins, CLI output, compatibility snapshot, and release directories are aligned at `0.1.0-rc.4`;
+- local repository tests and a four-tarball clean consumer pass, including the packaged 29-path/30-preset catalog;
+- three separately authorized Seedream composition calls returned HTTP 200 with no retries and no committed private artifacts; and
+- merge, annotated tag, GitHub prerelease, npm publication, and public-registry clean consumption are completed only after the reviewed branch and exact source revision are reconciled.
 
-The [RC.3 public acceptance report](acceptance/v0.1.0-rc.3.md) records the npm and real-Provider evidence. The paid call remains a separate explicit operation and must not be inferred from deterministic or Mock-only gates.
+The [RC.4 acceptance report](acceptance/v0.1.0-rc.4.md) records the deterministic and real-Provider evidence. Paid calls remain a separate explicit operation and must not be inferred from deterministic or Mock-only gates.
 
 ## Local gates
 
@@ -35,9 +32,9 @@ pnpm run verify-checksums
 git diff --check
 ```
 
-`pnpm run clean-room` packs the four public packages, installs only those local tarballs in the repository-controlled `clean-room/v0.1.0-rc.3` directory with `--ignore-scripts --offline`, checks that installed packages are not workspace symlinks, compiles a TypeScript consumer against installed declarations, checks the documented schema path, verifies removal does not fall back to the workspace, and runs version, doctor, pack inspect/validate/test, the three vertical compile/run/trace paths, and compare.
+`pnpm run clean-room` packs the four public packages, installs only those local tarballs in the repository-controlled `clean-room/v0.1.0-rc.4` directory with `--ignore-scripts --offline`, checks that installed packages are not workspace symlinks, compiles a TypeScript consumer against installed declarations, checks the documented schema path, verifies removal does not fall back to the workspace, and runs version, doctor, composition-catalog, pack inspect/validate/test, the three vertical compile/run/trace paths, and compare.
 
-`pnpm run release-candidate` requires a clean tracked tree, binds the output to the exact `HEAD`, runs the compatibility, security, consumer, and two-consecutive-build reproducibility gates, writes safe vertical/consumer summaries, per-file SHA-256 checksums, a strict package allowlist audit, a version matrix, a metadata-only local SBOM/license report, and a local build manifest under the ignored `release-candidate/v0.1.0-rc.3` directory. `pnpm run verify-checksums` verifies that directory and rejects a tampered file.
+`pnpm run release-candidate` requires a clean tracked tree, binds the output to the exact `HEAD`, runs the compatibility, security, consumer, and two-consecutive-build reproducibility gates, writes safe vertical/consumer summaries, per-file SHA-256 checksums, a strict package allowlist audit, a version matrix, a metadata-only local SBOM/license report, and a local build manifest under the ignored `release-candidate/v0.1.0-rc.4` directory. `pnpm run verify-checksums` verifies that directory and rejects a tampered file.
 
 `pnpm run compatibility`, `pnpm run security`, `pnpm run reproducibility`, and `pnpm run consumer` are the M8专项 commands. The first three write only ignored release-candidate summaries; the consumer writes its controlled clean-room under `clean-room/`.
 

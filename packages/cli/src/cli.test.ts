@@ -4,6 +4,7 @@ import { link, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, wr
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { computeVisualCompositionCatalogHash } from '@voce-engine/core'
 
 const root = process.cwd()
 const cli = path.join(root, 'packages', 'cli', 'dist', 'cli.js')
@@ -25,7 +26,18 @@ async function runtimeSourceFiles(directory: string): Promise<string[]> {
 
 test('CLI help and version have stable machine output', () => {
   const help = invoke(['--help']); assert.equal(help.status, 0); assert.equal(help.stdoutLines.length, 1); assert.equal(help.json?.status, 'ok')
-  const version = invoke(['--version']); assert.equal(version.status, 0); assert.deepEqual(version.json, { status: 'ok', version: '0.1.0-rc.3' })
+  const version = invoke(['--version']); assert.equal(version.status, 0); assert.deepEqual(version.json, { status: 'ok', version: '0.1.0-rc.4' })
+})
+
+test('CLI doctor exposes the stable visual-composition catalog summary', () => {
+  const doctor = invoke(['doctor'])
+  assert.equal(doctor.status, 0)
+  assert.deepEqual(doctor.json?.visualComposition, {
+    catalogId: 'visual-composition.v1',
+    catalogHash: computeVisualCompositionCatalogHash(),
+    pathCount: 29,
+    presetCount: 30,
+  })
 })
 
 test('CLI rejects unknown commands and missing arguments with stable codes', () => {

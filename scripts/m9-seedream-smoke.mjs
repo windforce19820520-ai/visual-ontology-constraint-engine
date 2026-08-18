@@ -4,20 +4,32 @@ import { performance } from 'node:perf_hooks'
 import {
   RecordingMockTransport,
   SeedreamAdapter,
+  VISUAL_COMPOSITION_PATHS,
+  compileConstraints,
+  compilePromptIR,
   computeArtifactBytesHash,
   computeProviderErrorHash,
   computeProviderResponseEnvelopeHash,
   createRemoteCallAuthorization,
+  expandVisualCompositionPreset,
+  MOCK_IMAGE_PROFILE,
   sha256,
 } from '../packages/core/dist/index.js'
+import {
+  fixtureM4ConstraintInput,
+  fixtureM5CompilationInput,
+  fixtureM5Context,
+  fixtureM5Scenario,
+} from '../packages/testkit/dist/index.js'
 
 const ENDPOINT = process.env.VOCE_SEEDREAM_ENDPOINT || 'https://ark.cn-beijing.volces.com/api/v3/images/generations'
 const MODEL = process.env.VOCE_SEEDREAM_MODEL || 'doubao-seedream-5-0-pro-260628'
 const API_KEY = process.env.VOCE_SEEDREAM_API_KEY || ''
 const PREFLIGHT_ONLY = process.argv.includes('--preflight-only')
 const PREPARE_ASSETS_ONLY = process.argv.includes('--prepare-assets-only')
+const COMPOSITION_ACCEPTANCE = process.argv.includes('--composition-acceptance')
 const TIMEOUT_MS = 360_000
-const MAX_REAL_CALLS = 2
+const MAX_REAL_CALLS = COMPOSITION_ACCEPTANCE ? 3 : 2
 const CREDENTIAL_REF = 'env:VOCE_SEEDREAM_API_KEY'
 const ROOT = resolve('m9-smoke-artifacts')
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, '-').replace('Z', 'Z')
@@ -48,11 +60,27 @@ const INPUT_SPECS = {
   },
 }
 
-const adapterPin = { id: 'voce.seedream', version: '0.1.0-rc.3', digest: sha256({ id: 'voce.seedream', version: '0.1.0-rc.3' }) }
+const adapterPin = { id: 'voce.seedream', version: '0.1.0-rc.4', digest: sha256({ id: 'voce.seedream', version: '0.1.0-rc.4' }) }
 const profilePin = { id: 'voce.seedream.domestic.pro', version: '2026-06-28', digest: sha256({ endpoint: ENDPOINT, model: MODEL, referenceLimit: 10, outputCount: 1 }) }
 
 const jsonReady = (value) => JSON.parse(JSON.stringify(value))
 const safeText = (value) => String(value || '').replace(/ark-[A-Za-z0-9-]+/g, '[REDACTED]').replace(/Bearer\s+\S+/gi, 'Bearer [REDACTED]').slice(0, 500)
+
+const COMPOSITION_GLOSSES = {
+  'medium-shot': 'Use an intentional half-body medium shot, approximately waist-up, with the face, upper costume, hands, and visible signature weapon readable.',
+  'full-shot': 'Use a full-body shot with both feet inside the frame and the entire signature weapon visibly retained.',
+  'long-shot': 'Use a long shot in which the character remains identifiable while the surrounding environment is clearly established.',
+  'low-angle': 'Place the camera below the subject and look upward with a clearly visible low-angle perspective.',
+  'rule-of-thirds': 'Place the character on a rule-of-thirds line or intersection instead of centering by default.',
+  'centered-symmetry': 'Use a centered, bilaterally balanced composition.',
+  'leading-lines': 'Use visible scene geometry such as rails, paths, or architecture as leading lines toward the character.',
+  'diagonal-composition': 'Use strong diagonal visual flow through the character, weapon, or scene geometry.',
+  'reflection-composition': 'Include a clearly readable reflection on the declared reflective surface.',
+  'telephoto-compression': 'Use a telephoto-compressed perspective with reduced apparent depth spacing.',
+  'environmental-portrait': 'Create an environmental portrait in which the character and surrounding location both contribute to the image.',
+}
+
+const COSPLAY_FIDELITY_PROMPT = 'Create a realistic cosplay transformation from two references. Preserve from the first reference the adult person identity, facial structure, and body proportions; do not inherit that person\'s original clothing as the target costume. From the second reference reproduce the blue hairstyle, horn-like hair ornaments, makeup, earrings, arm ornaments, the complete blue-white-gold costume design, and the visible signature weapon. Preserve the weapon type, long primary silhouette, blue-gold color scheme, character-relative scale, major signature details, hand assignment, and visible presence. Do not inherit the illustrated character face as the real-person identity. Adapt the illustrated styling into a coherent wearable photorealistic cosplay. Ignore all source text, logos, ratings, interface elements, and graphic background. Add no extra people, unrelated props, text, or watermark.'
 
 function detectMediaType(bytes) {
   if (bytes.length >= 8 && [137, 80, 78, 71, 13, 10, 26, 10].every((value, index) => bytes[index] === value)) return 'image/png'
@@ -90,10 +118,12 @@ function artifactFor(source, bytes) {
   }
 }
 
-async function loadInputs() {
+async function loadInputs(requiredNames = Object.keys(INPUT_SPECS)) {
   const entries = await readdir(INPUT_DIR, { withFileTypes: true })
   const result = {}
-  for (const [name, spec] of Object.entries(INPUT_SPECS)) {
+  for (const name of requiredNames) {
+    const spec = INPUT_SPECS[name]
+    if (!spec) throw new Error(`Unknown input specification: ${name}.`)
     const started = performance.now()
     const matches = entries.filter((entry) => entry.isFile() && entry.name.toLowerCase().startsWith(`${spec.stem.toLowerCase()}.`) && ['.png', '.jpg', '.jpeg'].includes(extname(entry.name).toLowerCase()))
     if (matches.length !== 1) throw new Error(`Expected exactly one ${spec.stem}.png/.jpg/.jpeg in ${relative(process.cwd(), INPUT_DIR)}, found ${matches.length}.`)
@@ -112,6 +142,118 @@ async function loadInputs() {
     }
   }
   return result
+}
+
+function compileCompositionClosure(caseId, selections, sceneDescription) {
+  const scenario = fixtureM5Scenario()
+  scenario.ontologyVocabulary = [{
+    packId: 'fixture.m5',
+    contributionKind: 'ontologyVocabulary',
+    contributionId: 'fixture.m5.composition-vocabulary',
+    contentDigest: sha256({ fixture: 'composition-vocabulary' }),
+    paths: VISUAL_COMPOSITION_PATHS,
+  }]
+  const scenarioHashBase = jsonReady(scenario)
+  delete scenarioHashBase.effectiveScenarioHash
+  scenario.effectiveScenarioHash = sha256(scenarioHashBase)
+  const context = fixtureM5Context({ effectiveScenarioHash: scenario.effectiveScenarioHash })
+  const changeIntents = selections.flatMap((selection) => expandVisualCompositionPreset(selection.presetId, {
+    inputs: selection.inputs,
+    sourceHintIds: [`rc4-real-provider:${caseId}`],
+  }).map((intent) => ({
+    ...intent,
+    id: `${caseId}.${intent.id}`,
+    importance: selection.importance ?? intent.importance,
+  })))
+  const constraintIR = compileConstraints(fixtureM4ConstraintInput({ context, effectiveScenario: scenario, changeIntents }))
+  if (constraintIR.status !== 'ok') throw new Error(`RC4_COMPOSITION_CONSTRAINTS_BLOCKED:${caseId}`)
+  const promptIR = compilePromptIR(fixtureM5CompilationInput(MOCK_IMAGE_PROFILE, {
+    context,
+    effectiveScenario: scenario,
+    constraintIR,
+    objective: `Create the approved cosplay scene for ${caseId}.`,
+    positiveDescription: sceneDescription,
+  }))
+  const selectedPresetIds = selections.map((selection) => selection.presetId)
+  const compositionSections = promptIR.sections.filter((section) => section.sourceIds.some((sourceId) => selectedPresetIds.includes(sourceId)))
+  const activePresetIds = selectedPresetIds.filter((presetId) => compositionSections.some((section) => section.sourceIds.includes(presetId)))
+  const excludedPresetIds = selectedPresetIds.filter((presetId) => constraintIR.constraints.some((constraint) => constraint.status === 'unsatisfied' && constraint.sourceIds.includes(presetId)))
+  const providerInstructions = activePresetIds.map((presetId) => COMPOSITION_GLOSSES[presetId]).filter(Boolean)
+  const prompt = [
+    COSPLAY_FIDELITY_PROMPT,
+    sceneDescription,
+    'Apply the following VOCE-generated typed composition closure:',
+    ...compositionSections.map((section) => section.content),
+    'Provider-facing rendering of the active composition constraints:',
+    ...providerInstructions,
+  ].join('\n')
+  return {
+    prompt,
+    composition: {
+      selectedPresetIds,
+      activePresetIds,
+      excludedPresetIds,
+      promptIRHash: promptIR.deterministicSignature,
+      constraintIRHash: constraintIR.deterministicSignature,
+      compositionSections: compositionSections.map((section) => ({ content: section.content, constraintIds: section.constraintIds, sourceIds: section.sourceIds })),
+      excludedConstraints: promptIR.excludedConstraints,
+      providerInstructions,
+      providerPromptHash: sha256({ prompt }),
+    },
+  }
+}
+
+function compositionDefinitions() {
+  const cases = [
+    {
+      id: 'rc4-lakeside-medium-shot-conflict',
+      title: 'RC.4 lakeside half-body conflict closure',
+      sceneDescription: 'Place the recognizable cosplayer beside a calm lake with shoreline, water, and distant landscape visibly establishing the location. Keep the intended half-body character presentation and make the environment supportive rather than dominant.',
+      selections: [
+        { presetId: 'medium-shot', importance: 'required' },
+        { presetId: 'close-up', importance: 'preferred' },
+        { presetId: 'rule-of-thirds' },
+        { presetId: 'environmental-portrait' },
+      ],
+      expectedExcludedPresetIds: ['close-up'],
+      acceptanceCriteria: ['half-body medium shot', 'close-up preference absent', 'lakeside visible', 'rule-of-thirds placement', 'identity and costume retained', 'signature weapon visible'],
+    },
+    {
+      id: 'rc4-low-angle-diagonal-full-shot',
+      title: 'RC.4 low-angle diagonal full shot',
+      sceneDescription: 'Place the cosplayer on a modern pedestrian bridge or plaza with rails and paving that can form strong directional geometry. Keep an opaque photorealistic environment.',
+      selections: [
+        { presetId: 'full-shot', importance: 'required' },
+        { presetId: 'low-angle' },
+        { presetId: 'diagonal-composition' },
+        { presetId: 'leading-lines' },
+      ],
+      expectedExcludedPresetIds: [],
+      acceptanceCriteria: ['full body and both feet visible', 'low camera angle', 'diagonal visual flow', 'leading scene lines', 'identity and costume retained', 'entire signature weapon visible'],
+    },
+    {
+      id: 'rc4-water-reflection-telephoto-long-shot',
+      title: 'RC.4 water reflection telephoto long shot',
+      sceneDescription: 'Place the cosplayer at a calm lakeside where the subject and costume produce a readable reflection in the water. Use an opaque photorealistic scene with distant shoreline layers suitable for compressed perspective.',
+      selections: [
+        { presetId: 'long-shot', importance: 'required' },
+        { presetId: 'reflection-composition', inputs: { surface: 'water' } },
+        { presetId: 'telephoto-compression' },
+        { presetId: 'centered-symmetry' },
+      ],
+      expectedExcludedPresetIds: [],
+      acceptanceCriteria: ['long shot with environment visible', 'water reflection readable', 'telephoto-compressed depth', 'centered symmetry', 'character and costume identifiable', 'signature weapon visible'],
+    },
+  ]
+  return cases.map((definition) => {
+    const closure = compileCompositionClosure(definition.id, definition.selections, definition.sceneDescription)
+    const expectedExcluded = [...definition.expectedExcludedPresetIds].sort()
+    const actualExcluded = [...closure.composition.excludedPresetIds].sort()
+    const expectedActive = definition.selections.map((selection) => selection.presetId).filter((presetId) => !expectedExcluded.includes(presetId)).sort()
+    const actualActive = [...closure.composition.activePresetIds].sort()
+    if (JSON.stringify(actualExcluded) !== JSON.stringify(expectedExcluded) || JSON.stringify(actualActive) !== JSON.stringify(expectedActive)) throw new Error(`RC4_COMPOSITION_CLOSURE_UNEXPECTED:${definition.id}`)
+    return { ...definition, references: ['person', 'costume'], ...closure }
+  })
 }
 
 class LocalFileAssetSink {
@@ -246,8 +388,8 @@ function authorizationFor(caseId, prompt, artifacts) {
     purpose: 'generation',
     inputHash,
     permittedArtifactHashes: artifacts.map((artifact) => artifact.contentHash).sort(),
-    permittedScopeIds: ['person.identity', 'apparel'],
-    constraintIds: ['m9-multi-reference', 'm9-one-output', 'm9-opaque-output'],
+    permittedScopeIds: COMPOSITION_ACCEPTANCE ? ['apparel', 'camera.composition', 'camera.framing', 'camera.lens', 'camera.view', 'character.signatureProps.primary', 'environment.background', 'person.identity'] : ['person.identity', 'apparel'],
+    constraintIds: COMPOSITION_ACCEPTANCE ? ['m9-multi-reference', 'm9-one-output', 'm9-opaque-output', 'rc4-composition-closure'] : ['m9-multi-reference', 'm9-one-output', 'm9-opaque-output'],
     modelId: MODEL,
     modelVersion: MODEL,
     adapterId: adapterPin.id,
@@ -319,6 +461,7 @@ async function runCase(definition, sources, adapter, transport, sink) {
     response: result.response,
     inputArtifacts: artifacts,
     outputArtifacts: saved,
+    ...(definition.composition ? { composition: definition.composition, acceptanceCriteria: definition.acceptanceCriteria } : {}),
   }
 }
 
@@ -326,7 +469,7 @@ async function writeReport(report) {
   const reportPath = join(RUN_DIR, 'm9-report.json')
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8')
   const lines = [
-    '# M9 Seedream real-smoke report',
+    COMPOSITION_ACCEPTANCE ? '# RC.4 Seedream composition acceptance report' : '# M9 Seedream real-smoke report',
     '',
     `- Run: ${report.runId}`,
     `- Endpoint profile: domestic`,
@@ -347,14 +490,16 @@ async function writeReport(report) {
     ]),
   ]
   await writeFile(join(RUN_DIR, 'summary.md'), `${lines.join('\n')}\n`, 'utf8')
-  await writeFile(join(ROOT, 'latest.json'), `${JSON.stringify({ runId: RUN_ID, reportPath: relative(process.cwd(), reportPath).replace(/\\/g, '/'), completedAt: report.completedAt }, null, 2)}\n`, 'utf8')
+  await writeFile(join(ROOT, COMPOSITION_ACCEPTANCE ? 'latest-composition.json' : 'latest.json'), `${JSON.stringify({ runId: RUN_ID, reportPath: relative(process.cwd(), reportPath).replace(/\\/g, '/'), completedAt: report.completedAt }, null, 2)}\n`, 'utf8')
   return reportPath
 }
 
 async function main() {
   await ensureDirectories()
+  const plannedCompositionDefinitions = COMPOSITION_ACCEPTANCE ? compositionDefinitions() : undefined
   const preflight = await runPreflight()
-  const baseReport = { schemaVersion: 'voce.m9-seedream-smoke/v1alpha1', runId: RUN_ID, startedAt: new Date().toISOString(), endpointProfile: 'domestic', endpointHost: new URL(ENDPOINT).host, model: MODEL, maximumRealCalls: MAX_REAL_CALLS, credentialRecorded: false, preflight, expectedInputs: Object.values(INPUT_SPECS), cases: [] }
+  const requiredInputNames = COMPOSITION_ACCEPTANCE ? ['person', 'costume'] : Object.keys(INPUT_SPECS)
+  const baseReport = { schemaVersion: 'voce.m9-seedream-smoke/v1alpha1', runId: RUN_ID, startedAt: new Date().toISOString(), mode: COMPOSITION_ACCEPTANCE ? 'rc4-composition-acceptance' : 'm9-standard', endpointProfile: 'domestic', endpointHost: new URL(ENDPOINT).host, model: MODEL, maximumRealCalls: MAX_REAL_CALLS, credentialRecorded: false, preflight, expectedInputs: requiredInputNames.map((name) => INPUT_SPECS[name]), ...(plannedCompositionDefinitions ? { compositionPlans: plannedCompositionDefinitions.map((definition) => ({ caseId: definition.id, title: definition.title, acceptanceCriteria: definition.acceptanceCriteria, composition: definition.composition })) } : {}), cases: [] }
   if (!preflight.passed) {
     const report = { ...baseReport, completedAt: new Date().toISOString(), realCallCount: 0, failureReason: 'Offline parameter interception failed.' }
     console.error(`M9 preflight failed. Report: ${await writeReport(report)}`)
@@ -368,7 +513,7 @@ async function main() {
   }
   if (PREPARE_ASSETS_ONLY) {
     try {
-      const sources = await loadInputs()
+      const sources = await loadInputs(requiredInputNames)
       const preparedSources = Object.fromEntries(Object.entries(sources).map(([name, item]) => [name, { path: relative(process.cwd(), item.path).replace(/\\/g, '/'), contentHash: item.artifact.contentHash, byteLength: item.artifact.byteLength, elapsedMs: item.elapsedMs }]))
       const report = { ...baseReport, completedAt: new Date().toISOString(), realCallCount: 0, preparedSources, failureReason: null }
       console.log(`M9 local inputs validated without provider calls. Report: ${await writeReport(report)}`)
@@ -386,7 +531,7 @@ async function main() {
     return
   }
   let sources
-  try { sources = await loadInputs() } catch (error) {
+  try { sources = await loadInputs(requiredInputNames) } catch (error) {
     const report = { ...baseReport, completedAt: new Date().toISOString(), realCallCount: 0, failureReason: safeText(error?.message) }
     console.error(`Local input validation failed. Report: ${await writeReport(report)}`)
     process.exitCode = 3
@@ -395,7 +540,7 @@ async function main() {
   const sink = new LocalFileAssetSink(RESULT_DIR)
   const transport = new FetchSeedreamTransport()
   const adapter = new SeedreamAdapter({ endpoint: ENDPOINT, credentialRef: CREDENTIAL_REF, model: MODEL, modelVersion: MODEL, adapter: adapterPin, profile: profilePin, destination: ENDPOINT, region: 'cn-beijing', endpointProfile: 'domestic', transport, assetSink: sink })
-  const definitions = [
+  const definitions = plannedCompositionDefinitions ?? [
     {
       id: 'm9-virtual-tryon',
       title: 'Multi-reference virtual try-on',
@@ -406,7 +551,7 @@ async function main() {
       id: 'm9-cosplay',
       title: 'Multi-reference character cosplay',
       references: ['person', 'costume'],
-      prompt: 'Create a realistic cosplay transformation from two references. Preserve from the first reference the adult person identity, facial structure, body proportions, and full-body presentation; do not inherit that person\'s original clothing as the target costume. From the second reference reproduce the blue hairstyle, horn-like hair ornaments, makeup, earrings, arm ornaments, the complete blue-white-gold costume design, and the visible signature weapon. Preserve the weapon type, long primary silhouette, blue-gold color scheme, character-relative scale, major signature details, hand assignment, and visible presence. Do not inherit the illustrated character face as the real-person identity. Adapt the illustrated character styling into a coherent wearable photorealistic cosplay while keeping the person recognizable. Ignore all source text, logos, ratings, interface elements, and graphic background. Use a clean opaque photographic background and add no extra people, unrelated props, text, or watermark.',
+      prompt: 'Create a realistic cosplay transformation from two references. Preserve from the first reference the adult person identity, facial structure, body proportions, and half-body presentation; do not inherit that person\'s original clothing as the target costume. From the second reference reproduce the blue hairstyle, horn-like hair ornaments, makeup, earrings, arm ornaments, the complete visible blue-white-gold costume design, and the visible signature weapon. Preserve the weapon type, long primary silhouette, blue-gold color scheme, character-relative scale, major signature details, hand assignment, and visible presence. Do not inherit the illustrated character face as the real-person identity. Adapt the illustrated character styling into a coherent wearable photorealistic cosplay while keeping the person recognizable. Ignore all source text, logos, ratings, interface elements, and graphic background. Use a clean opaque photographic background and add no extra people, unrelated props, text, or watermark.',
     },
   ]
   const cases = []

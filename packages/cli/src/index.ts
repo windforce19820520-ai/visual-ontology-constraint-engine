@@ -26,10 +26,10 @@ import {
 } from '@voce-engine/testkit'
 import { BUNDLE_MANIFEST_SCHEMA_VERSION } from '@voce-engine/contracts'
 
-export const CLI_VERSION = '0.1.0-rc.3'
+export const CLI_VERSION = '0.1.0-rc.4'
 const TOOL_ID = '@voce-engine/cli'
-const CONTRACTS_VERSION = '0.1.0-rc.3'
-const CORE_VERSION = '0.1.0-rc.3'
+const CONTRACTS_VERSION = '0.1.0-rc.4'
+const CORE_VERSION = '0.1.0-rc.4'
 const SOURCE_SCHEMA = 'voce.scenario-pack-source/v1alpha1'
 const PACK_SCHEMA = 'voce.scenario-pack/v1alpha1'
 const HASH = /^sha256:[0-9a-f]{64}$/
@@ -506,7 +506,23 @@ async function packTestCommand(source: string): Promise<JsonObject> {
   }
   const failed = results.some((item) => item.status === 'failed'); return { status: failed ? 'failed' : 'passed', packId: loaded.descriptor.manifest.packId, resolutionHash: resolution.report.reportHash, lockHash: resolution.lock.lockHash, effectiveScenarioHash: resolution.effectiveScenario.effectiveScenarioHash, fixtureCount: results.length, results }
 }
-async function doctorCommand(): Promise<JsonObject> { const major = Number(process.versions.node.split('.')[0]); return { status: major >= 20 ? 'ok' : 'blocked', node: { version: process.versions.node, supported: major >= 20 }, contracts: { schemaVersion: BUNDLE_MANIFEST_SCHEMA_VERSION, packageVersion: CONTRACTS_VERSION }, paths: { explicitOnly: true }, providers: { default: 'disabled', mock: 'offline', networkProbe: false }, authProbe: { inspected: false } } }
+async function doctorCommand(): Promise<JsonObject> {
+  const major = Number(process.versions.node.split('.')[0])
+  return {
+    status: major >= 20 ? 'ok' : 'blocked',
+    node: { version: process.versions.node, supported: major >= 20 },
+    contracts: { schemaVersion: BUNDLE_MANIFEST_SCHEMA_VERSION, packageVersion: CONTRACTS_VERSION },
+    paths: { explicitOnly: true },
+    providers: { default: 'disabled', mock: 'offline', networkProbe: false },
+    authProbe: { inspected: false },
+    visualComposition: {
+      catalogId: VISUAL_COMPOSITION_CATALOG.id,
+      catalogHash: computeVisualCompositionCatalogHash(),
+      pathCount: VISUAL_COMPOSITION_CATALOG.paths.length,
+      presetCount: VISUAL_COMPOSITION_CATALOG.presets.length,
+    },
+  }
+}
 function required(args: Record<string, string>, key: string): string { if (!args[key]) throw new CliError('ARGUMENT_MISSING', `Missing --${key}.`, EXIT.usage); return args[key] }
 
 function help(): string { return `voce ${CLI_VERSION}\n\nOffline-first explicit-path CLI.\n\nCommands:\n  voce pack inspect --source <path> [--json]\n  voce pack validate --source <path> [--json]\n  voce pack test --source <path> [--json]\n  voce case compile --case <file> --scenario <path> --profile <file> --out <dir> [--json]\n  voce case run --bundle <dir> --provider mock --out <dir> [--json]\n  voce trace render --bundle <dir> --out <html> [--json]\n  voce compare --before <dir> --after <dir> [--out <file>] [--json]\n  voce doctor [--json]\n\nExit codes: 0 success, 2 usage, 3 input, 4 contract/hash, 5 offline/provider, 6 output, 7 internal.` }

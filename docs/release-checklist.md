@@ -1,20 +1,20 @@
-# v0.1.0-rc.3 release-readiness checklist
+# v0.1.0-rc.4 release-readiness checklist
 
-This checklist describes the local release candidate gate. Passing it does not itself authorize npm publishing, a GitHub Release, a tag, a merge, or a production-readiness claim. `v0.1.0-rc.3` publication is a separately authorized RC operation.
+This checklist describes the local release candidate gate. Passing it does not itself authorize npm publishing, a GitHub Release, a tag, a merge, or a production-readiness claim. `v0.1.0-rc.4` publication remains an explicitly owner-authorized RC operation.
 
-## Recorded publication state
+## Recorded candidate state
 
-The reviewed PR, annotated tag, and GitHub prerelease were completed on 2026-08-17 at source revision `f424705bbf554e23336e8b4179f24b287145cdf6`. The post-merge release-candidate, clean-room, checksum, and tracked-diff gates passed. On 2026-08-18 the separately authorized npm and real-Provider acceptance steps completed.
+RC.4 adds the 30-preset visual-composition catalog to the four-package public surface. Local validation and clean-room installation passed on 2026-08-18. A separately authorized three-call Seedream run then exercised representative composition combinations with no retries and no credential recording.
 
-Completed external evidence:
+Required release evidence:
 
-- all four public packages are published at `0.1.0-rc.3` and resolve from `next`;
-- a clean consumer installed the exact public packages with lifecycle scripts disabled and no workspace/link dependency;
-- ESM, schema, CLI doctor, and the virtual-tryon, cosplay, and product-shot offline paths passed;
-- one explicitly authorized Seedream Cosplay call returned HTTP 200 and passed visual signature-prop review; and
-- issue [#19](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues/19) is closed.
+- all four package manifests, internal pins, CLI output, compatibility fixtures, and release directories use `0.1.0-rc.4`;
+- a clean tarball consumer reports 29 visual-composition paths and 30 presets through Core and CLI doctor;
+- ESM, schemas, the virtual-tryon, Cosplay, and product-shot offline paths pass;
+- the annotated tag, GitHub prerelease, npm `next` versions, and checked-out publication revision must be identical; and
+- an exact public-registry consumer must repeat the package and offline-path checks after publication.
 
-See the [RC.3 public acceptance report](acceptance/v0.1.0-rc.3.md). This remains release-candidate evidence, not a production-readiness claim.
+See the [RC.4 acceptance report](acceptance/v0.1.0-rc.4.md). The real images remain qualitative evidence and are not committed release artifacts or an automatic pass/fail gate.
 
 ## Local commands
 
