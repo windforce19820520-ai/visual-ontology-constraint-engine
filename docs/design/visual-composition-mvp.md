@@ -1,8 +1,10 @@
 # Visual composition ontology and prompt-closure design
 
-Status: implementation-ready design proposal
+Status: implemented in `v0.1.0-rc.4`; retained as the normative design record
 
-Target development line: `0.2.0-alpha.1`
+Delivery release: `v0.1.0-rc.4`
+
+Original planning target: `0.2.0-alpha.1` (superseded when the reviewed implementation was included in RC.4)
 
 Normative language: English
 

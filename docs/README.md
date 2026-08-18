@@ -8,9 +8,9 @@ English is the normative language for public contracts and architecture decision
 - [System design](system-design.md) · [简体中文](zh-CN/system-design.md)
 - [Glossary](glossary.md) · [简体中文](zh-CN/glossary.md)
 - [ScenarioPack contract](scenario-pack-contract.md) · [简体中文](zh-CN/scenario-pack-contract.md)
-- [Visual composition ontology and prompt-closure design](design/visual-composition-mvp.md)
+- [Visual composition ontology and prompt-closure design — implemented in RC.4](design/visual-composition-mvp.md)
 - [Visual composition presets, examples, and host integration](visual-composition.md) · [简体中文](zh-CN/visual-composition.md)
-- [Visual composition MVP: Luna xhigh implementation brief (简体中文)](implementation-notes/visual-composition-mvp-luna-xhigh.md)
+- [Historical visual composition MVP: Luna xhigh implementation brief (简体中文)](implementation-notes/visual-composition-mvp-luna-xhigh.md)
 - [Architecture summary](architecture.md)
 - [Roadmap](roadmap.md)
 - [Release-readiness checklist](release-checklist.md)
@@ -18,7 +18,7 @@ English is the normative language for public contracts and architecture decision
 - [Release-candidate process](release-process.md)
 - [v0.1.0-rc.4 composition and release acceptance](acceptance/v0.1.0-rc.4.md)
 - [v0.1.0-rc.3 public and real-Provider acceptance](acceptance/v0.1.0-rc.3.md)
-- [Visual-composition main-branch acceptance note](acceptance/visual-composition-main.md)
+- [Historical pre-RC.4 visual-composition main-branch acceptance note](acceptance/visual-composition-main.md)
 
 ## Translation policy
 

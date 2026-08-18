@@ -50,6 +50,12 @@ RC.3 package publication succeeded in [workflow run 32119035821](https://github.
 
 The workflow was dispatched from `main@1e8baf8dc4049a34e9d14d621cc9d864047cf0db`. npm's SLSA provenance therefore records that workflow invocation ref in `resolvedDependencies`, even though the package checkout and release gates used the RC.3 tag. Existing npm versions cannot be overwritten to change that provenance record. Future publication now fails unless the selected workflow ref is the same tag supplied as `release_ref`, and the final registry check retries only within a bounded propagation window.
 
+## RC.4 publication note
+
+RC.4 package publication succeeded in [workflow run 32127701215](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/actions/runs/32127701215). The workflow itself was selected from the annotated `v0.1.0-rc.4` tag, checked out the same tag at `70ecee52665c0d0002751e00896618ac0b74877a`, reran the release gates, and published all four `0.1.0-rc.4` package tarballs under npm `next`.
+
+The public registry exposes integrity metadata, an npm signature, and SLSA provenance for contracts, Core, testkit, and CLI. A clean directory outside the development checkout installed the four exact public versions with lifecycle scripts disabled and passed imports, declarations, schemas, CLI doctor, all 30 composition presets, and the three bundled offline ScenarioPack paths. This run proves the corrected tag-to-tag invocation boundary; it does not authorize republishing an immutable version or adding a token fallback.
+
 ## Security boundary
 
 - Use GitHub-hosted runners; npm does not support self-hosted runners for Trusted Publishing.

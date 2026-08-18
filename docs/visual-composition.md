@@ -6,7 +6,7 @@ VOCE exposes 30 stable visual-composition preset IDs through `@voce-engine/core`
 
 The example images in this guide are selection artwork for people and host interfaces. They are not inputs to the image model. Selecting a card does not create a `ReferenceCandidate`, `SourceBinding`, or `PlannedReference`, and therefore does not consume reference count or byte budget.
 
-> Availability: this guide describes the repository source after the visual-composition change lands on `main`. Public npm availability is release-dependent; do not assume an older published package contains these exports.
+> Availability: these exports are published in `@voce-engine/core@0.1.0-rc.4` under npm `next`. RC.3 and earlier packages do not contain the visual-composition catalog.
 
 ## Host flow
 

@@ -81,4 +81,6 @@ This roadmap is directional. A milestone is complete only when its contracts, te
 
 ## Visual composition MVP status
 
-The first offline vertical for declarative visual composition is implemented on the feature branch: 29 canonical camera-owned paths, 30 atomic selector presets, typed ScenarioPack rules and prompt sections, deterministic conflict/dependency disposition, explicit Prompt IR exclusions, and Guard anti-relink checks. The work is an alpha implementation and does not add UI, composition reference assets, provider-native controls, or real-provider execution. Those remain separately authorized follow-up units.
+The first declarative visual-composition vertical shipped in `v0.1.0-rc.4`: 29 canonical camera-owned paths, 30 atomic selector presets, typed ScenarioPack rules and prompt sections, deterministic conflict/dependency disposition, explicit Prompt IR exclusions, and Guard anti-relink checks. An exact public-registry consumer verified the packaged surface. Three separately authorized Seedream calls exercised representative conflict, framing, layout, lens, and reflection combinations; they are qualitative evidence outside the standard release gate.
+
+RC.4 does not add a Playground/UI, composition-reference assets, or provider-native composition controls. Example artwork remains host selection guidance rather than model input. Those product and adapter units remain separately scoped follow-up work.
