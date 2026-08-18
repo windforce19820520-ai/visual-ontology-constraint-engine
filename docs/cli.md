@@ -62,3 +62,9 @@ Readers validate schema, inventory, safe relative paths, duplicate/case-collidin
 The CLI does not discover global packages, read credentials, install or activate packs, load executable plugins, call Seedream/LLM providers, or make real network requests. ScenarioPack content is declarative data. Real Provider smoke tests, npm publish, GitHub Release/tag creation, and production deployment require a separate explicit authorization.
 
 The CLI documentation is currently English-only; the bilingual ScenarioPack/system/scenario/glossary specifications remain unchanged.
+
+## Visual composition evidence
+
+Pack inspection and offline fixture evidence now expose the shared visual-composition catalog through Core: preset expansion, validated vocabulary paths, rule traces, conflict/degradation records, effective and excluded constraint IDs, ordered composition prompt sections, and the planned-reference count before and after a preset-only selection. A selector is reported as ontology intent and does not create a reference attachment.
+
+The evidence path remains local and Mock-first. It does not load card artwork, discover packs, infer a missing leading-room direction or reflection surface, call a real Provider, or turn CLI field parsing into a second Prompt policy compiler.

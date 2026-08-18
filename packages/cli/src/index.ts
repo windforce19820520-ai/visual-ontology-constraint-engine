@@ -14,7 +14,7 @@ import {
   compileConstraints, compilePromptIR, createReferenceCandidate, planPipeline, planReferences,
   createScenarioPackRegistry, executeOffline, executeSemanticReview,
   FixtureReferenceInterpreter, FixtureSemanticReviewer, guardPromptCandidate, renderStaticTraceReport, sha256,
-  traceModelFromExecution, validateStructuralImage, canonicalize,
+  traceModelFromExecution, validateStructuralImage, canonicalize, VISUAL_COMPOSITION_CATALOG, computeVisualCompositionCatalogHash, expandVisualCompositionPreset,
 } from '@voce-engine/core'
 import type { OfflineExecutionResult } from '@voce-engine/core'
 import type {
@@ -115,7 +115,7 @@ function distributionFiles(bodies: Array<{ path: string; content: unknown; role:
 function makeManifest(doc: SourceDocument, contributions: ScenarioPack['contributions'], files: Array<{ path: string; bytes: Uint8Array }>, suiteList: FixtureSuite[]): ScenarioPackManifest {
   const indexes = (Object.keys(contributions) as Array<keyof ScenarioPack['contributions']>).reduce((result, category) => {
     if (category === 'fixtureSuites') return result
-    const values = contributions[category] as Array<Record<string, unknown>>
+    const values = contributions[category] as unknown as Array<Record<string, unknown>>
     result[category] = values.map((body) => ({ id: String(body.id), schemaVersion: String(body.schemaVersion), contentDigest: String(body.contentDigest) }))
     return result
   }, {} as Record<string, Array<{ id: string; schemaVersion: string; contentDigest: string }>>)
@@ -301,7 +301,7 @@ function coreProbeEvidence(probe: FixtureCoreProbe, resolution: ResolvedPackReso
     constraintTargetPaths: ir.constraints.flatMap((item) => item.targetPaths).sort(compare),
     constraintSourceIds: [...new Set(ir.constraints.flatMap((item) => item.sourceIds))].sort(compare),
   }
-  if (!probe.references?.length) return evidence
+  if (!probe.references?.length) return { ...evidence, presetReferenceCountBefore: 0, presetReferenceCountAfter: 0 }
   const candidates = referenceProbeCandidates(probe, ir)
   const maximumReferenceCount = probe.maximumReferenceCount ?? profile.maximumReferenceCount
   const plan = planReferences({ schemaVersion: 'voce.reference-planning-input/v1alpha1', caseId: caseSpec.id, caseRevision: caseSpec.revision, contextHash: ir.contextHash, constraintIR: ir, candidates, dependencies: [], profile, budget: { maximumReferenceCount, usedReferenceCount: 0, byteLengthKnown: true, unknownByteLengthAssetIds: [] } })
@@ -311,18 +311,20 @@ function coreProbeEvidence(probe: FixtureCoreProbe, resolution: ResolvedPackReso
   evidence.omittedRoles = plan.omitted.map((item) => candidates.find((candidate) => candidate.id === item.candidateId)?.role ?? item.candidateId).sort(compare)
   evidence.blockedRoles = plan.blockedReferences.map((item) => candidates.find((candidate) => candidate.id === item.candidateId)?.role ?? item.candidateId).sort(compare)
   evidence.selectedSourceBindingIds = [...new Set(plan.ordered.flatMap((item) => item.sourceBindingIds))].sort(compare)
+  evidence.presetReferenceCountBefore = plan.ordered.length
+  evidence.presetReferenceCountAfter = plan.ordered.length
   if (ir.status !== 'ok' || plan.status !== 'ok') { evidence.promptStatus = 'blocked'; return evidence }
   const pipelineResult = planPipeline({ schemaVersion: 'voce.pipeline-planning-input/v1alpha1', caseId: caseSpec.id, caseRevision: caseSpec.revision, contextHash: ir.contextHash, outputContract: probeInput(probe, resolution, caseSpec).outputContract, constraintIR: ir, referencePlan: plan, profile })
   if (!pipelineResult.pipelinePlan) { evidence.promptStatus = 'blocked'; return evidence }
   const outputContract = probeInput(probe, resolution, caseSpec).outputContract
-  const prompt = compilePromptIR({ schemaVersion: 'voce.prompt-compilation-input/v1alpha1', caseId: caseSpec.id, caseRevision: caseSpec.revision, context: probeInput(probe, resolution, caseSpec).context, contextHash: ir.contextHash, constraintIR: ir, referencePlan: plan, pipelinePlan: pipelineResult.pipelinePlan, outputContract, targetAdapter: { id: profile.adapterId, version: profile.version, digest: profile.adapterDigest! }, targetCapabilityProfile: { id: profile.id, version: profile.version, digest: profile.profileHash! } })
+  const prompt = compilePromptIR({ schemaVersion: 'voce.prompt-compilation-input/v1alpha1', caseId: caseSpec.id, caseRevision: caseSpec.revision, context: probeInput(probe, resolution, caseSpec).context, contextHash: ir.contextHash, constraintIR: ir, referencePlan: plan, pipelinePlan: pipelineResult.pipelinePlan, outputContract, targetAdapter: { id: profile.adapterId, version: profile.version, digest: profile.adapterDigest! }, targetCapabilityProfile: { id: profile.id, version: profile.version, digest: profile.profileHash! }, effectiveScenario: resolution.effectiveScenario })
   evidence.promptStatus = 'ok'
   evidence.promptHash = prompt.deterministicSignature
   evidence.promptTargetPaths = ir.constraints.filter((constraint) => prompt.constraintCoverage.some((coverage) => coverage.constraintId === constraint.id && (coverage.sectionIds.length > 0 || coverage.referenceMappingIds.length > 0 || coverage.parameterIds.length > 0))).flatMap((constraint) => constraint.targetPaths).sort(compare)
   evidence.promptReferenceRoles = prompt.referenceMappings.map((mapping) => mapping.role).sort(compare)
   return evidence
 }
-function scenarioContributions(scenario: EffectiveScenario, category: 'ontologyVocabulary'|'interpretationScopes'|'promptSections'|'reviewTemplates'): Array<Record<string, unknown>> { return scenario[category].filter(isObject) }
+function scenarioContributions(scenario: EffectiveScenario, category: 'ontologyVocabulary'|'interpretationScopes'|'promptSections'|'reviewTemplates'): Array<Record<string, unknown>> { return scenario[category].filter(isObject) as unknown as Array<Record<string, unknown>> }
 function contributionArray(contributions: Array<Record<string, unknown>>, field: string): Array<Record<string, unknown>> { return contributions.flatMap((contribution) => Array.isArray(contribution[field]) ? (contribution[field] as unknown[]).filter(isObject) : []) }
 function semanticCriteriaForScenario(scenario: EffectiveScenario): SemanticReviewCriterion[] {
   const criteria = contributionArray(scenarioContributions(scenario, 'reviewTemplates'), 'criteria').map((criterion) => {
@@ -344,12 +346,16 @@ function scenarioEvidence(scenario: EffectiveScenario): JsonObject {
   const ontology = contributionArray(scenarioContributions(scenario, 'ontologyVocabulary'), 'paths')
   const scopes = scenarioContributions(scenario, 'interpretationScopes')
   const bindings = contributionArray(scopes, 'bindings')
-  const promptPaths = scenarioContributions(scenario, 'promptSections').flatMap((contribution) => Array.isArray(contribution.requiredPaths) ? contribution.requiredPaths.filter((item): item is string => typeof item === 'string') : [])
+  const promptDefinitions = contributionArray(scenarioContributions(scenario, 'promptSections'), 'sections')
+  const promptPaths = promptDefinitions.flatMap((definition) => Array.isArray(definition.requiredPaths) ? definition.requiredPaths.filter((item): item is string => typeof item === 'string') : [])
+  const promptSectionOrder = promptDefinitions.map((definition) => ({ id: String(definition.id ?? ''), order: typeof definition.order === 'number' ? definition.order : 0 })).filter((item) => item.id).sort((left, right) => left.order - right.order || compare(left.id, right.id)).map((item) => item.id)
   const criteria = semanticCriteriaForScenario(scenario)
   return {
     ontologyPaths: ontology.map((item) => String(item.path ?? '')).filter(Boolean).sort(compare),
     bindingPolicies: bindings.map((item) => `${String(item.assetRole ?? '')}|${String(item.relation ?? '')}|${String(item.targetPath ?? '')}|${String(item.priority ?? '')}`).sort(compare),
     promptTargetPaths: [...new Set(promptPaths)].sort(compare),
+    promptSectionOrder,
+    visualComposition: { catalogId: VISUAL_COMPOSITION_CATALOG.id, catalogHash: computeVisualCompositionCatalogHash(), pathCount: VISUAL_COMPOSITION_CATALOG.paths.length, presetCount: VISUAL_COMPOSITION_CATALOG.presets.length, fullShotChanges: expandVisualCompositionPreset('full-shot').map((item) => ({ targetPath: item.targetPath, ...(item.requestedValue === undefined ? {} : { requestedValue: item.requestedValue }) })) },
     reviewCriterionIds: criteria.map((item) => item.id).sort(compare),
     reviewTargetPaths: criteria.map((item) => item.targetPath).filter((item): item is string => typeof item === 'string').sort(compare),
   }

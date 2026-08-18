@@ -18,3 +18,7 @@ The fixture records the public export names, schema `$id` values, TypeScript con
 The contracts package includes JSON Schemas in its tarball. The documented installed-package path is, for example, `@voce-engine/contracts/schemas/BundleManifest.schema.json`. No other internal source path is part of this candidate surface.
 
 `ProviderAdapter` remains a trusted local-code port. ScenarioPack artifacts are declarative data; executable files, lifecycle scripts, dynamic discovery, marketplace behavior, automatic installation, and untrusted plugin isolation are not promised.
+
+## Visual composition alpha additions
+
+The visual-composition MVP adds alpha-schema records for typed ontology paths, declarative rule conditions/operands/resolutions, rule-pack contributions, prompt-section policy, prompt exclusions, and the shared visual-composition catalog. `PromptIR`, `PromptCandidateIR`, and `PromptCompilationInput` now expose explicit exclusion/effective-scenario fields. These additions are not a claim that the `0.1.0-rc.3` candidate surface is production-stable; consumers must pin the schema IDs and reject unknown or missing required fields at their chosen compatibility boundary.

@@ -78,3 +78,7 @@ This roadmap is directional. A milestone is complete only when its contracts, te
 - plugin marketplace, remote discovery, automatic install/update, or implicit activation;
 - isolation or sandboxing for untrusted third-party executable code;
 - compatibility promises for extension ports outside the released `ScenarioPack`, `ScenarioPackRegistry`, `ScenarioPackManifest`, `DeclarativeRulePackContribution`, `ProviderAdapter`, `ProviderCapabilityProfile`, and testkit contracts.
+
+## Visual composition MVP status
+
+The first offline vertical for declarative visual composition is implemented on the feature branch: 29 canonical camera-owned paths, 30 atomic selector presets, typed ScenarioPack rules and prompt sections, deterministic conflict/dependency disposition, explicit Prompt IR exclusions, and Guard anti-relink checks. The work is an alpha implementation and does not add UI, composition reference assets, provider-native controls, or real-provider execution. Those remain separately authorized follow-up units.

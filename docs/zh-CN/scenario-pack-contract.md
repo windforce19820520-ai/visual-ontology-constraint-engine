@@ -895,3 +895,13 @@ ScenarioPack 版本遵循 Semantic Versioning：
 | SPK-AC-013 | Deactivation 与 Uninstall 使用显式 Check/Receipt，绝不修改历史 Lock 或用户历史，并以 `PACK_UNINSTALL_BLOCKED` 或 `PACK_IMPLEMENTATION_UNAVAILABLE` 阻断，不替换版本，也不联网获取。 |
 | SPK-AC-014 | Acquisition 在没有生命周期脚本或任何可执行内容的情况下验证安全路径、资源上限、完整 Inventory 与 SHA-256 Distribution/Package Digest；Discovery 保持显式本地，不存在 Marketplace、动态扫描、自动下载、隐藏 Provider、隐式 Activation 或由发布获得的 Runtime 权限。 |
 | SPK-AC-015 | Virtual try-on、cosplay 与 product-shot 各自通过已声明的离线 `FixtureSuite`，使用 Mock Adapter 与同一 Core Pipeline，且无需 Secret、网络调用或真实 Provider。 |
+
+## 17. 构图 Contribution 边界
+
+构图 MVP 增加类型化的 `OntologyPathDefinition`、`DeclarativeRuleCondition`、`DeclarativeRuleOperand`、`DeclarativeRuleResolution`、`DeclarativeRule` 与 `PromptSectionDefinition` 记录。这些记录仍是纯数据 ScenarioPack Contribution。`cardinality=one` 路径、规则条件值、降级目标和 Section 顺序在进入 `EffectiveScenario` 前校验；规范化内容相同的重复项可以合并，不相同的重复项会阻断。
+
+共享目录包含 29 个 camera 所有的路径定义和 30 个稳定预设。预设是本体选择器：可以创建原子 Boolean、Enum 或 Scalar Change Intent，但不能包含 URL、图片字节、SourceBinding、Provider Reference 或 Provider 原生参数。`full-shot` 预设包含 `camera.framing.crop.keepBothFeet=true`；无方向的 leading-room 与无 surface 的 reflection 保持不完整，不会被猜测补全。
+
+Prompt Policy Contribution 由 Core 通过经过 Hash 核验的 `EffectiveScenario` 消费。它只负责 Prompt Section 顺序，不能授权 Provider 调用或改变 Guard 语义。自动失败的偏好会以 `unsatisfied`、一个 Degradation 和一个 `PromptConstraintExclusion` 表示；该排除项必须继续缺席于有效 Prompt IR 及所有 Optimizer Link。
+
+| SPK-AC-016 | 构图预设、类型化词汇/规则/Prompt Policy、显式约束排除和 Guard 闭环保持声明式、确定性、离线，并且不依赖 ScenarioPack 名称。 |

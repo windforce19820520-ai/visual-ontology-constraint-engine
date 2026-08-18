@@ -5,6 +5,7 @@ import type {
   ChangeIntent,
   CompilationContext,
   ConstraintCompilationInput,
+  EffectiveScenario,
   ConstraintIR,
   JsonValue,
   OntologyFact,
@@ -38,7 +39,11 @@ import {
   explainPipelinePlan,
   explainReferencePlan,
   preflightDispatch,
+  hashWithoutSelf,
   sha256,
+  VISUAL_COMPOSITION_PATHS,
+  VISUAL_COMPOSITION_PRESETS,
+  expandVisualCompositionPreset,
 } from './index.js'
 
 const CASE_ID = 'case-m4-test'
@@ -125,6 +130,21 @@ function refPlan(profile: ProviderCapabilityProfile, candidates = [candidate('re
   return new ReferenceBudgetOptimizer().plan({ schemaVersion: 'voce.reference-planning-input/v1alpha1', caseId: CASE_ID, caseRevision: REVISION, contextHash: ir.contextHash, constraintIR: ir, candidates, dependencies: [], profile })
 }
 
+function compositionScenario(): EffectiveScenario {
+  const base = {
+    lockHash: sha256({ fixture: 'composition-lock' }), rootPackId: 'composition.fixture', extensionPackIds: [], compositionOrder: ['composition.fixture'], configurations: {},
+    ontologyVocabulary: [{ packId: 'composition.fixture', contributionKind: 'ontologyVocabulary', contributionId: 'composition.vocabulary', contentDigest: sha256({ fixture: 'composition-vocabulary' }), paths: VISUAL_COMPOSITION_PATHS }],
+    rulePacks: [], interpretationScopes: [], promptSections: [], reviewTemplates: [], defaults: [], capabilityRequirements: [], declarations: [], appliedOverrides: [], effectiveScenarioHash: '',
+  } as unknown as EffectiveScenario
+  return { ...base, effectiveScenarioHash: hashWithoutSelf(base as unknown as Record<string, unknown>, 'effectiveScenarioHash') }
+}
+
+function compileComposition(intents: ChangeIntent[]): ConstraintIR {
+  const scenario = compositionScenario()
+  const currentContext = context({ effectiveScenarioHash: scenario.effectiveScenarioHash })
+  return compile(intents, ontology([], { contextHash: currentContext.contextHash }), currentContext, { effectiveScenario: scenario })
+}
+
 test('M4 rejects blocked M3 state and stale context/instance signatures without throwing', () => {
   const blockedOntology = ontology([], { conflicts: [{ schemaVersion: 'voce.conflict/v1alpha1', id: 'm3-block', code: 'SOURCE_CONFLICT_UNRESOLVED', message: 'blocked', candidateIds: ['a', 'b'], relatedIds: ['a', 'b'], blocking: true }] })
   const blocked = compile([], blockedOntology)
@@ -139,6 +159,43 @@ test('M4 rejects blocked M3 state and stale context/instance signatures without 
   const instanceResult = compile([], staleInstance)
   assert.equal(instanceResult.status, 'blocked')
   assert.ok(instanceResult.warnings.includes('INSTANCE_HASH_MISMATCH'))
+})
+
+test('visual composition catalog expands full shot atomically and preserves selector provenance', () => {
+  assert.equal(VISUAL_COMPOSITION_PATHS.length, 29)
+  assert.equal(VISUAL_COMPOSITION_PRESETS.length, 30)
+  const full = expandVisualCompositionPreset('full-shot')
+  assert.deepEqual(full.map((item) => [item.targetPath, item.requestedValue]), [['camera.framing.shotScale', 'full_shot'], ['camera.framing.crop.keepBothFeet', true]])
+  assert.ok(full.every((item) => item.sourceHintIds?.includes('full-shot')))
+  assert.throws(() => expandVisualCompositionPreset('leading-room'), /COMPOSITION_PRESET_INPUT_REQUIRED/)
+  assert.throws(() => expandVisualCompositionPreset('reflection-composition'), /COMPOSITION_PRESET_INPUT_REQUIRED/)
+})
+
+test('cardinality one keeps required full shot, marks preferred close-up unsatisfied, and blocks two required values', () => {
+  const full = expandVisualCompositionPreset('full-shot').filter((item) => item.targetPath === 'camera.framing.shotScale').map((item) => ({ ...item, id: 'full-shot-required', importance: 'required' as const }))
+  const close = expandVisualCompositionPreset('close-up').filter((item) => item.targetPath === 'camera.framing.shotScale').map((item) => ({ ...item, id: 'close-up-preferred' }))
+  const resolved = compileComposition([...full, ...close])
+  const shotConstraints = resolved.constraints.filter((item) => item.targetPath === 'camera.framing.shotScale')
+  assert.equal(resolved.status, 'ok')
+  assert.equal(shotConstraints.filter((item) => item.status === 'active').length, 1)
+  const loser = shotConstraints.find((item) => item.status === 'unsatisfied')!
+  assert.equal(loser.importance, 'preferred')
+  assert.equal(resolved.degradedPreferences.filter((item) => item.constraintId === loser.id).length, 1)
+  assert.ok(resolved.ruleTraces.some((item) => item.outcome === 'degraded' && item.inputIds.includes(loser.id)))
+
+  const requiredClose = close.map((item) => ({ ...item, id: 'close-up-required', importance: 'required' as const }))
+  const blocked = compileComposition([...full, ...requiredClose])
+  assert.equal(blocked.status, 'blocked')
+  assert.ok(blocked.conflicts.some((item) => item.code === 'CARDINALITY_CONFLICT' && item.blocking))
+})
+
+test('two preferred placement values block without a semantic last-wins choice', () => {
+  const left = { ...expandVisualCompositionPreset('rule-of-thirds')[0], id: 'left-third', targetPath: 'camera.composition.placement', requestedValue: 'left_third' as const }
+  const right = { ...left, id: 'right-third', requestedValue: 'right_third' as const }
+  const result = compileComposition([left, right])
+  assert.equal(result.status, 'blocked')
+  assert.ok(result.conflicts.some((item) => item.code === 'CARDINALITY_CONFLICT' && item.blocking))
+  assert.equal(result.constraints.filter((item) => item.targetPath === 'camera.composition.placement' && item.status === 'unsatisfied').length, 0)
 })
 
 test('mask/identity, sleeve/bracelet, and hand/prop declarative rules block before planning', () => {

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import type { PromptIR, PromptTransformation, PromptSection } from '@voce-engine/contracts'
+import type { EffectiveScenario, PromptIR, PromptTransformation, PromptSection } from '@voce-engine/contracts'
 import {
   DeterministicPromptGuard,
   DeterministicPromptOptimizer,
@@ -15,20 +15,26 @@ import {
   computeRemoteCallAuthorizationHash,
   createProviderRenderRequest,
   compilePromptIR,
+  compileConstraints,
   createPromptCandidateIR,
   createMockRuntimeForPlan,
   executeOffline,
   guardPromptCandidate,
+  VISUAL_COMPOSITION_PATHS,
+  sha256,
   optimizePromptIRWithFallback,
   replayArtifact,
 } from '@voce-engine/core'
 import {
   fixtureM5Candidate,
   fixtureM5CompilationInput,
+  fixtureM5Context,
   fixtureM5ExecutionInput,
   fixtureM5GuardInput,
   fixtureM5PromptIR,
+  fixtureM5Scenario,
 } from './index.js'
+import { fixtureM4ConstraintInput } from './m4.js'
 
 function copy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -48,6 +54,22 @@ function declaredSuggestion(slotId: string, content: string): PromptTransformati
   }
 }
 
+function compositionCompilation(intents: Array<{ id: string; targetPath: string; requestedValue: string|boolean; importance: 'required'|'preferred' }>) {
+  const scenario = copy(fixtureM5ScenarioForTest())
+  scenario.ontologyVocabulary = [{ packId: 'fixture.m5', contributionKind: 'ontologyVocabulary', contributionId: 'fixture.m5.composition-vocabulary', contentDigest: sha256({ fixture: 'composition-vocabulary' }), paths: VISUAL_COMPOSITION_PATHS }] as never
+  const hashBase = copy(scenario) as unknown as Record<string, unknown>
+  delete hashBase.effectiveScenarioHash
+  scenario.effectiveScenarioHash = sha256(hashBase as never)
+  const context = fixtureM5Context({ effectiveScenarioHash: scenario.effectiveScenarioHash })
+  const changeIntents = intents.map((intent) => ({ schemaVersion: 'voce.change-intent/v1alpha1' as const, id: intent.id, operation: 'adjust' as const, targetPath: intent.targetPath, requestedValue: intent.requestedValue, importance: intent.importance, provenance: { source: 'user_explicit' as const, sourceIds: [intent.id], createdBy: 'm5-composition-test', createdAt: '2026-01-01T00:00:00.000Z' } }))
+  const constraintIR = compileConstraints(fixtureM4ConstraintInput({ context, effectiveScenario: scenario, changeIntents }))
+  return fixtureM5CompilationInput(MOCK_IMAGE_PROFILE, { context, effectiveScenario: scenario, constraintIR })
+}
+
+function fixtureM5ScenarioForTest(): EffectiveScenario {
+  return fixtureM5Scenario()
+}
+
 test('M5 PromptIR is structured, signature-stable, and defensive under insertion-order changes', () => {
   const leftInput = fixtureM5CompilationInput()
   const rightInput = copy(leftInput)
@@ -65,6 +87,47 @@ test('M5 PromptIR is structured, signature-stable, and defensive under insertion
   const hash = left.deterministicSignature
   left.sections[0].content = 'mutated'
   assert.equal(compilePromptIR(leftInput).deterministicSignature, hash)
+})
+
+test('PromptCompiler emits composition sections for compatible choices and excludes a losing preference', () => {
+  const compatible = compositionCompilation([
+    { id: 'thirds', targetPath: 'camera.composition.patterns.ruleOfThirds', requestedValue: true, importance: 'preferred' },
+    { id: 'leading-lines', targetPath: 'camera.composition.patterns.leadingLines', requestedValue: true, importance: 'preferred' },
+  ])
+  const compatiblePrompt = compilePromptIR(compatible)
+  const compositionSections = compatiblePrompt.sections.filter((section) => section.content.startsWith('composition-layout-and-space:'))
+  assert.equal(compositionSections.length, 2)
+  assert.deepEqual(compositionSections.map((section) => section.constraintIds.length), [1, 1])
+  assert.equal(compatiblePrompt.excludedConstraints.length, 0)
+
+  const conflicting = compositionCompilation([
+    { id: 'full-shot', targetPath: 'camera.framing.shotScale', requestedValue: 'full_shot', importance: 'required' },
+    { id: 'close-up', targetPath: 'camera.framing.shotScale', requestedValue: 'close_up', importance: 'preferred' },
+  ])
+  const prompt = compilePromptIR(conflicting)
+  assert.equal(prompt.excludedConstraints.length, 1)
+  const exclusion = prompt.excludedConstraints[0]
+  assert.ok(!prompt.constraintIds.includes(exclusion.constraintId))
+  assert.ok(prompt.sections.every((section) => !section.constraintIds.includes(exclusion.constraintId)))
+
+  const candidate = fixtureM5Candidate(prompt)
+  candidate.sections[0].constraintIds.push(exclusion.constraintId)
+  candidate.candidateHash = computePromptCandidateHash(candidate)
+  const guardInput = fixtureM5GuardInput(prompt, candidate)
+  guardInput.context = conflicting.context
+  guardInput.constraintIR = conflicting.constraintIR
+  guardInput.referencePlan = conflicting.referencePlan
+  guardInput.pipelinePlan = conflicting.pipelinePlan
+  guardInput.outputContract = conflicting.outputContract
+  const guard = guardPromptCandidate(guardInput)
+  assert.equal(guard.status, 'rejected')
+  assert.ok(guard.findings.some((finding) => finding.code === 'EXCLUDED_CONSTRAINT_REINTRODUCED'))
+})
+
+test('PromptCompiler rejects a tampered Effective Scenario instead of falling back to hard-coded sections', () => {
+  const input = compositionCompilation([{ id: 'full-shot', targetPath: 'camera.framing.shotScale', requestedValue: 'full_shot', importance: 'required' }])
+  input.effectiveScenario = { ...input.effectiveScenario!, effectiveScenarioHash: sha256({ tampered: true }) }
+  assert.throws(() => compilePromptIR(input), /EFFECTIVE_SCENARIO_CONTEXT_MISMATCH|EFFECTIVE_SCENARIO_HASH_MISMATCH/)
 })
 
 test('forged PromptIR signatures and M4 bindings fail closed before Guard comparisons', () => {

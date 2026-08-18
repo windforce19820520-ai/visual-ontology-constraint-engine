@@ -14,6 +14,10 @@ import type {
   ConstraintIR,
   ConstraintState,
   ConstraintWaiver,
+  DeclarativeConditionOperator,
+  DeclarativeRule,
+  DeclarativeRuleCondition,
+  DeclarativeRuleOperand,
   DataTransfer,
   Degradation,
   DispatchPreflightResult,
@@ -26,6 +30,7 @@ import type {
   JsonObject,
   JsonValue,
   OutputContract,
+  OntologyPathDefinition,
   PipelinePlan,
   PipelinePlanningInput,
   PipelinePlanningResult,
@@ -503,15 +508,14 @@ export function createConstraintWaiver(input: Omit<ConstraintWaiver, 'waiverHash
 }
 
 interface SemanticItem { id: string; path: string; value: JsonValue; importance: Importance; sourceIds: string[] }
+interface InternalOperand extends DeclarativeRuleOperand { match: 'all'|'any' }
 interface InternalRule {
   id: string
   contributionId?: string
   code: string
-  kind: 'occlusion'|'resource'|'incompatibility'|'dependency'
-  leftPaths: string[]
-  rightPaths: string[]
-  leftTokens: string[]
-  rightTokens: string[]
+  kind: DeclarativeRule['kind']
+  operands: InternalOperand[]
+  resolution: DeclarativeRule['resolution']
   importance: Importance
   reasonCode: string
   message: string
@@ -568,26 +572,54 @@ function internalRule(value: unknown, contributionId?: string): InternalRule | u
   const object = value as Record<string, unknown>
   const id = typeof object.id === 'string' ? object.id : typeof object.ruleId === 'string' ? object.ruleId : undefined
   if (!id) return undefined
-  const type = object.ruleType ?? object.type ?? object.kind
-  const kind: InternalRule['kind'] = type === 'resource' ? 'resource' : type === 'dependency' ? 'dependency' : type === 'occlusion' ? 'occlusion' : 'incompatibility'
-  const leftPaths = Array.isArray(object.leftPaths) ? object.leftPaths.filter((item): item is string => typeof item === 'string') : Array.isArray(object.whenPaths) ? object.whenPaths.filter((item): item is string => typeof item === 'string') : []
-  const rightPaths = Array.isArray(object.rightPaths) ? object.rightPaths.filter((item): item is string => typeof item === 'string') : Array.isArray(object.conflictingPaths) ? object.conflictingPaths.filter((item): item is string => typeof item === 'string') : []
-  if (leftPaths.length === 0 || rightPaths.length === 0) return undefined
-  const tokenList = (field: string): string[] => Array.isArray(object[field]) ? object[field].filter((item): item is string => typeof item === 'string') : []
-  const severity = normalizeImportance(object.importance ?? object.severity)
+  const kind = object.kind
+  if (kind !== 'incompatibility' && kind !== 'dependency' && kind !== 'cardinality' && kind !== 'occlusion' && kind !== 'resource') return undefined
+  if (!Array.isArray(object.operands) || object.operands.length < 2) return undefined
+  const conditionOperator = (value: unknown): value is DeclarativeConditionOperator => value === 'present' || value === 'absent' || value === 'equals' || value === 'contains'
+  const conditions = (value: unknown): DeclarativeRuleCondition[] | undefined => {
+    if (!Array.isArray(value) || value.length === 0) return undefined
+    const result: DeclarativeRuleCondition[] = []
+    for (const candidate of value) {
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return undefined
+      const condition = candidate as Record<string, unknown>
+      if (typeof condition.path !== 'string' || !condition.path || !conditionOperator(condition.operator)) return undefined
+      if ((condition.operator === 'present' || condition.operator === 'absent') && condition.value !== undefined) return undefined
+      if ((condition.operator === 'equals' || condition.operator === 'contains') && condition.value === undefined) return undefined
+      result.push({ path: condition.path, operator: condition.operator, ...(condition.value === undefined ? {} : { value: jsonReady(condition.value) }) })
+    }
+    return result
+  }
+  const operands: InternalOperand[] = []
+  const operandIds = new Set<string>()
+  for (const candidate of object.operands) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return undefined
+    const operand = candidate as Record<string, unknown>
+    if (typeof operand.id !== 'string' || !operand.id || operandIds.has(operand.id)) return undefined
+    const operandConditions = conditions(operand.conditions)
+    if (!operandConditions) return undefined
+    operandIds.add(operand.id)
+    operands.push({ id: operand.id, conditions: operandConditions, match: 'all' })
+  }
+  const resolutionValue = object.resolution
+  if (!resolutionValue || typeof resolutionValue !== 'object' || Array.isArray(resolutionValue)) return undefined
+  const resolutionObject = resolutionValue as Record<string, unknown>
+  if (resolutionObject.strategy !== 'block' && resolutionObject.strategy !== 'degrade_operand') return undefined
+  if (typeof resolutionObject.reasonCode !== 'string' || !resolutionObject.reasonCode) return undefined
+  const operandId = resolutionObject.operandId
+  if (resolutionObject.strategy === 'degrade_operand' && (typeof operandId !== 'string' || !operandIds.has(operandId))) return undefined
+  const resolution: DeclarativeRule['resolution'] = { strategy: resolutionObject.strategy, reasonCode: resolutionObject.reasonCode, ...(operandId === undefined ? {} : { operandId: operandId as string }) }
+  const severity = normalizeImportance(object.importance)
   const code = typeof object.code === 'string' ? object.code : `RULE_${id.toUpperCase().replaceAll(/[^A-Z0-9]+/g, '_')}`
-  const reasonCode = typeof object.reasonCode === 'string' ? object.reasonCode : code
-  const message = typeof object.message === 'string' ? object.message : `Declarative rule ${id} found incompatible constraints.`
+  const reasonCode = resolution.reasonCode
+  const message = typeof object.explanation === 'string' ? object.explanation : typeof object.message === 'string' ? object.message : `Declarative rule ${id} found incompatible constraints.`
   const dependencyKind = object.dependencyKind === 'parent_detail' || object.dependencyKind === 'identity_garment' || object.dependencyKind === 'source_isolation' || object.dependencyKind === 'visibility' || object.dependencyKind === 'occludes' || object.dependencyKind === 'ordered_before' || object.dependencyKind === 'supports' || object.dependencyKind === 'excludes' || object.dependencyKind === 'requires' ? object.dependencyKind : undefined
   return {
     id,
     contributionId,
     code,
     kind,
-    leftPaths: sortedStrings(leftPaths),
-    rightPaths: sortedStrings(rightPaths),
-    leftTokens: sortedStrings(tokenList('leftTokens')),
-    rightTokens: sortedStrings(tokenList('rightTokens')),
+    operands: operands.sort((left, right) => compareCodeUnits(left.id, right.id)),
+    resolution,
     importance: severity,
     reasonCode,
     message,
@@ -597,20 +629,34 @@ function internalRule(value: unknown, contributionId?: string): InternalRule | u
 }
 
 function allRules(effectiveScenario: ConstraintCompilationInput['effectiveScenario'], collisionIds: string[] = []): InternalRule[] {
-  const values: Array<{ value: unknown; contributionId?: string }> = M4_DECLARATIVE_RULE_FIXTURES.map((value) => ({ value }))
+  const values: Array<{ value: unknown; contributionId?: string }> = []
   for (const contribution of effectiveScenario?.rulePacks ?? []) {
-    const object = contribution as Record<string, unknown>
+    const object = contribution as unknown as Record<string, unknown>
     const rules = Array.isArray(object.rules) ? object.rules : []
     for (const rule of rules) values.push({ value: rule, contributionId: typeof object.contributionId === 'string' ? object.contributionId : undefined })
-    if (rules.length === 0) values.push({ value: contribution, contributionId: typeof object.contributionId === 'string' ? object.contributionId : undefined })
   }
   const byId = new Map<string, InternalRule>()
-  for (const entry of values) {
-    const rule = internalRule(entry.value, entry.contributionId)
-    if (!rule) continue
+  const add = (rule: InternalRule): void => {
     const prior = byId.get(rule.id)
     if (prior && canonicalize(jsonReady(rule)) !== canonicalize(jsonReady(prior))) collisionIds.push(rule.id)
     if (!prior || canonicalize(jsonReady(rule)) < canonicalize(jsonReady(prior))) byId.set(rule.id, rule)
+  }
+  for (const value of M4_DECLARATIVE_RULE_FIXTURES) {
+    const left: string[] = Array.from(value.leftPaths as readonly string[])
+    const right: string[] = Array.from(value.rightPaths as readonly string[])
+    if (left.length === 0 || right.length === 0) continue
+    const toConditions = (paths: string[], tokens: readonly string[] = []): DeclarativeRuleCondition[] => [
+      ...paths.map((path) => ({ path, operator: 'present' as const })),
+      ...tokens.map((token) => ({ path: paths[0], operator: 'contains' as const, value: token })),
+    ]
+    const leftOperand: InternalOperand = { id: 'left', conditions: left.map((path) => ({ path, operator: 'present' as const })), match: 'any' }
+    const rightOperand: InternalOperand = { id: 'right', conditions: toConditions(right, value.rightTokens), match: 'any' }
+    add({ id: value.id, code: value.code, kind: value.ruleType === 'resource' ? 'resource' : 'occlusion', operands: [leftOperand, rightOperand], resolution: { strategy: 'block', reasonCode: value.reasonCode }, importance: value.importance, reasonCode: value.reasonCode, message: value.message, resourceId: 'resourceId' in value ? value.resourceId : undefined })
+  }
+  for (const entry of values) {
+    const rule = internalRule(entry.value, entry.contributionId)
+    if (!rule) continue
+    add(rule)
   }
   return sortedBy([...byId.values()], (item) => item.id)
 }
@@ -638,11 +684,149 @@ function semanticItems(input: ConstraintCompilationInput): SemanticItem[] {
   return sortedBy([...intentItems, ...factItems], (item) => `${item.path}|${item.id}`)
 }
 
-function ruleMatches(rule: InternalRule, items: SemanticItem[]): { left: SemanticItem[]; right: SemanticItem[] } | undefined {
-  const left = items.filter((item) => pathPresent([item.path], rule.leftPaths) && (rule.leftTokens.length === 0 || valueHasToken(item.value, rule.leftTokens)))
-  const right = items.filter((item) => pathPresent([item.path], rule.rightPaths) && (rule.rightTokens.length === 0 || valueHasToken(item.value, rule.rightTokens)))
-  if (left.length === 0 || right.length === 0) return undefined
-  return { left, right }
+interface RuleMatch { operands: Map<string, SemanticItem[]>; missingOperandIds: string[] }
+
+function conditionMatches(condition: DeclarativeRuleCondition, items: SemanticItem[]): SemanticItem[] {
+  const candidates = items.filter((item) => pathMatches(item.path, condition.path))
+  if (condition.operator === 'absent') return candidates.length === 0 ? [] : []
+  if (condition.operator === 'present') return candidates
+  if (condition.operator === 'equals') return candidates.filter((item) => canonicalize(item.value) === canonicalize(condition.value as JsonValue))
+  const value = condition.value
+  if (typeof value === 'string') return candidates.filter((item) => valueHasToken(item.value, [value]))
+  return candidates.filter((item) => Array.isArray(item.value) && item.value.some((entry) => canonicalize(entry) === canonicalize(value as JsonValue)))
+}
+
+function compositionVocabulary(effectiveScenario: ConstraintCompilationInput['effectiveScenario']): Map<string, OntologyPathDefinition> {
+  const definitions = new Map<string, OntologyPathDefinition>()
+  for (const contribution of effectiveScenario?.ontologyVocabulary ?? []) {
+    for (const raw of ((contribution as unknown as { paths?: OntologyPathDefinition[] }).paths ?? [])) {
+      if (!raw || typeof raw.path !== 'string' || !raw.path) continue
+      const prior = definitions.get(raw.path)
+      if (!prior || canonicalize(jsonReady(raw)) < canonicalize(jsonReady(prior))) definitions.set(raw.path, clone(raw))
+    }
+  }
+  return definitions
+}
+
+function applyCardinalityResolution(constraints: Constraint[], goals: Goal[], vocabulary: Map<string, OntologyPathDefinition>): {
+  constraints: Constraint[]
+  remap: Map<string, string>
+  conflicts: ConstraintConflict[]
+  degradations: Degradation[]
+  traces: RuleTrace[]
+} {
+  const remap = new Map<string, string>()
+  const conflicts: ConstraintConflict[] = []
+  const degradations: Degradation[] = []
+  const traces: RuleTrace[] = []
+  const mergedConstraints: Constraint[] = []
+  const cardinalityConstraintIds = new Set<string>()
+  const byPath = new Map<string, Constraint[]>()
+  for (const constraint of constraints) {
+    if (!constraint.targetPath || constraint.value === undefined || constraint.status === 'unsatisfied' || !vocabulary.has(constraint.targetPath)) continue
+    if (vocabulary.get(constraint.targetPath)!.cardinality !== 'one') continue
+    byPath.set(constraint.targetPath, [...(byPath.get(constraint.targetPath) ?? []), constraint])
+  }
+  const degraded = new Set<string>()
+  const markUnsatisfied = (constraint: Constraint, ruleId: string, reasonCode: string): void => {
+    constraint.status = 'unsatisfied'
+    constraint.ruleId = ruleId
+    constraint.reasonCode = reasonCode
+    constraint.constraintHash = computeConstraintHash(constraint)
+  }
+  for (const [path, pathConstraints] of [...byPath.entries()].sort((left, right) => compareCodeUnits(left[0], right[0]))) {
+    for (const item of pathConstraints) cardinalityConstraintIds.add(item.id)
+    const valueGroups = new Map<string, Constraint[]>()
+    for (const constraint of sortedBy(pathConstraints, (item) => item.id)) {
+      const key = canonicalize(jsonReady(constraint.value))
+      valueGroups.set(key, [...(valueGroups.get(key) ?? []), constraint])
+    }
+    const merged: Constraint[] = []
+    for (const group of [...valueGroups.values()].sort((left, right) => compareCodeUnits(canonicalize(jsonReady(left[0].value)), canonicalize(jsonReady(right[0].value))))) {
+      const representative = sortedBy(group, (item) => item.id)[0]
+      const mergedConstraint = createConstraint({
+        ...representative,
+        id: hashId('constraint-value', { path, value: representative.value }),
+        status: group.some((item) => item.status === 'active') ? 'active' : 'satisfied',
+        importance: importanceFromValues(group.map((item) => item.importance), representative.importance),
+        sourceIds: sortedStrings(group.flatMap((item) => item.sourceIds)),
+        goalIds: sortedStrings(group.flatMap((item) => item.goalIds)),
+      })
+      merged.push(mergedConstraint)
+      mergedConstraints.push(mergedConstraint)
+      for (const item of group) remap.set(item.id, mergedConstraint.id)
+    }
+    for (const goal of goals) goal.constraintIds = sortedStrings(goal.constraintIds.map((id) => remap.get(id) ?? id))
+    const strongGroups = merged.filter((item) => item.importance === 'hard' || item.importance === 'required')
+    const ruleId = `rule.cardinality.${path}`
+    if (merged.length > 1) {
+      const blocking = strongGroups.length !== 1
+      const conflict = createConstraintConflict({
+        schemaVersion: CONSTRAINT_CONFLICT_SCHEMA_VERSION,
+        id: hashId('constraint-conflict', { code: 'CARDINALITY_CONFLICT', path, constraintIds: merged.map((item) => item.id) }),
+        code: 'CARDINALITY_CONFLICT',
+        severity: importanceFromValues(merged.map((item) => item.importance), 'preferred'),
+        targetPath: path,
+        constraintIds: merged.map((item) => item.id),
+        dependencyIds: [], resourceClaimIds: [],
+        message: `Cardinality one path ${path} received incompatible values.`,
+        blocking,
+        waiverAllowed: !blocking,
+      })
+      conflicts.push(conflict)
+      if (!blocking && strongGroups.length === 1) {
+        for (const loser of merged.filter((item) => item.importance === 'preferred')) {
+          markUnsatisfied(loser, ruleId, 'CARDINALITY_PREFERENCE_DEGRADED')
+          if (degraded.has(loser.id)) continue
+          degraded.add(loser.id)
+          const degradation = createDegradation({
+            schemaVersion: DEGRADATION_SCHEMA_VERSION,
+            id: hashId('degradation', { conflictId: conflict.id, constraintId: loser.id }),
+            preferenceId: loser.id,
+            constraintId: loser.id,
+            reasonCode: 'CARDINALITY_PREFERENCE_DEGRADED',
+            impact: conflict.message,
+            affectedIds: [loser.id, strongGroups[0].id],
+            explanation: `Preferred value for ${path} was excluded in favor of the stronger constraint.`,
+          })
+          degradations.push(degradation)
+          traces.push(createRuleTrace({ schemaVersion: RULE_TRACE_SCHEMA_VERSION, id: hashId('rule-trace', { ruleId, constraintId: loser.id }), ruleId, inputIds: [loser.id, strongGroups[0].id], outputIds: [degradation.id], outcome: 'degraded', reasonCode: degradation.reasonCode, message: degradation.explanation }))
+        }
+      } else {
+        traces.push(createRuleTrace({ schemaVersion: RULE_TRACE_SCHEMA_VERSION, id: hashId('rule-trace', { ruleId, constraintIds: merged.map((item) => item.id) }), ruleId, inputIds: merged.map((item) => item.id), outputIds: [conflict.id], outcome: 'blocked', reasonCode: 'CARDINALITY_CONFLICT', message: conflict.message }))
+      }
+    }
+  }
+  for (const goal of goals) goal.constraintIds = sortedStrings(goal.constraintIds.map((id) => remap.get(id) ?? id))
+  return { constraints: sortedBy([...constraints.filter((item) => !cardinalityConstraintIds.has(item.id)), ...mergedConstraints], (item) => item.id), remap, conflicts, degradations, traces }
+}
+
+function operandMatches(operand: InternalOperand, items: SemanticItem[]): SemanticItem[] | undefined {
+  const matches = operand.conditions.map((condition) => conditionMatches(condition, items))
+  const absentOnly = operand.conditions.every((condition) => condition.operator === 'absent')
+  if (absentOnly && matches.every((value) => value.length === 0)) return []
+  if (operand.match === 'any') {
+    const union = matches.flat()
+    return union.length > 0 ? uniqueSortedObjects(union, (item) => item.id) : undefined
+  }
+  if (matches.some((value, index) => operand.conditions[index].operator !== 'absent' && value.length === 0)) return undefined
+  return uniqueSortedObjects(matches.flat(), (item) => item.id)
+}
+
+function ruleMatches(rule: InternalRule, items: SemanticItem[]): RuleMatch | undefined {
+  const operands = new Map<string, SemanticItem[]>()
+  const missingOperandIds: string[] = []
+  for (const operand of rule.operands) {
+    const match = operandMatches(operand, items)
+    if (match === undefined) missingOperandIds.push(operand.id)
+    else operands.set(operand.id, match)
+  }
+  if (missingOperandIds.length === 0) return { operands, missingOperandIds }
+  if (rule.kind !== 'dependency') return undefined
+  const trigger = rule.operands[0]
+  const triggerMatch = operands.get(trigger.id)
+  if (triggerMatch === undefined || triggerMatch.length === 0) return undefined
+  return { operands, missingOperandIds }
 }
 
 function goalForIntent(intent: ChangeIntent): Goal {
@@ -729,20 +913,20 @@ function makeRuleTrace(rule: InternalRule, inputIds: string[], outputIds: string
   return createRuleTrace({ schemaVersion: RULE_TRACE_SCHEMA_VERSION, id: hashId('rule-trace', { ruleId: rule.id, inputIds, outputIds, outcome, reasonCode }), ruleId: rule.id, ...(rule.contributionId ? { contributionId: rule.contributionId } : {}), inputIds, outputIds, outcome, reasonCode, message })
 }
 
-function conflictForRule(rule: InternalRule, left: Constraint[], right: Constraint[]): ConstraintConflict {
-  const constraintIds = sortedStrings([...left, ...right].map((item) => item.id))
-  const severity = importanceFromValues([...left, ...right].map((item) => item.importance), rule.importance)
+function conflictForRule(rule: InternalRule, constraints: Constraint[], blocking = true): ConstraintConflict {
+  const constraintIds = sortedStrings(constraints.map((item) => item.id))
+  const severity = importanceFromValues(constraints.map((item) => item.importance), rule.importance)
   return createConstraintConflict({
     schemaVersion: CONSTRAINT_CONFLICT_SCHEMA_VERSION,
     id: hashId('constraint-conflict', { code: rule.code, ruleId: rule.id, constraintIds }),
     code: rule.code,
     severity,
-    targetPath: [...left, ...right].map((item) => item.targetPath).find((item): item is string => typeof item === 'string'),
+    targetPath: constraints.map((item) => item.targetPath).find((item): item is string => typeof item === 'string'),
     constraintIds,
     dependencyIds: [],
     resourceClaimIds: rule.resourceId ? [hashId('resource', { resourceId: rule.resourceId, constraintIds })] : [],
     message: rule.message,
-    blocking: severity !== 'preferred',
+    blocking,
     waiverAllowed: severity === 'required',
   })
 }
@@ -957,32 +1141,82 @@ export class ConstraintGraphCompiler {
     constraints.push(...output)
     traces.push(createRuleTrace({ schemaVersion: RULE_TRACE_SCHEMA_VERSION, id: hashId('rule-trace', { kind: 'output', id: output[0].id }), ruleId: 'rule.output-contract', inputIds: [], outputIds: output.map((item) => item.id), outcome: 'applied', reasonCode: 'OUTPUT_CONTRACT_REQUIRED', message: 'OutputContract was compiled into provider-neutral output constraints.' }))
 
+    const cardinality = applyCardinalityResolution(constraints, goals, compositionVocabulary(input.effectiveScenario))
+    constraints.splice(0, constraints.length, ...cardinality.constraints)
+    conflicts.push(...cardinality.conflicts)
+    degradations.push(...cardinality.degradations)
+    traces.push(...cardinality.traces)
+    for (const goal of goals) goal.goalHash = computeGoalHash(goal)
+    constraintByPath.clear()
+    for (const constraint of constraints) if (constraint.targetPath) constraintByPath.set(constraint.targetPath, [...(constraintByPath.get(constraint.targetPath) ?? []), constraint])
+
     const ruleItems = items
+    const degradedConstraintIds = new Set(degradations.map((item) => item.constraintId).filter((item): item is string => typeof item === 'string'))
+    const markUnsatisfied = (constraint: Constraint, rule: InternalRule, reasonCode: string): void => {
+      constraint.status = 'unsatisfied'
+      constraint.ruleId = rule.id
+      constraint.reasonCode = reasonCode
+      constraint.constraintHash = computeConstraintHash(constraint)
+    }
+    const degrade = (constraint: Constraint, rule: InternalRule, conflict: ConstraintConflict, affectedIds: string[]): Degradation | undefined => {
+      if (constraint.importance !== 'preferred' || degradedConstraintIds.has(constraint.id)) return undefined
+      markUnsatisfied(constraint, rule, rule.resolution.reasonCode)
+      degradedConstraintIds.add(constraint.id)
+      const degradation = createDegradation({ schemaVersion: DEGRADATION_SCHEMA_VERSION, id: hashId('degradation', { conflictId: conflict.id, constraintId: constraint.id }), preferenceId: constraint.id, constraintId: constraint.id, reasonCode: rule.resolution.reasonCode, impact: conflict.message, affectedIds: sortedStrings([constraint.id, ...affectedIds]), explanation: `Preferred constraint ${constraint.id} was excluded because ${conflict.message}` })
+      degradations.push(degradation)
+      return degradation
+    }
     for (const rule of allRules(input.effectiveScenario)) {
       const match = ruleMatches(rule, ruleItems)
       if (!match) {
         traces.push(makeRuleTrace(rule, [], [], 'skipped', 'RULE_PRECONDITION_NOT_MET', 'Declarative rule preconditions were not met.'))
         continue
       }
-      const leftConstraints = match.left.flatMap((item) => constraintByPath.get(item.path) ?? [])
-      const rightConstraints = match.right.flatMap((item) => constraintByPath.get(item.path) ?? [])
+      const matchedItems = [...match.operands.values()].flat()
+      const matchedConstraints = uniqueSortedObjects(matchedItems.flatMap((item) => constraintByPath.get(item.path) ?? []), (item) => item.id)
+      const inputIds = sortedStrings(matchedItems.map((item) => item.id))
       if (rule.kind === 'dependency') {
-        const parent = leftConstraints[0]
-        const child = rightConstraints[0]
-        if (parent && child) {
-          const dependency = createConstraintDependency({ schemaVersion: CONSTRAINT_DEPENDENCY_SCHEMA_VERSION, id: hashId('constraint-dependency', { ruleId: rule.id, parent: parent.id, child: child.id }), parentId: parent.id, childId: child.id, kind: rule.dependencyKind ?? 'requires', importance: rule.importance, explanation: rule.message })
-          dependencies.push(dependency)
-          traces.push(makeRuleTrace(rule, [...match.left, ...match.right].map((item) => item.id), [dependency.id], 'applied', rule.reasonCode))
+        const parentItems = match.operands.get(rule.operands[0].id) ?? []
+        const parentConstraints = uniqueSortedObjects(parentItems.flatMap((item) => constraintByPath.get(item.path) ?? []), (item) => item.id)
+        if (match.missingOperandIds.length > 0) {
+          const dependencyConflict = createConstraintConflict({ schemaVersion: CONSTRAINT_CONFLICT_SCHEMA_VERSION, id: hashId('constraint-conflict', { code: 'CONSTRAINT_DEPENDENCY_MISSING', ruleId: rule.id, constraintIds: parentConstraints.map((item) => item.id), missingOperandIds: match.missingOperandIds }), code: 'CONSTRAINT_DEPENDENCY_MISSING', severity: importanceFromValues(parentConstraints.map((item) => item.importance), rule.importance), targetPath: parentConstraints[0]?.targetPath, constraintIds: parentConstraints.map((item) => item.id), dependencyIds: [], resourceClaimIds: [], message: `${rule.message} Required dependency operand(s) missing: ${match.missingOperandIds.join(', ')}.`, blocking: !(rule.resolution.strategy === 'degrade_operand' && parentConstraints.every((item) => item.importance === 'preferred')), waiverAllowed: rule.importance === 'required' })
+          conflicts.push(dependencyConflict)
+          const dependencyDegradations = rule.resolution.strategy === 'degrade_operand' ? parentConstraints.map((constraint) => degrade(constraint, rule, dependencyConflict, parentConstraints.map((item) => item.id))).filter((item): item is Degradation => item !== undefined).map((item) => item.id) : []
+          traces.push(makeRuleTrace(rule, inputIds, [dependencyConflict.id, ...dependencyDegradations], dependencyConflict.blocking ? 'blocked' : 'degraded', 'CONSTRAINT_DEPENDENCY_MISSING', dependencyConflict.message))
+        } else {
+          const dependencyIds: string[] = []
+          for (const operand of rule.operands.slice(1)) {
+            const childItems = match.operands.get(operand.id) ?? []
+            const child = uniqueSortedObjects(childItems.flatMap((item) => constraintByPath.get(item.path) ?? []), (item) => item.id)[0]
+            const parent = parentConstraints[0]
+            if (!parent || !child) continue
+            const dependency = createConstraintDependency({ schemaVersion: CONSTRAINT_DEPENDENCY_SCHEMA_VERSION, id: hashId('constraint-dependency', { ruleId: rule.id, parent: parent.id, child: child.id }), parentId: parent.id, childId: child.id, kind: rule.dependencyKind ?? 'requires', importance: rule.importance, explanation: rule.message })
+            dependencies.push(dependency); dependencyIds.push(dependency.id)
+          }
+          traces.push(makeRuleTrace(rule, inputIds, dependencyIds, 'applied', rule.reasonCode))
         }
         continue
       }
-      const conflict = conflictForRule(rule, leftConstraints, rightConstraints)
+      if (matchedConstraints.length < 2) {
+        traces.push(makeRuleTrace(rule, inputIds, [], 'skipped', 'RULE_SINGLE_OPERAND_MATCH', 'A declarative rule matched fewer than two constraint operands.'))
+        continue
+      }
+      const strong = matchedConstraints.filter((constraint) => constraint.importance === 'hard' || constraint.importance === 'required')
+      let degradable = matchedConstraints.filter((constraint) => constraint.importance === 'preferred')
+      if (strong.length === 0 && rule.resolution.strategy === 'degrade_operand' && rule.resolution.operandId) {
+        const targetedItems = match.operands.get(rule.resolution.operandId) ?? []
+        const targetedIds = new Set(targetedItems.map((item) => item.id))
+        degradable = matchedConstraints.filter((constraint) => constraint.importance === 'preferred' && constraint.sourceIds.some((sourceId) => targetedIds.has(sourceId)) || constraint.importance === 'preferred' && targetedItems.some((item) => item.path === constraint.targetPath))
+      }
+      const autoDegrade = strong.length === 1 ? matchedConstraints.filter((constraint) => constraint.importance === 'preferred') : strong.length === 0 && degradable.length > 0 && degradable.length < matchedConstraints.length ? degradable : []
+      const conflict = conflictForRule(rule, matchedConstraints, autoDegrade.length === 0)
       conflicts.push(conflict)
+      const degradationIds = autoDegrade.map((constraint) => degrade(constraint, rule, conflict, strong.map((item) => item.id))).filter((item): item is Degradation => item !== undefined).map((item) => item.id)
       if (rule.resourceId) {
-        const claim = createResourceClaim({ schemaVersion: RESOURCE_CLAIM_SCHEMA_VERSION, id: conflict.resourceClaimIds[0] ?? hashId('resource', { resourceId: rule.resourceId, constraintIds: conflict.constraintIds }), resourceId: rule.resourceId, mode: 'exclusive', claimantIds: [...match.left, ...match.right].map((item) => item.id), constraintIds: conflict.constraintIds, quantity: 1, explanation: rule.message })
+        const claim = createResourceClaim({ schemaVersion: RESOURCE_CLAIM_SCHEMA_VERSION, id: conflict.resourceClaimIds[0] ?? hashId('resource', { resourceId: rule.resourceId, constraintIds: conflict.constraintIds }), resourceId: rule.resourceId, mode: 'exclusive', claimantIds: inputIds, constraintIds: conflict.constraintIds, quantity: 1, explanation: rule.message })
         resourceClaims.push(claim)
       }
-      traces.push(makeRuleTrace(rule, [...match.left, ...match.right].map((item) => item.id), conflict.constraintIds, conflict.blocking ? 'blocked' : 'degraded', conflict.code))
+      traces.push(makeRuleTrace(rule, inputIds, [conflict.id, ...degradationIds], conflict.blocking ? 'blocked' : 'degraded', conflict.code))
     }
 
     const allConstraintIds = new Set(constraints.map((constraint) => constraint.id))
@@ -1012,11 +1246,13 @@ export class ConstraintGraphCompiler {
       } else if (conflict.severity === 'required' && covered) {
         adjustedConflicts.push(rehashConflict({ ...conflict, blocking: false, message: `${conflict.message} Proceeding only under an explicit scoped waiver.` }))
         warnings.push('REQUIRED_CONFLICT_WAIVED')
-      } else if (conflict.severity === 'preferred') {
+      } else if (conflict.severity === 'preferred' && !(conflict.code === 'CARDINALITY_CONFLICT' && conflict.blocking)) {
         adjustedConflicts.push(rehashConflict({ ...conflict, blocking: false }))
-        const degradation = createDegradation({ schemaVersion: DEGRADATION_SCHEMA_VERSION, id: hashId('degradation', { conflictId: conflict.id }), preferenceId: conflict.id, constraintId: conflict.constraintIds[0], reasonCode: conflict.code, impact: conflict.message, affectedIds: conflict.constraintIds, explanation: `Preferred constraint was degraded deterministically because ${conflict.message}` })
-        degradations.push(degradation)
-        traces.push(createRuleTrace({ schemaVersion: RULE_TRACE_SCHEMA_VERSION, id: hashId('rule-trace', { degradation: degradation.id }), ruleId: 'rule.preferred-degradation', inputIds: conflict.constraintIds, outputIds: [degradation.id], outcome: 'degraded', reasonCode: conflict.code, message: degradation.explanation }))
+        if (!degradations.some((item) => item.constraintId !== undefined && conflict.constraintIds.includes(item.constraintId))) {
+          const degradation = createDegradation({ schemaVersion: DEGRADATION_SCHEMA_VERSION, id: hashId('degradation', { conflictId: conflict.id }), preferenceId: conflict.id, constraintId: conflict.constraintIds[0], reasonCode: conflict.code, impact: conflict.message, affectedIds: conflict.constraintIds, explanation: `Preferred constraint was degraded deterministically because ${conflict.message}` })
+          degradations.push(degradation)
+          traces.push(createRuleTrace({ schemaVersion: RULE_TRACE_SCHEMA_VERSION, id: hashId('rule-trace', { degradation: degradation.id }), ruleId: 'rule.preferred-degradation', inputIds: conflict.constraintIds, outputIds: [degradation.id], outcome: 'degraded', reasonCode: conflict.code, message: degradation.explanation }))
+        }
       } else adjustedConflicts.push(conflict)
     }
     const blocked = adjustedConflicts.some((conflict) => conflict.blocking)

@@ -18,12 +18,14 @@ import type {
   HumanAcceptance,
   JsonObject,
   JsonValue,
+  EffectiveScenario,
   PipelinePlan,
   PipelineStep,
   PlannedReference,
   PromptCandidateIR,
   PromptCompilationInput,
   PromptConstraintCoverage,
+  PromptConstraintExclusion,
   PromptFreeTextTransformation,
   PromptGuardFinding,
   PromptGuardInput,
@@ -35,6 +37,7 @@ import type {
   PromptProhibition,
   PromptReferenceMapping,
   PromptSection,
+  PromptSectionDefinition,
   PromptTransformation,
   ProviderAdapter,
   ProviderCapabilityProfile,
@@ -262,6 +265,7 @@ function normalizedPromptIRProjection(prompt: PromptIR): JsonObject {
     forbidden: sortedBy(prompt.forbidden, (item) => item.id),
     output: clone(prompt.output),
     constraintCoverage: sortedBy(prompt.constraintCoverage, (item) => item.constraintId).map(promptCoverageProjection),
+    excludedConstraints: sortedBy(prompt.excludedConstraints, (item) => item.constraintId),
     sourceIds: sortedStrings(prompt.sourceIds),
     constraintIds: sortedStrings(prompt.constraintIds),
     decisionIds: sortedStrings(prompt.decisionIds),
@@ -341,6 +345,7 @@ function normalizedPromptCandidateProjection(candidate: PromptCandidateIR): Json
     parameters: sortedBy(parameters, (item) => item.id).map(promptParameterProjection),
     referenceMappings: [...candidate.referenceMappings].sort((left, right) => left.order - right.order || compareCodeUnits(left.id, right.id)).map(promptReferenceMappingProjection),
     constraintCoverage: sortedBy(coverage, (item) => item.constraintId).map(promptCoverageProjection),
+    excludedConstraints: sortedBy(candidate.excludedConstraints, (item) => item.constraintId),
     transformations: candidate.transformations.map(transformationProjection),
     optimizer: clone(candidate.optimizer),
     mode: candidate.mode,
@@ -504,21 +509,56 @@ function promptCompilationInputReasons(input: PromptCompilationInput): string[] 
   if (!input.outputContract || outputContractReasons(input.outputContract).length || computeOutputContractHash(input.outputContract) !== input.pipelinePlan?.outputContractHash) reasons.push('OUTPUT_CONTRACT_INVALID')
   if (!input.targetAdapter || !isHash(input.targetAdapter.digest)) reasons.push('TARGET_ADAPTER_INVALID')
   if (!input.targetCapabilityProfile || !isHash(input.targetCapabilityProfile.digest)) reasons.push('TARGET_PROFILE_INVALID')
+  if (!input.effectiveScenario || !isHash(input.context?.effectiveScenarioHash ?? '') || input.effectiveScenario?.effectiveScenarioHash !== input.context?.effectiveScenarioHash) reasons.push('EFFECTIVE_SCENARIO_CONTEXT_MISMATCH')
+  if (input.effectiveScenario) {
+    const scenarioProjection = clone(input.effectiveScenario) as unknown as Record<string, unknown>
+    delete scenarioProjection.effectiveScenarioHash
+    if (!isHash(input.effectiveScenario.effectiveScenarioHash) || sha256(jsonReady(scenarioProjection)) !== input.effectiveScenario.effectiveScenarioHash) reasons.push('EFFECTIVE_SCENARIO_HASH_MISMATCH')
+    const definitions = (input.effectiveScenario.promptSections as unknown as Array<{ sections?: PromptSectionDefinition[] }>).flatMap((contribution) => contribution.sections ?? [])
+    const definitionIds = new Set<string>()
+    for (const definition of definitions) {
+      if (definitionIds.has(definition.id) || !Number.isInteger(definition.order) || !Array.isArray(definition.pathPrefixes) || definition.pathPrefixes.length === 0 || typeof definition.templateKey !== 'string') reasons.push('PROMPT_SECTION_POLICY_INVALID')
+      definitionIds.add(definition.id)
+    }
+  }
   if (input.pipelinePlan && input.pipelinePlan.profileDigest !== input.targetCapabilityProfile?.digest) reasons.push('TARGET_PROFILE_PLAN_MISMATCH')
   if (input.pipelinePlan && !input.pipelinePlan.adapterDigests.includes(input.targetAdapter?.digest ?? '')) reasons.push('TARGET_ADAPTER_PLAN_MISMATCH')
   return sortedStrings(reasons)
 }
 
-function sectionForConstraint(constraint: Constraint, order: number, decisionIds: string[]): PromptSection {
+function pathRelates(left: string, right: string): boolean {
+  return left === right || left.startsWith(`${right}.`) || right.startsWith(`${left}.`)
+}
+
+function promptSectionDefinitions(scenario: EffectiveScenario): PromptSectionDefinition[] {
+  const definitions = (scenario.promptSections as unknown as Array<{ sections?: PromptSectionDefinition[] }>).flatMap((contribution) => contribution.sections ?? []).map((definition) => clone(definition))
+  return definitions.sort((left, right) => left.order - right.order || compareCodeUnits(left.id, right.id))
+}
+
+function sectionDefinitionForConstraint(constraint: Constraint, definitions: PromptSectionDefinition[]): PromptSectionDefinition | undefined {
+  const paths = constraint.targetPaths.length ? constraint.targetPaths : constraint.targetPath ? [constraint.targetPath] : []
+  return definitions.find((definition) => definition.pathPrefixes.some((prefix) => paths.some((path) => pathRelates(path, prefix))))
+}
+
+function promptExclusions(constraintIR: ConstraintIR): PromptConstraintExclusion[] {
+  return sortedBy(constraintIR.constraints.filter((constraint) => constraint.status === 'unsatisfied').map((constraint) => {
+    const degradations = constraintIR.degradedPreferences.filter((item) => item.constraintId === constraint.id)
+    if (degradations.length !== 1) throw new Error('UNSATISFIED_CONSTRAINT_DEGRADATION_MISMATCH')
+    return { constraintId: constraint.id, degradationId: degradations[0].id, reasonCode: degradations[0].reasonCode, sourceIds: sortedStrings(constraint.sourceIds) }
+  }), (item) => item.constraintId)
+}
+
+function sectionForConstraint(constraint: Constraint, order: number, decisionIds: string[], definition?: PromptSectionDefinition): PromptSection {
   const locked = constraint.importance === 'hard' || constraint.importance === 'required' || constraint.kind === 'output'
+  const content = `${definition?.templateKey ? `${definition.templateKey}: ` : ''}${constraintText(constraint)}`
   return {
     schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
-    id: hashId('prompt-section', { kind: constraint.importance, constraintId: constraint.id, order }),
+    id: hashId('prompt-section', { kind: constraint.importance, constraintId: constraint.id, order, definitionId: definition?.id }),
     kind: constraint.importance === 'hard' ? 'hard_constraint' : constraint.importance === 'required' ? 'required_constraint' : 'preferred',
     priority: constraint.importance === 'hard' ? 100 : constraint.importance === 'required' ? 80 : 40,
     order,
-    content: constraintText(constraint),
-    text: constraintText(constraint),
+    content,
+    text: content,
     constraintIds: [constraint.id],
     sourceIds: sortedStrings(constraint.sourceIds),
     decisionIds: sortedStrings(decisionIds),
@@ -530,7 +570,8 @@ function sectionForConstraint(constraint: Constraint, order: number, decisionIds
 }
 
 function referenceMapping(reference: PlannedReference, constraints: Constraint[], decisionIds: string[]): PromptReferenceMapping {
-  const required = reference.constraintIds.some((id) => constraints.find((constraint) => constraint.id === id)?.importance !== 'preferred') || reference.sourceBindingIds.length > 0
+  const effectiveConstraintIds = sortedStrings(reference.constraintIds.filter((id) => constraints.some((constraint) => constraint.id === id)))
+  const required = effectiveConstraintIds.some((id) => constraints.find((constraint) => constraint.id === id)?.importance !== 'preferred') || reference.sourceBindingIds.length > 0
   return {
     schemaVersion: PROMPT_REFERENCE_MAPPING_SCHEMA_VERSION,
     id: hashId('prompt-reference-mapping', { plannedReferenceId: reference.id, assetId: reference.assetId, contentHash: reference.contentHash, order: reference.order }),
@@ -542,7 +583,7 @@ function referenceMapping(reference: PlannedReference, constraints: Constraint[]
     role: reference.role,
     order: reference.order,
     required,
-    constraintIds: sortedStrings(reference.constraintIds),
+    constraintIds: effectiveConstraintIds,
     sourceBindingIds: sortedStrings(reference.sourceBindingIds),
     decisionIds: sortedStrings(decisionIds),
   }
@@ -588,7 +629,9 @@ export class PromptCompiler {
       const reasons = promptCompilationInputReasons(safeInput)
       if (reasons.length) throw new Error(reasons.join('|'))
       const decisionIds = sortedStrings(safeInput.context.decisionHashes)
-      const constraints = sortedBy(safeInput.constraintIR.constraints, (item) => item.id)
+      const excludedConstraints = promptExclusions(safeInput.constraintIR)
+      const constraints = sortedBy(safeInput.constraintIR.constraints.filter((constraint) => constraint.status === 'active' || constraint.status === 'satisfied'), (item) => item.id)
+      const definitions = promptSectionDefinitions(safeInput.effectiveScenario!)
       const sections: PromptSection[] = []
       const objective = safeInput.objective ?? 'Produce the requested visual result using only the approved constraints and references.'
       const positiveDescription = safeInput.positiveDescription ?? 'Express the approved target properties clearly and preserve all locked requirements.'
@@ -604,7 +647,11 @@ export class PromptCompiler {
         kind: 'positive', priority: 110, order: 1, content: positiveDescription, text: positiveDescription,
         constraintIds: [], sourceIds: [], decisionIds, assetIds: [], importance: 'required', mutability: 'rephraseable', locked: false,
       })
-      constraints.forEach((constraint, index) => sections.push(sectionForConstraint(constraint, 10 + index, decisionIds)))
+      constraints.forEach((constraint, index) => {
+        const definition = sectionDefinitionForConstraint(constraint, definitions)
+        const policyOrder = definition?.order ?? 500
+        sections.push(sectionForConstraint(constraint, 10 + policyOrder * 10 + index, decisionIds, definition))
+      })
       const mappings = [...safeInput.referencePlan.ordered].sort((left, right) => left.order - right.order || compareCodeUnits(left.id, right.id)).map((reference) => referenceMapping(reference, constraints, decisionIds))
       mappings.forEach((mapping, index) => sections.push({
         schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
@@ -649,6 +696,7 @@ export class PromptCompiler {
         forbidden: sortedBy(forbidden, (item) => item.id),
         output: clone(safeInput.outputContract),
         constraintCoverage: sortedBy(coverage, (item) => item.constraintId),
+        excludedConstraints,
         sourceIds: sortedStrings([...constraints.flatMap((constraint) => constraint.sourceIds), ...mappings.flatMap((mapping) => mapping.sourceBindingIds)]),
         constraintIds: sortedStrings(constraints.map((constraint) => constraint.id)),
         decisionIds,
@@ -741,6 +789,7 @@ export function createPromptCandidateIR(prompt: PromptIR, transformations: Promp
     parameters: clone(parameters),
     referenceMappings: clone(safePrompt.referenceMappings),
     constraintCoverage: clone(safePrompt.constraintCoverage),
+    excludedConstraints: clone(safePrompt.excludedConstraints),
     transformations: normalizedTransformations,
     optimizer: clone(options.optimizer ?? { id: PROMPT_OPTIMIZER_VERSION, version: '1.0.0', digest: sha256({ optimizer: PROMPT_OPTIMIZER_VERSION }) }),
     mode: options.mode ?? 'strict',
@@ -821,6 +870,16 @@ function guardInputReasons(input: PromptGuardInput): string[] {
   if (!input.context || !isHash(input.context.contextHash) || computeCompilationContextHash(input.context) !== input.context.contextHash) reasons.push('PROMPT_CONTEXT_HASH_MISMATCH')
   if (input.promptIR && input.context && (input.promptIR.contextHash !== input.context.contextHash || input.promptIR.caseId !== input.context.caseSpecId || input.promptIR.caseRevision !== input.context.caseSpecRevision)) reasons.push('PROMPT_CONTEXT_MISMATCH')
   if (input.constraintIR && integrityReasonsForConstraintIR(input.constraintIR, input.context, input.promptIR?.caseId ?? '', input.promptIR?.caseRevision ?? -1).length) reasons.push('CONSTRAINT_IR_INVALID')
+  if (input.promptIR && input.constraintIR) {
+    const excludedIds = new Set(input.promptIR.excludedConstraints.map((item) => item.constraintId))
+    if (excludedIds.size !== input.promptIR.excludedConstraints.length) reasons.push('PROMPT_EXCLUSION_DUPLICATE')
+    for (const exclusion of input.promptIR.excludedConstraints) {
+      const constraint = input.constraintIR.constraints.find((item) => item.id === exclusion.constraintId)
+      const degradation = input.constraintIR.degradedPreferences.find((item) => item.id === exclusion.degradationId && item.constraintId === exclusion.constraintId)
+      if (!constraint || constraint.status !== 'unsatisfied' || !degradation || input.promptIR.constraintIds.includes(exclusion.constraintId)) reasons.push('PROMPT_EXCLUSION_INVALID')
+    }
+    if (input.constraintIR.constraints.some((constraint) => constraint.status === 'unsatisfied' && !excludedIds.has(constraint.id))) reasons.push('PROMPT_EXCLUSION_MISSING')
+  }
   if (input.referencePlan && input.constraintIR && integrityReasonsForReferencePlan(input.referencePlan, input.constraintIR, input.promptIR?.caseId ?? '', input.promptIR?.caseRevision ?? -1, input.context?.contextHash ?? '').length) reasons.push('REFERENCE_PLAN_INVALID')
   if (input.pipelinePlan && input.constraintIR && input.referencePlan && integrityReasonsForPipelinePlan(input.pipelinePlan, input.constraintIR, input.referencePlan, input.outputContract, input.promptIR?.caseId ?? '', input.promptIR?.caseRevision ?? -1, input.context?.contextHash ?? '').length) reasons.push('PIPELINE_PLAN_INVALID')
   if (input.promptIR && input.outputContract && input.promptIR.outputContractHash !== computeOutputContractHash(input.outputContract)) reasons.push('PROMPT_OUTPUT_CONTRACT_MISMATCH')
@@ -870,6 +929,17 @@ export class PromptGuard {
     const candidateMappings = candidate.referenceMappings
     const baseCoverage = new Map(prompt.constraintCoverage.map((coverage) => [coverage.constraintId, coverage]))
     const candidateCoverageMap = new Map(candidateCoverage(candidate).map((coverage) => [coverage.constraintId, coverage]))
+    const excludedIds = new Set(prompt.excludedConstraints.map((item) => item.constraintId))
+    if (canonicalize(sortedBy(candidate.excludedConstraints, (item) => item.constraintId) as unknown as JsonValue) !== canonicalize(sortedBy(prompt.excludedConstraints, (item) => item.constraintId) as unknown as JsonValue)) addGuardFinding(findings, { code: 'PROMPT_EXCLUSION_SET_CHANGED', severity: 'critical', blocking: true, constraintIds: [...excludedIds], sourceIds: [], sectionIds: [], decisionIds: [], assetIds: [], explanation: 'Candidate changed the explicit Prompt IR exclusion set.' })
+    const reportExcludedLinks = (ids: string[], sectionIds: string[] = []): void => {
+      const linked = ids.filter((id) => excludedIds.has(id))
+      if (linked.length) addGuardFinding(findings, { code: 'EXCLUDED_CONSTRAINT_REINTRODUCED', severity: 'critical', blocking: true, constraintIds: sortedStrings(linked), sourceIds: [], sectionIds, decisionIds: [], assetIds: [], explanation: 'Candidate re-linked an excluded constraint into prompt structure.' })
+    }
+    for (const section of candidateSectionList) reportExcludedLinks(section.constraintIds, [section.id])
+    for (const parameter of candidateParameterList) reportExcludedLinks(parameter.constraintIds)
+    for (const mapping of candidateMappings) reportExcludedLinks(mapping.constraintIds)
+    for (const coverage of candidateCoverage(candidate)) reportExcludedLinks([coverage.constraintId], coverage.sectionIds)
+    for (const transformation of candidate.transformations) reportExcludedLinks('proof' in transformation ? transformation.proof?.preservedConstraintIds ?? [] : [], transformation.kind === 'rephrase' ? [transformation.sectionId] : [])
 
     for (const section of prompt.sections) {
       const candidateSection = candidateSectionMap.get(section.id)

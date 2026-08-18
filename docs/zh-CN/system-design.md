@@ -1106,3 +1106,13 @@ Run 产物会固定所有相关版本，使报告在项目演进后仍然可以�
 | SYS-020 | ScenarioPack 不能执行网络或 Provider 调用、读取 Secret、修改已确认事实、创建 Authorization、改变预算或目的地、覆盖 Host Policy，或绕过 Guard 与 Review Gate。 |
 | SYS-021 | Discovery 使用显式本地来源；安装、发布或注册绝不意味着 PackActivation、远程访问、Provider 选择、数据传输、费用授权、Marketplace 查询、动态扫描或自动下载。 |
 | SYS-022 | 普通 ScenarioPackTemplate 与发布审计不授予 Runtime 权限；virtual try-on、cosplay 与 product-shot 作为 Pack，通过相同 Compiler、Planner、Runtime 和 Evaluation Pipeline 完成各自的离线 FixtureSuite。 |
+
+## 24. 构图提示词闭环
+
+首批构图纵向闭环使用现有的 `camera` 本体模块。规范公共词汇和 30 个选择器预设位于 [`fixtures/shared/visual-composition.v1.json`](../../fixtures/shared/visual-composition.v1.json)；预设会展开为原子 `ChangeIntent`，预设 ID 只作为溯源保留。构图卡不是参考资产，不会创建 `SourceBinding`、`PlannedReference`，也不会占用参考图预算。
+
+`OntologyPathDefinition`、`DeclarativeRulePackContribution` 和 `PromptSectionContribution` 是类型化声明式边界。Core 会校验并防御性复制它们，再按 `cardinality=one` 的规范化值分组、显式条件操作符和 hard/required/preferred 处置矩阵运行。失败的偏好会变为 `unsatisfied`，恰好关联一个 `Degradation`，并从有效提示词覆盖中排除。
+
+`PromptCompilationInput.effectiveScenario` 与 `CompilationContext` 绑定 Hash。PromptCompiler 只消费 active 或 satisfied 约束，并在 `PromptIR.excludedConstraints` 中记录每个 unsatisfied 约束。Prompt Guard 会验证排除集合保持不变，并拒绝 excluded ID 通过 Section、Parameter、Mapping、Coverage 或 Transformation Proof 重新进入。Provider 原生构图参数、UI 卡片素材、构图参考资产和真实 Provider 调用仍属后续范围。
+
+| SYS-023 | 构图选择器展开为 camera 所有的原子本体事实；类型化 ScenarioPack 策略确定性处理冲突，Prompt IR 记录排除项，Prompt Guard 拒绝重新链接已排除约束。 |

@@ -1105,3 +1105,13 @@ Real-adapter smoke tests are explicit, credentialed, non-CI workflows. They are 
 | SYS-020 | A ScenarioPack cannot perform network or Provider calls, read secrets, mutate confirmed facts, create authorization, change budgets or destinations, override Host policy, or bypass guards and review gates. |
 | SYS-021 | Discovery uses explicit local sources; installation, publication, or registration never implies PackActivation, remote access, Provider selection, data transfer, cost authorization, marketplace lookup, dynamic scan, or automatic download. |
 | SYS-022 | The ordinary ScenarioPackTemplate and publication audit grant no runtime authority; virtual try-on, cosplay, and product-shot pass their offline FixtureSuites as packages through the same Compiler, Planner, Runtime, and Evaluation pipeline. |
+
+## 24. Visual composition prompt closure
+
+The first visual-composition vertical uses the existing `camera` ontology module. The canonical public vocabulary and the 30 selector presets live in [`fixtures/shared/visual-composition.v1.json`](../fixtures/shared/visual-composition.v1.json); a preset expands into atomic `ChangeIntent` records with the preset ID retained only as provenance. A composition card is not a reference asset and never creates a `SourceBinding`, `PlannedReference`, or reference-budget claim.
+
+`OntologyPathDefinition`, `DeclarativeRulePackContribution`, and `PromptSectionContribution` are typed declarative boundaries. Core validates and defensively copies them, then applies canonical value grouping for `cardinality=one`, explicit condition operators, and the hard/required/preferred disposition matrix. A losing preference is `unsatisfied`, has exactly one linked `Degradation`, and is excluded from effective prompt coverage.
+
+`PromptCompilationInput.effectiveScenario` is hash-bound to `CompilationContext`. PromptCompiler consumes only active or satisfied constraints and records every unsatisfied constraint in `PromptIR.excludedConstraints`. Prompt Guard verifies that the exclusion set is preserved and that no excluded ID is reintroduced through sections, parameters, mappings, coverage, or transformation proof. Provider-native camera controls, UI artwork, composition reference assets, and real-provider calls remain deferred.
+
+| SYS-023 | Visual composition selectors expand into atomic camera-owned ontology facts; typed ScenarioPack policy deterministically resolves conflicts, Prompt IR records exclusions, and Prompt Guard rejects excluded-constraint relinking. |
