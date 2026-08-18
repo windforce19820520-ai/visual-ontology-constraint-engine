@@ -512,6 +512,14 @@ export class RecordingMockTransport implements ProviderTransport {
     counts.set(key, count + 1)
   }
 
+  private consumeResponse(queued: ProviderResponseEnvelope[], requestHash: string, missingCode: string, missingMessage: string): ProviderResponseEnvelope {
+    const exactIndex = queued.findIndex((item) => item.requestHash === requestHash)
+    if (exactIndex >= 0) return queued.splice(exactIndex, 1)[0]
+    const wildcardIndex = queued.findIndex((item) => item.requestHash === '')
+    if (wildcardIndex >= 0) return queued.splice(wildcardIndex, 1)[0]
+    return errorResponse(requestHash, missingCode, missingMessage)
+  }
+
   async send(request: ProviderRequestEnvelope, context: ProviderTransportContext): Promise<ProviderResponseEnvelope> {
     assertRemoteCallAuthorization(request, context)
     this.consume('send', context.authorization)
@@ -520,7 +528,7 @@ export class RecordingMockTransport implements ProviderTransport {
     if (prior && !providerBindingMatches(prior, createProviderSubmissionLookup(request))) throw new ProviderTransportError('REMOTE_CALL_IDENTITY_REUSED', 'Idempotency identity cannot be reused for a different provider request.')
     this.sentRequests.set(identity, clone(request))
     this.calls.push({ requestId: request.id, requestHash: request.requestHash, adapterId: request.adapterId, profileDigest: request.profileDigest, destination: request.destination, ...(request.region === undefined ? {} : { region: request.region }), inputHash: request.inputHash, idempotencyKey: request.idempotencyKey })
-    const response = this.responses.shift() ?? errorResponse(request.requestHash, 'MOCK_RESPONSE_MISSING', 'Recording mock response was not registered.')
+    const response = this.consumeResponse(this.responses, request.requestHash, 'MOCK_RESPONSE_MISSING', 'Recording mock response was not registered.')
     const normalized = response.requestHash === request.requestHash ? response : { ...response, requestHash: request.requestHash, responseHash: '' }
     if (!normalized.responseHash) normalized.responseHash = computeProviderResponseEnvelopeHash(normalized)
     return safeResponse(normalized)
@@ -533,7 +541,7 @@ export class RecordingMockTransport implements ProviderTransport {
     const original = this.sentRequests.get(identity)
     if (!original || !providerBindingMatches(original, request)) throw new ProviderTransportError('PROVIDER_LOOKUP_BINDING_MISMATCH', 'Submission lookup is not bound to a prior provider request.')
     this.lookupCalls.push({ requestId: request.providerRequestId ?? request.lookupHash, requestHash: request.requestHash, adapterId: request.adapterId, profileDigest: request.profileDigest, destination: request.destination, ...(request.region === undefined ? {} : { region: request.region }), inputHash: request.inputHash, idempotencyKey: request.idempotencyKey })
-    const response = this.lookups.shift() ?? errorResponse(request.requestHash, 'MOCK_LOOKUP_RESPONSE_MISSING', 'Recording lookup response was not registered.')
+    const response = this.consumeResponse(this.lookups, request.requestHash, 'MOCK_LOOKUP_RESPONSE_MISSING', 'Recording lookup response was not registered.')
     const normalized = response.requestHash === request.requestHash ? response : { ...response, requestHash: request.requestHash, responseHash: '' }
     if (!normalized.responseHash) normalized.responseHash = computeProviderResponseEnvelopeHash(normalized)
     return safeResponse(normalized)

@@ -1161,7 +1161,7 @@ export interface OfflineExecutionInput {
 }
 
 export interface OfflineExecutionResult {
-  status: 'blocked'|'completed'|'failed'|'submission_unknown'|'cancelled'|'needs_review'
+  status: 'blocked'|ExecutionRunState
   code: string
   reasons: string[]
   executionRun?: ExecutionRun
@@ -1913,7 +1913,7 @@ function resultForRecord(record: OfflineRuntimeRecord, code = 'EXECUTION_COMPLET
   record.run.runHash = executionRunHash(record.run)
   record.trace = traceForRecord(record)
   return clone({
-    status: record.run.state as OfflineExecutionResult['status'],
+    status: record.run.state,
     code,
     reasons: sortedStrings(reasons),
     executionRun: record.run,
