@@ -11,6 +11,8 @@ An open-source visual ontology, constraint compiler, prompt optimization, and ev
 
 The repository contains deterministic runtime packages, data-only ScenarioPack fixtures, three offline vertical cases, bundle manifests, a Mock execution path, credentialed Seedream multi-reference smoke tooling, and clean-room/release-candidate checks. The four public packages are validated from their packed tarballs, clean consumers compile against installed declarations, and package contents, checksums, and reproducibility are verified on the release path. See the [release-readiness checklist](docs/release-checklist.md), [candidate compatibility surface](docs/compatibility.md), and [changelog](CHANGELOG.md).
 
+The runtime also includes 30 declarative visual-composition presets. A host displays the bundled example artwork, submits a stable preset ID plus any required typed inputs, and expands that selection into ordinary `ChangeIntent` records before constraint and prompt compilation. The artwork is UI/documentation guidance, not a model reference image and does not consume reference budget. See [visual composition presets and integration](docs/visual-composition.md) or the [简体中文指南](docs/zh-CN/visual-composition.md).
+
 ## What works today
 
 [`v0.1.0-rc.3`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.3) is the current GitHub release candidate. Its post-merge release-candidate, clean-room, and checksum gates passed, including the deterministic Cosplay signature-prop regressions added for issue [#19](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues/19). The four public `@voce-engine/*` packages have not yet been published at RC.3; `v0.1.0-rc.2` remains publicly installable from npm and is covered by the [RC.2 public acceptance report](docs/acceptance/v0.1.0-rc.2.md). RC.3 still requires the separately authorized npm workflow, clean public-package acceptance, and real-Provider validation before issue #19 can close.
@@ -125,6 +127,7 @@ The first-party scenarios produce complete images. Background removal, transpare
 - [System design](docs/system-design.md) · [简体中文](docs/zh-CN/system-design.md)
 - [Glossary](docs/glossary.md) · [简体中文](docs/zh-CN/glossary.md)
 - [ScenarioPack contract](docs/scenario-pack-contract.md) · [简体中文](docs/zh-CN/scenario-pack-contract.md)
+- [Visual composition presets and integration](docs/visual-composition.md) · [简体中文](docs/zh-CN/visual-composition.md)
 - [Architecture](docs/architecture.md)
 - [Roadmap](docs/roadmap.md)
 - [Contributing](CONTRIBUTING.md)

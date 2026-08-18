@@ -9,6 +9,7 @@ English is the normative language for public contracts and architecture decision
 - [Glossary](glossary.md) · [简体中文](zh-CN/glossary.md)
 - [ScenarioPack contract](scenario-pack-contract.md) · [简体中文](zh-CN/scenario-pack-contract.md)
 - [Visual composition ontology and prompt-closure design](design/visual-composition-mvp.md)
+- [Visual composition presets, examples, and host integration](visual-composition.md) · [简体中文](zh-CN/visual-composition.md)
 - [Visual composition MVP: Luna xhigh implementation brief (简体中文)](implementation-notes/visual-composition-mvp-luna-xhigh.md)
 - [Architecture summary](architecture.md)
 - [Roadmap](roadmap.md)
