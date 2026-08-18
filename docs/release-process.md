@@ -2,14 +2,16 @@
 
 This repository produces an auditable local release candidate before any external publication. Publication is a separate, explicitly owner-authorized operation. `v0.1.0-rc.4` is the current visual-composition candidate for GitHub and npm `next`. It is not production-ready.
 
-## Current v0.1.0-rc.4 candidate status
+## Current v0.1.0-rc.4 publication status
 
-As of 2026-08-18, before external publication reconciliation:
+As of 2026-08-18:
 
-- version, internal dependency pins, CLI output, compatibility snapshot, and release directories are aligned at `0.1.0-rc.4`;
-- local repository tests and a four-tarball clean consumer pass, including the packaged 29-path/30-preset catalog;
-- three separately authorized Seedream composition calls returned HTTP 200 with no retries and no committed private artifacts; and
-- merge, annotated tag, GitHub prerelease, npm publication, and public-registry clean consumption are completed only after the reviewed branch and exact source revision are reconciled.
+- PR [#28](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/pull/28) was squash-merged as `70ecee52665c0d0002751e00896618ac0b74877a`;
+- the annotated [`v0.1.0-rc.4`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.4) tag and GitHub prerelease bind that source revision;
+- [OIDC workflow run 32127701215](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/actions/runs/32127701215) was selected from the same tag, reran the release gates, and published all four packages at `0.1.0-rc.4` under `next`;
+- public registry records expose integrity metadata, npm signatures, and SLSA provenance for all four packages;
+- an exact public-registry consumer passed imports, declarations, schemas, CLI doctor, all 30 presets, and three ScenarioPack offline paths; and
+- three separately authorized Seedream composition calls returned HTTP 200 with no retries and no committed private artifacts.
 
 The [RC.4 acceptance report](acceptance/v0.1.0-rc.4.md) records the deterministic and real-Provider evidence. Paid calls remain a separate explicit operation and must not be inferred from deterministic or Mock-only gates.
 

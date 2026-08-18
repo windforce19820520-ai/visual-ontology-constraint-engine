@@ -16,6 +16,8 @@ This release candidate publishes the visual-composition work that followed RC.3:
 
 Standard CI, examples, and release gates remain offline and Mock-only. Private inputs, generated outputs, credentials, and temporary Provider URLs are not release artifacts. This release candidate does not claim production readiness.
 
+PR [#28](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/pull/28) was squash-merged as `70ecee52665c0d0002751e00896618ac0b74877a`. The annotated tag, [GitHub prerelease](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.4), and npm publication all use that source revision. All four packages were published under `next` by [OIDC workflow run 32127701215](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/actions/runs/32127701215), and an exact public-registry consumer passed imports, declarations, schemas, CLI doctor, the 30-preset catalog, and all three bundled offline ScenarioPack paths.
+
 ## 0.1.0-rc.3
 
 This release candidate repairs the Cosplay signature-prop fidelity path reported in issue #19 and keeps the repair inside the existing declarative and deterministic boundaries:
