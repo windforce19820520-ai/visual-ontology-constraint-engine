@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Hardens the offline execution result contract so `OfflineExecutionResult.status` reflects the full `ExecutionRunState` set instead of silently narrowing it through a type cast; reconciliation to an in-flight state now reports the pending status without resubmitting.
+- Makes `RecordingMockTransport` match enqueued provider responses by `requestHash` (with an empty-hash wildcard fallback) instead of FIFO-only consumption, so concurrent sends cannot bind a queued response to the wrong request.
+- Documents the M9 Seedream runner's `RemoteCallAuthorization` as a self-attested data claim at a trusted, human-operated tool boundary rather than a cryptographic authorization mechanism.
+
 ## 0.1.0-rc.3
 
 This release candidate repairs the Cosplay signature-prop fidelity path reported in issue #19 and keeps the repair inside the existing declarative and deterministic boundaries:
