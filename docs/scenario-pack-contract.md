@@ -276,6 +276,8 @@ interface FixtureSuite {
 }
 ```
 
+The contribution records inside `ScenarioPack` are source records and retain `id`, `schemaVersion`, and `contentDigest`. Resolution creates separate `Resolved*Contribution` records with `packId`, `contributionKind`, `contributionId`, and `sourcePackIds`; source and resolved records are not interchangeable. Duplicate ontology paths or rule IDs may compose only when their canonical semantic content is identical.
+
 The Loader recomputes every contribution digest, the canonical manifest hash, and the package digest. The manifest does not prove that arbitrary installed code is safe and must never be presented as a sandbox or security signature.
 
 `supportedInteractionModes` declares only the interaction shapes the Pack can compile. Input and output expectations are typed, namespaced declarations used for Host UI, preflight, and output-contract negotiation; they neither inspect an Asset nor authorize a call. Every `requiredIn` and `producedIn` value must also appear in `supportedInteractionModes`. Cardinality bounds must be non-negative with `max >= min`; media types use normalized MIME strings. An expectation may narrow a versioned Core contract through `outputContract`, but it cannot redefine that Core contract.
@@ -894,3 +896,13 @@ Every content change requires a new version and digest. Registries reject two di
 | SPK-AC-013 | Deactivation and uninstall use explicit checks/receipts, never mutate historical Locks or user history, and return `PACK_UNINSTALL_BLOCKED` or `PACK_IMPLEMENTATION_UNAVAILABLE` without substitution or network retrieval. |
 | SPK-AC-014 | Acquisition verifies safe paths, resource limits, complete inventory and SHA-256 distribution/package digests without lifecycle scripts or executable content; discovery remains explicit/local, with no marketplace, dynamic scan, automatic download, hidden Provider, implicit activation, or runtime authority from publication. |
 | SPK-AC-015 | Virtual try-on, cosplay, and product-shot each pass their declared offline `FixtureSuite` through Mock Adapters and the same Core pipeline without a secret, network call, or real Provider. |
+
+## 17. Visual composition contribution boundary
+
+The visual-composition MVP adds typed `OntologyPathDefinition`, `DeclarativeRuleCondition`, `DeclarativeRuleOperand`, `DeclarativeRuleResolution`, `DeclarativeRule`, and `PromptSectionDefinition` records. These records remain data-only ScenarioPack contributions. `cardinality=one` paths, rule condition values, degradation targets, and section order are validated before they enter an `EffectiveScenario`; identical canonical duplicates may merge, while unequal duplicates block.
+
+The shared catalog contains 29 camera-owned path definitions and 30 stable presets. Presets are ontology selectors: they may create atomic boolean, enum, or scalar change intents, but they cannot contain URLs, image bytes, source bindings, provider references, or provider-native parameters. The `full-shot` preset includes `camera.framing.crop.keepBothFeet=true`; directionless leading-room and surface-less reflection remain incomplete rather than guessed.
+
+Prompt policy contributions are consumed by Core through a hash-verified `EffectiveScenario`. They order prompt sections and cannot authorize a provider call or alter Guard semantics. An automatically losing preference is represented as `unsatisfied` with one degradation and one `PromptConstraintExclusion`; the exclusion must remain absent from effective Prompt IR and all optimizer links.
+
+| SPK-AC-016 | Visual-composition presets, typed vocabulary/rules/prompt policy, explicit constraint exclusions, and Guard closure remain declarative, deterministic, offline, and independent of ScenarioPack names. |

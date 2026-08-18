@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"voce.declarative-rule-operand/v1alpha1","type":"object","required":["id","conditions"],"properties":{"id":{"type":"string","minLength":1},"conditions":{"type":"array","minItems":1,"items":{"$ref":"voce.declarative-rule-condition/v1alpha1"}}},"additionalProperties":false}

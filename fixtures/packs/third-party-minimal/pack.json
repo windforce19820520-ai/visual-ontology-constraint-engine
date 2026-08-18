@@ -8,7 +8,7 @@
   "contributions": {
     "rulePacks": [
       { "id": "third-party.rules", "namespace": "example.test.third-party", "rules": [
-        { "id": "deterministic-fixture-rule", "kind": "incompatibility", "leftPaths": ["product.geometry"], "rightPaths": ["product.material"], "importance": "preferred", "code": "THIRD_PARTY_DETERMINISTIC_RULE", "reasonCode": "THIRD_PARTY_DETERMINISTIC_RULE", "message": "Third-party fixture rule is evaluated by the public declarative compiler." }
+        { "id": "deterministic-fixture-rule", "kind": "incompatibility", "operands": [{ "id": "geometry", "conditions": [{ "path": "product.geometry", "operator": "present" }] }, { "id": "material", "conditions": [{ "path": "product.material", "operator": "present" }] }], "resolution": { "strategy": "block", "reasonCode": "THIRD_PARTY_DETERMINISTIC_RULE" }, "importance": "preferred", "code": "THIRD_PARTY_DETERMINISTIC_RULE", "explanation": "Third-party fixture rule is evaluated by the public declarative compiler." }
       ] }
     ]
   },

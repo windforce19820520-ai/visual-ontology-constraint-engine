@@ -10,6 +10,9 @@
 - [系统设计](system-design.md) · [English](../system-design.md)
 - [术语表](glossary.md) · [English](../glossary.md)
 - [ScenarioPack 合同](scenario-pack-contract.md) · [English](../scenario-pack-contract.md)
+- [构图本体与提示词闭环设计（英文规范）](../design/visual-composition-mvp.md)
+- [构图预设、示例图与接入方法](visual-composition.md) · [English](../visual-composition.md)
+- [构图本体首批闭环：Luna 极高开发任务书](../implementation-notes/visual-composition-mvp-luna-xhigh.md)
 - [架构摘要（英文）](../architecture.md)
 - [路线图（英文）](../roadmap.md)
 

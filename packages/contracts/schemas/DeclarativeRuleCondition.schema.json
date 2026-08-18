@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"voce.declarative-rule-condition/v1alpha1","type":"object","required":["path","operator"],"properties":{"path":{"type":"string","minLength":1},"operator":{"enum":["present","absent","equals","contains"]},"value":{}},"additionalProperties":false}

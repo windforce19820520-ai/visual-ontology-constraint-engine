@@ -137,6 +137,58 @@ function contributionDigest(value: JsonObject): string {
   return sha256(copy)
 }
 
+function validateTypedContribution(category: string, value: JsonObject): void {
+  if (category === 'ontologyVocabulary') {
+    if (!Array.isArray(value.paths)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+    const ids = new Set<string>()
+    for (const raw of value.paths) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+      const path = raw as Record<string, unknown>
+      if (typeof path.path !== 'string' || !path.path || (path.valueKind !== 'boolean' && path.valueKind !== 'enum' && path.valueKind !== 'string' && path.valueKind !== 'number') || (path.cardinality !== 'one' && path.cardinality !== 'many') || ids.has(path.path)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+      if (path.valueKind === 'enum' && (!Array.isArray(path.allowedValues) || path.allowedValues.length === 0)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+      ids.add(path.path)
+    }
+    return
+  }
+  if (category === 'rulePacks') {
+    if (!Array.isArray(value.rules)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+    const ids = new Set<string>()
+    for (const raw of value.rules) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+      const rule = raw as Record<string, unknown>
+      if (typeof rule.id !== 'string' || !rule.id || ids.has(rule.id) || !['incompatibility', 'dependency', 'cardinality', 'occlusion', 'resource'].includes(String(rule.kind)) || !Array.isArray(rule.operands) || rule.operands.length < 2 || !rule.resolution || typeof rule.resolution !== 'object' || Array.isArray(rule.resolution) || typeof rule.explanation !== 'string') throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+      const operandIds = new Set<string>()
+      for (const rawOperand of rule.operands) {
+        if (!rawOperand || typeof rawOperand !== 'object' || Array.isArray(rawOperand)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        const operand = rawOperand as Record<string, unknown>
+        if (typeof operand.id !== 'string' || !operand.id || operandIds.has(operand.id) || !Array.isArray(operand.conditions) || operand.conditions.length === 0) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        operandIds.add(operand.id)
+        for (const rawCondition of operand.conditions) {
+          if (!rawCondition || typeof rawCondition !== 'object' || Array.isArray(rawCondition)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+          const condition = rawCondition as Record<string, unknown>
+          if (typeof condition.path !== 'string' || !condition.path || !['present', 'absent', 'equals', 'contains'].includes(String(condition.operator))) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+          if ((condition.operator === 'present' || condition.operator === 'absent') && condition.value !== undefined) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+          if ((condition.operator === 'equals' || condition.operator === 'contains') && condition.value === undefined) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        }
+      }
+      const resolution = rule.resolution as Record<string, unknown>
+      if ((resolution.strategy !== 'block' && resolution.strategy !== 'degrade_operand') || typeof resolution.reasonCode !== 'string' || !resolution.reasonCode || (resolution.strategy === 'degrade_operand' && (typeof resolution.operandId !== 'string' || !operandIds.has(resolution.operandId)))) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+      ids.add(rule.id)
+    }
+    return
+  }
+  if (category === 'promptSections') {
+    if (!Array.isArray(value.sections)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+    const ids = new Set<string>()
+    for (const raw of value.sections) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+      const section = raw as Record<string, unknown>
+      if (typeof section.id !== 'string' || !section.id || ids.has(section.id) || typeof section.group !== 'string' || !Number.isInteger(section.order) || !Array.isArray(section.pathPrefixes) || section.pathPrefixes.length === 0 || section.pathPrefixes.some((item) => typeof item !== 'string' || !item) || typeof section.templateKey !== 'string' || !section.templateKey) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+      ids.add(section.id)
+    }
+  }
+}
+
 function descriptorFor(definition: ScenarioPack, files: Array<{ path: string; bytes: Uint8Array }>): ScenarioPackDescriptor {
   if (!definition || typeof definition !== 'object' || Array.isArray(definition) || !definition.manifest) throw new Error('PACK_MANIFEST_INVALID')
   validateManifestStrict(definition.manifest)
@@ -161,6 +213,7 @@ function descriptorFor(definition: ScenarioPack, files: Array<{ path: string; by
       if (typeof contribution.id !== 'string' || typeof contribution.contentDigest !== 'string' || bodyIds.has(id) || !indexed.has(id)) throw new Error('PACK_CONTRIBUTION_INVALID')
       bodyIds.add(id)
       if (indexed.get(id) !== contribution.contentDigest || contributionDigest(contribution) !== contribution.contentDigest) throw new Error('PACK_DIGEST_MISMATCH')
+      if ((category === 'ontologyVocabulary' && Array.isArray(contribution.paths)) || (category === 'rulePacks' && Array.isArray(contribution.rules)) || (category === 'promptSections' && Array.isArray(contribution.sections))) validateTypedContribution(category, contribution)
     }
   }
   const manifestHash = sha256(json(definition.manifest))
@@ -262,7 +315,7 @@ function withSource(value: unknown, packId: string, category: string, sourcePack
   contribution.contributionKind = category
   contribution.contributionId = contributionId(value)
   contribution.sourcePackIds = sourcePackIds
-  return contribution as ResolvedContribution
+  return contribution as unknown as ResolvedContribution
 }
 
 function composeCategory(category: 'ontologyVocabulary' | 'rulePacks' | 'interpretationScopes' | 'promptSections' | 'reviewTemplates' | 'defaults', ordered: ScenarioPackDescriptor[], packages: ReadonlyMap<string, ScenarioPack>, disabled: ReadonlySet<string>, defaultValues: ReadonlyMap<string, JsonValue>): { values: ResolvedContribution[]; collision?: ReturnType<typeof conflict> } {
@@ -286,6 +339,33 @@ function composeCategory(category: 'ontologyVocabulary' | 'rulePacks' | 'interpr
     }
   }
   return { values: [...byId.values()].map((item) => withSource(item.value, item.packId, category, item.sourcePackIds)) }
+}
+
+function ontologyPathDefinitionCollision(contributions: ResolvedContribution[]): ReturnType<typeof conflict> | undefined {
+  const byPath = new Map<string, Array<{ canonical: string; packId: string; contributionId: string }>>()
+  for (const contribution of contributions) {
+    const paths = Array.isArray(contribution.paths) ? contribution.paths : []
+    for (const raw of paths) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+      const definition = raw as JsonObject
+      if (typeof definition.path !== 'string') continue
+      const entries = byPath.get(definition.path) ?? []
+      entries.push({ canonical: canonicalize(raw), packId: contribution.packId, contributionId: contribution.contributionId })
+      byPath.set(definition.path, entries)
+    }
+  }
+  for (const path of [...byPath.keys()].sort(compareCodeUnits)) {
+    const entries = byPath.get(path)!
+    if (new Set(entries.map((entry) => entry.canonical)).size <= 1) continue
+    return conflict(
+      'PACK_RULE_CONFLICT',
+      [...new Set(entries.map((entry) => entry.packId))].sort(compareCodeUnits),
+      `Ontology path ${path} has conflicting definitions after ScenarioPack composition.`,
+      'Make duplicate path definitions canonically identical or use distinct ontology paths.',
+      [...new Set(entries.map((entry) => entry.contributionId))].sort(compareCodeUnits),
+    )
+  }
+  return undefined
 }
 
 function overridePayload(override: { id: string; operation: unknown; reasonCode: string }): JsonObject {
@@ -468,6 +548,8 @@ export function resolveScenario(selection: ScenarioPackSelection, catalog: Scena
     if (composed.collision) return { status: 'blocked', report: failureReport(selected, dependencyTrace, compositionTrace, overrideTraces, [composed.collision], warnings) }
     effectiveValues[category] = composed.values
   }
+  const pathCollision = ontologyPathDefinitionCollision(effectiveValues.ontologyVocabulary)
+  if (pathCollision) return { status: 'blocked', report: failureReport(selected, dependencyTrace, compositionTrace, overrideTraces, [pathCollision], warnings) }
   const entries: ScenarioCompositionLock['entries'] = ordered.map((entry) => ({
     packId: entry.manifest.packId,
     version: entry.manifest.version,
@@ -481,7 +563,7 @@ export function resolveScenario(selection: ScenarioPackSelection, catalog: Scena
   const lockBase = { schemaVersion: 'voce.scenario-pack-lock/v1alpha1' as const, contractVersion: CONTRACT_VERSION as 'voce.scenario-pack/v1alpha1', resolverVersion: catalog.resolverVersion, catalogHash: catalog.catalogHash, canonicalization: 'voce.canonical-json/v1alpha1' as const, rootPackId: root.manifest.packId, entries, compositionOrder: order, ...(overlay ? { hostPolicyOverlayHash: overlay.overlayHash } : {}), hostOverrideHashes: appliedOverrides.map((item) => item.contentHash) }
   const lock = { ...lockBase, compositionHash: sha256(json(lockBase)), lockHash: '' }
   lock.lockHash = hashWithoutSelf(lock, 'lockHash')
-  const effective: EffectiveScenario = { lockHash: lock.lockHash, rootPackId: root.manifest.packId, extensionPackIds: ordered.filter((entry) => entry.manifest.kind === 'extension').map((entry) => entry.manifest.packId), compositionOrder: order, configurations: Object.fromEntries([...configs].sort((left, right) => compareCodeUnits(left[0], right[0]))), ...effectiveValues, capabilityRequirements: ordered.flatMap((entry) => entry.manifest.capabilityRequirements), declarations: ordered.map((entry) => entry.manifest.declarations) as unknown as JsonValue[], appliedOverrides, effectiveScenarioHash: '' }
+  const effective: EffectiveScenario = { lockHash: lock.lockHash, rootPackId: root.manifest.packId, extensionPackIds: ordered.filter((entry) => entry.manifest.kind === 'extension').map((entry) => entry.manifest.packId), compositionOrder: order, configurations: Object.fromEntries([...configs].sort((left, right) => compareCodeUnits(left[0], right[0]))), ontologyVocabulary: effectiveValues.ontologyVocabulary as unknown as EffectiveScenario['ontologyVocabulary'], rulePacks: effectiveValues.rulePacks as unknown as EffectiveScenario['rulePacks'], interpretationScopes: effectiveValues.interpretationScopes, promptSections: effectiveValues.promptSections as unknown as EffectiveScenario['promptSections'], reviewTemplates: effectiveValues.reviewTemplates, defaults: effectiveValues.defaults, capabilityRequirements: ordered.flatMap((entry) => entry.manifest.capabilityRequirements), declarations: ordered.map((entry) => entry.manifest.declarations) as unknown as JsonValue[], appliedOverrides, effectiveScenarioHash: '' }
   effective.effectiveScenarioHash = hashWithoutSelf(effective as unknown as Record<string, unknown>, 'effectiveScenarioHash')
   const reportBase = { status: 'resolved' as const, lockHash: lock.lockHash, effectiveScenarioHash: effective.effectiveScenarioHash, selected: selected.map((entry) => ({ packId: entry.manifest.packId, version: entry.manifest.version, kind: entry.manifest.kind, packageDigest: entry.packageDigest, manifestHash: entry.manifestHash })), dependencyTrace, compositionTrace, overrideTraces, conflicts: [], warnings }
   return { status: 'resolved', lock, effectiveScenario: effective, report: { ...reportBase, reportHash: hashWithoutSelf(reportBase, 'reportHash') } }
@@ -529,3 +611,4 @@ export * from './evidence.js'
 export * from './m4.js'
 export * from './m5.js'
 export * from './m6.js'
+export * from './composition.js'

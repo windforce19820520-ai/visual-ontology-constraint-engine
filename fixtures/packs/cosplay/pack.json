@@ -10,35 +10,46 @@
       {
         "id": "cosplay.ontology.character-fidelity",
         "paths": [
-          { "path": "person.identity", "valueKind": "identity", "defaultImportance": "hard" },
-          { "path": "character.hair", "valueKind": "visual-attributes", "defaultImportance": "required" },
-          { "path": "character.makeup", "valueKind": "visual-attributes", "defaultImportance": "required" },
-          { "path": "character.costume", "valueKind": "visual-attributes", "defaultImportance": "required" },
-          { "path": "character.accessories", "valueKind": "visual-attributes", "defaultImportance": "required" },
-          { "path": "character.signatureProps.primary.type", "valueKind": "category", "defaultImportance": "hard" },
-          { "path": "character.signatureProps.primary.silhouette", "valueKind": "shape", "defaultImportance": "hard" },
-          { "path": "character.signatureProps.primary.proportion", "valueKind": "ratio", "defaultImportance": "required" },
-          { "path": "character.signatureProps.primary.colorScheme", "valueKind": "palette", "defaultImportance": "required" },
-          { "path": "character.signatureProps.primary.material", "valueKind": "material", "defaultImportance": "preferred" },
-          { "path": "character.signatureProps.primary.signatureDetails", "valueKind": "visual-attributes", "defaultImportance": "required" },
-          { "path": "character.signatureProps.primary.handAssignment", "valueKind": "hand-assignment", "defaultImportance": "required" },
-          { "path": "character.signatureProps.primary.visibility", "valueKind": "visibility", "defaultImportance": "hard" },
-          { "path": "pose", "valueKind": "pose", "defaultImportance": "preferred" }
+          { "path": "person.identity", "valueKind": "string", "cardinality": "one", "defaultImportance": "hard" },
+          { "path": "character.hair", "valueKind": "string", "cardinality": "one", "defaultImportance": "required" },
+          { "path": "character.makeup", "valueKind": "string", "cardinality": "one", "defaultImportance": "required" },
+          { "path": "character.costume", "valueKind": "string", "cardinality": "one", "defaultImportance": "required" },
+          { "path": "character.accessories", "valueKind": "string", "cardinality": "one", "defaultImportance": "required" },
+          { "path": "character.signatureProps.primary.type", "valueKind": "string", "cardinality": "one", "defaultImportance": "hard" },
+          { "path": "character.signatureProps.primary.silhouette", "valueKind": "string", "cardinality": "one", "defaultImportance": "hard" },
+          { "path": "character.signatureProps.primary.proportion", "valueKind": "string", "cardinality": "one", "defaultImportance": "required" },
+          { "path": "character.signatureProps.primary.colorScheme", "valueKind": "string", "cardinality": "one", "defaultImportance": "required" },
+          { "path": "character.signatureProps.primary.material", "valueKind": "string", "cardinality": "one", "defaultImportance": "preferred" },
+          { "path": "character.signatureProps.primary.signatureDetails", "valueKind": "string", "cardinality": "one", "defaultImportance": "required" },
+          { "path": "character.signatureProps.primary.handAssignment", "valueKind": "string", "cardinality": "one", "defaultImportance": "required" },
+          { "path": "character.signatureProps.primary.visibility", "valueKind": "string", "cardinality": "one", "defaultImportance": "hard" },
+          { "path": "pose", "valueKind": "string", "cardinality": "one", "defaultImportance": "preferred" }
         ]
-      }
+      },
+      { "id": "visual-composition.ontology", "paths": [
+        { "path": "camera.framing.shotScale", "valueKind": "enum", "cardinality": "one", "allowedValues": ["extreme_close_up", "close_up", "head_and_shoulders", "bust_shot", "medium_close_up", "medium_shot", "knee_shot", "full_shot", "long_shot", "extreme_long_shot"], "defaultImportance": "preferred" },
+        { "path": "camera.framing.crop.keepHead", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.framing.crop.keepHands", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.framing.crop.keepBothFeet", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.framing.crop.keepProduct", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.framing.crop.keepSignatureProp", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
+        { "path": "camera.view.elevation", "valueKind": "enum", "cardinality": "one", "allowedValues": ["eye_level", "low_angle", "high_angle", "birds_eye"], "defaultImportance": "preferred" }, { "path": "camera.view.relationship", "valueKind": "enum", "cardinality": "one", "allowedValues": ["front", "three_quarter", "profile", "rear", "over_the_shoulder"], "defaultImportance": "preferred" }, { "path": "camera.roll.mode", "valueKind": "enum", "cardinality": "one", "allowedValues": ["level", "dutch_left", "dutch_right"], "defaultImportance": "preferred" }, { "path": "camera.lens.focalLengthClass", "valueKind": "enum", "cardinality": "one", "allowedValues": ["ultra_wide", "wide", "normal", "telephoto", "super_telephoto"], "defaultImportance": "preferred" }, { "path": "camera.lens.perspective", "valueKind": "enum", "cardinality": "one", "allowedValues": ["expanded", "natural", "compressed"], "defaultImportance": "preferred" },
+        { "path": "camera.composition.patterns.centeredSymmetry", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.patterns.ruleOfThirds", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.patterns.leadingLines", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.patterns.diagonal", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.patterns.sCurve", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.patterns.triangle", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
+        { "path": "camera.composition.placement", "valueKind": "enum", "cardinality": "one", "allowedValues": ["center", "left_third", "right_third", "upper_third", "lower_third"], "defaultImportance": "preferred" }, { "path": "camera.composition.negativeSpace", "valueKind": "enum", "cardinality": "one", "allowedValues": ["none", "left", "right", "above", "below", "surrounding"], "defaultImportance": "preferred" }, { "path": "camera.composition.leadingRoom.enabled", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.leadingRoom.direction", "valueKind": "enum", "cardinality": "one", "allowedValues": ["left", "right", "forward", "up", "down"], "defaultImportance": "preferred" },
+        { "path": "camera.composition.foregroundTreatment", "valueKind": "enum", "cardinality": "one", "allowedValues": ["clear", "soft_obstruction", "strong_obstruction"], "defaultImportance": "preferred" }, { "path": "camera.composition.framingDevices.frameWithinFrame", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.framingDevices.environmentalPortrait", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.reflection.enabled", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.reflection.surface", "valueKind": "enum", "cardinality": "one", "allowedValues": ["mirror", "glass", "water", "screen", "polished_surface"], "defaultImportance": "preferred" }, { "path": "camera.composition.reflection.role", "valueKind": "enum", "cardinality": "one", "allowedValues": ["supporting", "co_primary", "primary"], "defaultImportance": "preferred" }, { "path": "camera.composition.environmentRelationship", "valueKind": "enum", "cardinality": "one", "allowedValues": ["isolated", "contextual", "environment_dominant"], "defaultImportance": "preferred" }, { "path": "lighting.subjectRendering", "valueKind": "enum", "cardinality": "one", "allowedValues": ["natural", "silhouette"], "defaultImportance": "preferred" }
+      ] }
     ],
     "rulePacks": [
       {
         "id": "cosplay.rules",
         "namespace": "voce.fixture.cosplay",
         "rules": [
-          { "id": "cosplay-hard-identity", "kind": "incompatibility", "leftPaths": ["person.identity"], "rightPaths": ["face.coverage"], "rightTokens": ["full_face"], "importance": "hard", "code": "COSPLAY_HARD_IDENTITY", "reasonCode": "COSPLAY_HARD_IDENTITY", "message": "Identity preservation and full-face coverage require an explicit hard block." },
-          { "id": "cosplay-required-costume", "kind": "incompatibility", "leftPaths": ["person.identity"], "rightPaths": ["character.costume", "wardrobe.costume"], "rightTokens": ["costume"], "importance": "required", "code": "COSPLAY_REQUIRED_COSTUME", "reasonCode": "COSPLAY_REQUIRED_COSTUME", "message": "Identity preservation and the costume requirement need an explicit waiver or block." },
-          { "id": "cosplay-preferred-wig", "kind": "incompatibility", "leftPaths": ["person.identity"], "rightPaths": ["character.hair", "hair.style"], "rightTokens": ["wig"], "importance": "preferred", "code": "COSPLAY_PREFERRED_WIG", "reasonCode": "COSPLAY_PREFERRED_WIG", "message": "A preferred wig request may be degraded deterministically when it conflicts with identity." },
-          { "id": "cosplay-no-last-wins", "kind": "resource", "leftPaths": ["accessories.hand"], "rightPaths": ["character.signatureProps.primary.handAssignment", "props"], "rightTokens": ["held", "left", "right", "two_hands"], "importance": "required", "resourceId": "hand", "code": "COSPLAY_NO_LAST_WINS", "reasonCode": "COSPLAY_NO_LAST_WINS", "message": "Hand resource conflicts remain explicit; neither side silently wins." },
-          { "id": "cosplay-prop-detail-requires-primary", "kind": "dependency", "leftPaths": ["character.signatureProps.primary.signatureDetails"], "rightPaths": ["character.signatureProps.primary.type", "character.signatureProps.primary.silhouette"], "importance": "required", "dependencyKind": "parent_detail", "code": "COSPLAY_PROP_DETAIL_REQUIRES_PRIMARY", "reasonCode": "COSPLAY_PROP_DETAIL_REQUIRES_PRIMARY", "message": "Signature details depend on an identified prop type and primary silhouette." }
-        ]
-      }
+          { "id": "visual-composition-leading-room-direction", "kind": "dependency", "operands": [{ "id": "leading-room", "conditions": [{ "path": "camera.composition.leadingRoom.enabled", "operator": "equals", "value": true }] }, { "id": "direction", "conditions": [{ "path": "camera.composition.leadingRoom.direction", "operator": "present" }] }], "resolution": { "strategy": "degrade_operand", "operandId": "leading-room", "reasonCode": "LEADING_ROOM_DIRECTION_REQUIRED" }, "importance": "preferred", "dependencyKind": "requires", "explanation": "Leading room requires an explicit direction." },
+          { "id": "visual-composition-reflection-surface", "kind": "dependency", "operands": [{ "id": "reflection", "conditions": [{ "path": "camera.composition.reflection.enabled", "operator": "equals", "value": true }] }, { "id": "surface", "conditions": [{ "path": "camera.composition.reflection.surface", "operator": "present" }] }], "resolution": { "strategy": "degrade_operand", "operandId": "reflection", "reasonCode": "REFLECTION_SURFACE_REQUIRED" }, "importance": "preferred", "dependencyKind": "requires", "explanation": "Reflection composition requires an explicit reflective surface." },
+          { "id": "cosplay-hard-identity", "kind": "incompatibility", "operands": [{ "id": "identity", "conditions": [{ "path": "person.identity", "operator": "present" }] }, { "id": "face", "conditions": [{ "path": "face.coverage", "operator": "contains", "value": "full_face" }] }], "resolution": { "strategy": "block", "reasonCode": "COSPLAY_HARD_IDENTITY" }, "importance": "hard", "code": "COSPLAY_HARD_IDENTITY", "explanation": "Identity preservation and full-face coverage require an explicit hard block." },
+          { "id": "cosplay-required-costume-character", "kind": "incompatibility", "operands": [{ "id": "identity", "conditions": [{ "path": "person.identity", "operator": "present" }] }, { "id": "costume", "conditions": [{ "path": "character.costume", "operator": "contains", "value": "costume" }] }], "resolution": { "strategy": "block", "reasonCode": "COSPLAY_REQUIRED_COSTUME" }, "importance": "required", "code": "COSPLAY_REQUIRED_COSTUME", "explanation": "Identity preservation and the costume requirement need an explicit waiver or block." },
+          { "id": "cosplay-required-costume-wardrobe", "kind": "incompatibility", "operands": [{ "id": "identity", "conditions": [{ "path": "person.identity", "operator": "present" }] }, { "id": "costume", "conditions": [{ "path": "wardrobe.costume", "operator": "contains", "value": "costume" }] }], "resolution": { "strategy": "block", "reasonCode": "COSPLAY_REQUIRED_COSTUME" }, "importance": "required", "code": "COSPLAY_REQUIRED_COSTUME", "explanation": "Identity preservation and the costume requirement need an explicit waiver or block." },
+          { "id": "cosplay-preferred-wig", "kind": "incompatibility", "operands": [{ "id": "identity", "conditions": [{ "path": "person.identity", "operator": "present" }] }, { "id": "wig", "conditions": [{ "path": "hair.style", "operator": "contains", "value": "wig" }] }], "resolution": { "strategy": "degrade_operand", "operandId": "wig", "reasonCode": "COSPLAY_PREFERRED_WIG" }, "importance": "preferred", "code": "COSPLAY_PREFERRED_WIG", "explanation": "A preferred wig request may be degraded deterministically when it conflicts with identity." },
+          { "id": "cosplay-no-last-wins", "kind": "resource", "operands": [{ "id": "hand-accessory", "conditions": [{ "path": "accessories.hand", "operator": "present" }] }, { "id": "held-prop", "conditions": [{ "path": "character.signatureProps.primary.handAssignment", "operator": "contains", "value": "held" }] }], "resolution": { "strategy": "block", "reasonCode": "COSPLAY_NO_LAST_WINS" }, "importance": "required", "resourceId": "hand", "code": "COSPLAY_NO_LAST_WINS", "explanation": "Hand resource conflicts remain explicit; neither side silently wins." },
+          { "id": "cosplay-prop-detail-requires-primary", "kind": "dependency", "operands": [{ "id": "details", "conditions": [{ "path": "character.signatureProps.primary.signatureDetails", "operator": "present" }] }, { "id": "type", "conditions": [{ "path": "character.signatureProps.primary.type", "operator": "present" }] }, { "id": "silhouette", "conditions": [{ "path": "character.signatureProps.primary.silhouette", "operator": "present" }] }], "resolution": { "strategy": "block", "reasonCode": "COSPLAY_PROP_DETAIL_REQUIRES_PRIMARY" }, "importance": "required", "dependencyKind": "parent_detail", "code": "COSPLAY_PROP_DETAIL_REQUIRES_PRIMARY", "explanation": "Signature details depend on an identified prop type and primary silhouette." }
+         ]
+       }
     ],
     "interpretationScopes": [
       {
@@ -82,22 +93,17 @@
     "promptSections": [
       {
         "id": "cosplay.prompt.character-fidelity",
-        "requiredPaths": [
-          "person.identity",
-          "character.hair",
-          "character.makeup",
-          "character.costume",
-          "character.accessories",
-          "character.signatureProps.primary.type",
-          "character.signatureProps.primary.silhouette",
-          "character.signatureProps.primary.proportion",
-          "character.signatureProps.primary.colorScheme",
-          "character.signatureProps.primary.signatureDetails",
-          "character.signatureProps.primary.handAssignment",
-          "character.signatureProps.primary.visibility"
-        ],
+        "sections": [{
+          "id": "subject-and-product-fidelity",
+          "group": "subject-and-product-fidelity",
+          "order": 1,
+          "pathPrefixes": ["person", "character"],
+          "requiredPaths": ["person.identity", "character.hair", "character.makeup", "character.costume", "character.accessories", "character.signatureProps.primary.type", "character.signatureProps.primary.silhouette", "character.signatureProps.primary.proportion", "character.signatureProps.primary.colorScheme", "character.signatureProps.primary.signatureDetails", "character.signatureProps.primary.handAssignment", "character.signatureProps.primary.visibility"],
+           "templateKey": "composition.subject-and-product-fidelity"
+         }, { "id": "pose-and-object-relations", "group": "pose-and-object-relations", "order": 2, "pathPrefixes": ["pose", "prop", "object"], "templateKey": "composition.pose-and-object-relations" }, { "id": "composition-shot-and-crop", "group": "composition-shot-and-crop", "order": 3, "pathPrefixes": ["camera.framing"], "templateKey": "composition.composition-shot-and-crop" }, { "id": "composition-view-and-roll", "group": "composition-view-and-roll", "order": 4, "pathPrefixes": ["camera.view", "camera.roll"], "templateKey": "composition.composition-view-and-roll" }, { "id": "composition-layout-and-space", "group": "composition-layout-and-space", "order": 5, "pathPrefixes": ["camera.composition.patterns", "camera.composition.placement", "camera.composition.negativeSpace", "camera.composition.leadingRoom"], "templateKey": "composition.composition-layout-and-space" }, { "id": "composition-depth-framing-and-reflection", "group": "composition-depth-framing-and-reflection", "order": 6, "pathPrefixes": ["camera.composition.foregroundTreatment", "camera.composition.framingDevices", "camera.composition.reflection"], "templateKey": "composition.composition-depth-framing-and-reflection" }, { "id": "composition-lens-and-environment", "group": "composition-lens-and-environment", "order": 7, "pathPrefixes": ["camera.lens", "camera.composition.environmentRelationship"], "templateKey": "composition.composition-lens-and-environment" }, { "id": "forbidden-and-output", "group": "forbidden-and-output", "order": 8, "pathPrefixes": ["output"], "templateKey": "composition.forbidden-and-output" }
+         ],
         "prohibitedInheritance": ["character-design:person.identity", "person-identity:character.costume", "person-identity:character.signatureProps"]
-      }
+       }
     ],
     "reviewTemplates": [
       {
