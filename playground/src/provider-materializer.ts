@@ -97,14 +97,14 @@ function asJson(value: unknown): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue
 }
 
-function materializerDigest(id: string, version: string, profile: ProviderCapabilityProfile): string {
-  return sha256({ id, version, profileId: profile.id, profileDigest: profile.profileHash } as unknown as JsonValue)
+function materializerDigest(id: string, version: string, profile: ProviderCapabilityProfile & { playgroundProfileDigest?: string }): string {
+  return sha256({ id, version, profileId: profile.id, profileDigest: profile.playgroundProfileDigest ?? profile.profileHash } as unknown as JsonValue)
 }
 
 class AcceptedRequestMaterializer implements ProviderRequestMaterializer {
   readonly digest: string
 
-  constructor(readonly id: string, readonly version: string, private readonly profile: ProviderCapabilityProfile) {
+  constructor(readonly id: string, readonly version: string, private readonly profile: ProviderCapabilityProfile & { playgroundProfileDigest?: string }) {
     this.digest = materializerDigest(id, version, profile)
   }
 
@@ -169,7 +169,7 @@ class AcceptedRequestMaterializer implements ProviderRequestMaterializer {
   }
 }
 
-export function createProviderRequestMaterializer(id: string, version: string, profile: ProviderCapabilityProfile): ProviderRequestMaterializer {
+export function createProviderRequestMaterializer(id: string, version: string, profile: ProviderCapabilityProfile & { playgroundProfileDigest?: string }): ProviderRequestMaterializer {
   if (!id || !version) throw new Error('MATERIALIZER_ID_INVALID')
   return new AcceptedRequestMaterializer(id, version, profile)
 }

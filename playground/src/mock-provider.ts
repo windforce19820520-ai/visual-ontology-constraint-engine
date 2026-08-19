@@ -8,6 +8,7 @@ import { preflightProviderCapability } from './providers.js'
 export interface PlaygroundPlanBinding {
   schemaVersion: 'voce.playground-plan-binding/v1alpha1'
   requestHash: string
+  generationRequestHash: string
   assetSetHash: string
   scenarioDistributionHash: string
   adapterId: string
@@ -112,17 +113,19 @@ export function createPlaygroundPlanBinding(input: {
   profile: PlaygroundProviderProfile
   materializer: ProviderRequestMaterializer
   credentialMode: CredentialMode
+  generationRequestHash?: string
 }): PlaygroundPlanBinding {
   if (computeProviderRenderRequestHash(input.request) !== input.request.requestHash) throw new Error('PLAN_BINDING_REQUEST_HASH_INVALID')
   const base: Omit<PlaygroundPlanBinding, 'bindingHash'> = {
     schemaVersion: 'voce.playground-plan-binding/v1alpha1',
     requestHash: input.request.requestHash,
+    generationRequestHash: input.generationRequestHash ?? input.request.requestHash,
     assetSetHash: computeAssetSetHash(input.assets),
     scenarioDistributionHash: input.scenarioDistributionHash,
     adapterId: input.profile.adapterId,
     adapterDigest: input.profile.adapterDigest!,
     profileId: input.profile.id,
-    profileDigest: input.profile.profileHash,
+    profileDigest: input.profile.playgroundProfileDigest,
     materializerId: input.materializer.id,
     materializerDigest: input.materializer.digest,
     credentialMode: input.credentialMode,
@@ -153,7 +156,7 @@ export class MockProvider {
     }
     let reservation
     try {
-      reservation = input.budgetGate?.reserve(input.clientId, input.profile)
+      reservation = input.budgetGate?.reserve(input.clientId, input.profile, capability.estimatedCost)
     } catch (error) {
       const code = error instanceof Error ? error.message : 'BUDGET_BLOCKED'
       logs.push(safeLog({ event: 'mock.budget', requestHash: input.request.requestHash, profileId: input.profile.id, status: 'blocked', code }))

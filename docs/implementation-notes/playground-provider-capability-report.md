@@ -31,7 +31,7 @@ Seedream 4.0 是当前满足 Playground 多参考路径的候选：官方接口�
 | 项目 | 官方核验结果 | Playground 处理 |
 | --- | --- | --- |
 | 输入 | Imagine overview 的 image editing 支持最多 3 张参考图；官方模型页列图像输入最大 20 MiB、JPEG/PNG | `maximumReferenceCount=3`、每图 20 MiB、JPEG/PNG；4/5 图路径明确阻断 |
-| 输出/价格 | 官方模型页：输入图 0.002 USD/张，1K/2K 输出 0.02 USD/张；quality profile 官方 pricing 页为 1K 0.05 USD、2K 0.07 USD | 当前 profile 选 `grok-imagine-image-quality`，按 0.05 USD/张估算，固定单图；实际 resolution 选择仍需产品批准 |
+| 输出/价格 | 当前 quality profile 官方 pricing 页列输入图 0.01 USD/张、1K 输出 0.05 USD、2K 输出 0.07 USD | 当前 profile 逐张计输入费用并按输出尺寸选择 1K/2K 输出价；例如 3 张输入加 1K 输出估算 0.08 USD。固定单图，实际账单以 Provider 为准 |
 | 鉴权 | `Authorization: Bearer $XAI_API_KEY`；官方 quickstart 要求 API key | 只允许 `user_ephemeral`，不得写入磁盘、Cookie、localStorage、sessionStorage、analytics 或日志；不发起额外验证请求 |
 | 引用传输 | 官方编辑 API 支持 public URL 或 Base64；Files API 可用私有 `file_id` | Host 不要求公开输入 URL；当前真实 transport 关闭 |
 | 隐私/留存 | xAI 官方 Security FAQ：默认 API 请求和响应加密留存 30 天用于滥用审计；不以这些数据训练；团队级 ZDR 可关闭内容留存但会禁用依赖存储的功能 | 不宣称默认零留存；如果未来启用，部署前必须确认团队 ZDR/条款及文件能力 |
@@ -47,4 +47,4 @@ Seedream 4.0 是当前满足 Playground 多参考路径的候选：官方接口�
 
 ## 代码边界
 
-本阶段只实现 allow-listed capability profiles、机械 materializer bridge、BYOK 请求级边界、mock transport 和 preflight。Seedream 与 Grok 的真实网络 transport 默认关闭；没有注入真实 secret、没有真实或付费 Provider 调用、没有公网部署。任何真实调用、secret 注入、公开部署或超过披露预算的动作都需要用户再次明确批准。
+本阶段实现 allow-listed capability profiles、完整 profile digest、机械 materializer、Seedream/Grok provider-call bridge、BYOK 请求级边界、Mock transport、能力/尺寸/媒体 preflight，以及按币种、自然日、客户端和 Provider 速率限制的预算门。Seedream 与 Grok 的网络 transport 仍默认不存在，必须由部署 Host 显式注入；没有注入真实 secret、没有真实或付费 Provider 调用、没有公网部署。任何真实调用、secret 注入、公开部署或超过披露预算的动作都需要用户再次明确批准。
