@@ -9,7 +9,7 @@
     "start": "node dist/server-entry.js"
   },
   "dependencies": {
-    "@voce-engine/contracts": "0.1.0-rc.5",
-    "@voce-engine/core": "0.1.0-rc.5"
+    "@voce-engine/contracts": "workspace:*",
+    "@voce-engine/core": "workspace:*"
   }
 }

@@ -15,6 +15,15 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
+  playground:
+    dependencies:
+      '@voce-engine/contracts':
+        specifier: workspace:*
+        version: link:../packages/contracts
+      '@voce-engine/core':
+        specifier: workspace:*
+        version: link:../packages/core
+
   packages/cli:
     dependencies:
       '@voce-engine/contracts':

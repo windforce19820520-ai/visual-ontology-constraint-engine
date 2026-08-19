@@ -13,6 +13,8 @@ Open `http://127.0.0.1:4173/playground`.
 
 Rendering is disabled by default. For local Mock-only generation, set `PLAYGROUND_ENABLE_MOCK_RENDER=1` before starting. Real transports cannot be enabled by an environment flag: the deployment Host must explicitly inject an allow-listed `PlaygroundProviderTransport` for the matching Provider. That separate deployment step owns HTTPS and wire-level Provider handling.
 
+The private source workspace uses `workspace:*` so CI tests the Playground against the exact Core and Contracts checkout in the same commit. A separately deployed Playground must replace those development links with the exact published RC version required by the design before real generation is enabled.
+
 Public routes:
 
 - `GET /api/meta`

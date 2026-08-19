@@ -28,7 +28,7 @@
     "rc4:composition:prepare": "node scripts/m9-seedream-smoke.mjs --composition-acceptance --prepare-assets-only",
     "rc4:composition:acceptance": "node scripts/m9-seedream-smoke.mjs --composition-acceptance"
   },
-  "workspaces": ["packages/*"],
+  "workspaces": ["packages/*", "playground"],
   "devDependencies": { "typescript": "^5.6.3", "@types/node": "^22.0.0" },
   "license": "Apache-2.0"
 }
