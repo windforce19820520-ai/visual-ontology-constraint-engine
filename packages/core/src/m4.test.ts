@@ -314,6 +314,11 @@ test('compiler output is stable under insertion-order changes and defensive copi
   assert.equal(compile([intent('a', 'preserve', 'product.shape', 'required', 'round'), intent('b', 'create', 'environment.background', 'preferred', 'gray')]).deterministicSignature, hash)
 })
 
+test('legacy reference candidate hash is unchanged when isolation fields are absent', () => {
+  const legacy: ReferenceCandidate = { schemaVersion: 'voce.reference-candidate/v1alpha1', id: 'legacy-reference', assetId: 'legacy-asset', contentHash: sha256({ asset: 'legacy-asset' }) }
+  assert.equal(computeReferenceCandidateHash(legacy), sha256({ schemaVersion: legacy.schemaVersion, id: legacy.id, assetId: legacy.assetId, contentHash: legacy.contentHash, ontologyScopes: [], constraintIds: [], sourceBindingIds: [], goalIds: [] }))
+})
+
 test('reference plan counts one asset once while retaining multiple scopes', () => {
   const same = candidate('shared', 'required', 200_000)
   same.ontologyScopes = ['person.identity', 'person.hair', 'wardrobe.top']
@@ -323,6 +328,25 @@ test('reference plan counts one asset once while retaining multiple scopes', () 
   assert.equal(plan.selected.length, 1)
   assert.equal(plan.budget.usedReferenceCount, 1)
   assert.deepEqual(plan.selected[0].ontologyScopes, ['person.hair', 'person.identity', 'wardrobe.top'])
+})
+
+test('same content with mutually isolated scopes blocks instead of merging contradictory mappings', () => {
+  const identity = candidate('identity-reference', 'hard', 200_000)
+  identity.ontologyScopes = ['person.identity']
+  identity.prohibitedTargetPaths = ['character.costume']
+  identity.prohibitedTargetPathImportance = { 'character.costume': 'hard' }
+  identity.candidateHash = computeReferenceCandidateHash(identity)
+  const character = candidate('character-reference', 'required', 200_000)
+  character.contentHash = identity.contentHash
+  character.artifact = { ...character.artifact!, contentHash: identity.contentHash }
+  character.ontologyScopes = ['character.costume']
+  character.prohibitedTargetPaths = ['person.identity']
+  character.prohibitedTargetPathImportance = { 'person.identity': 'hard' }
+  character.candidateHash = computeReferenceCandidateHash(character)
+  const plan = refPlan(MOCK_IMAGE_PROFILE, [identity, character])
+  assert.equal(plan.status, 'blocked')
+  assert.equal(plan.blockedReferences.length, 2)
+  assert.ok(plan.blockedReferences.every((item) => item.reasonCode === 'REFERENCE_ISOLATION_CONFLICT'))
 })
 
 test('required parent/detail dependencies are retained together or block together', () => {

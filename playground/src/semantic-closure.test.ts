@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { ConstraintIR, ReferenceCandidate } from '@voce-engine/contracts'
-import { MOCK_LIMITED_REFERENCE_PROFILE, sha256, planReferences } from '@voce-engine/core'
+import { MOCK_IMAGE_PROFILE, MOCK_LIMITED_REFERENCE_PROFILE, computeProviderCapabilityProfileHash, sha256, planReferences } from '@voce-engine/core'
 import { bindReferenceCandidates, compileScenarioInput, compileSemanticClosure } from './semantic-closure.js'
 import { scenarioDistribution } from './scenario-distribution.js'
 import type { PlaygroundAssetDeclaration, PlaygroundScenarioInput } from './semantic-closure.js'
@@ -42,6 +42,7 @@ test('Try-On optional pose becomes a fifth planned reference and only contribute
   const pose = result.providerRenderRequest.referenceMappings.find((mapping) => mapping.role === 'pose')
   assert.ok(pose)
   assert.deepEqual(pose.prohibitedTargetPaths, ['environment.background', 'person.identity', 'style', 'wardrobe.footwear', 'wardrobe.garment', 'wardrobe.wearingEffect'])
+  assert.deepEqual(pose.prohibitedTargetPathImportance, Object.fromEntries(pose.prohibitedTargetPaths!.map((path) => [path, 'hard'])))
   assert.equal(result.referencePlan.ordered.length, 5)
 })
 
@@ -60,7 +61,10 @@ test('character reference never receives person.identity constraint links', () =
 test('reference isolation remains in PromptIR, Prompt Guard, and accepted request', () => {
   const result = compileSemanticClosure(input('cosplay', [...cosplayRoles, { assetId: 'pose', role: 'pose' }]))
   const poseMapping = result.providerRenderRequest.referenceMappings.find((mapping) => mapping.role === 'pose')!
-  assert.ok(result.promptIR.forbidden.some((item) => item.text.includes('environment.background')))
+  assert.ok(result.promptIR.forbidden.some((item) => item.text.includes('environment.background') && item.importance === 'hard'))
+  const poseProhibitions = result.promptIR.forbidden.filter((item) => item.text.startsWith(`Reference ${poseMapping.label} `))
+  assert.equal(poseProhibitions.length, poseMapping.prohibitedTargetPaths!.length)
+  assert.ok(poseProhibitions.every((item) => item.importance === 'hard'))
   assert.ok(result.guardResult.guardedCandidate?.referenceMappings.some((mapping) => mapping.role === 'pose' && (mapping.prohibitedTargetPaths ?? []).includes('person.identity')))
   assert.ok((poseMapping.prohibitedTargetPaths ?? []).includes('style'))
   assert.ok((result.providerRenderRequest.forbidden ?? []).length >= result.promptIR.forbidden.length)
@@ -79,17 +83,22 @@ test('binder links only constraints whose sourceIds contain exact supporting int
   }
 })
 
-test('M4 merged constraints are bound by the actual surviving constraint ID', () => {
-  const result = compileSemanticClosure(input('cosplay', cosplayRoles, [{ presetId: 'medium-shot' }, { presetId: 'medium-shot' }]))
-  const merged = result.constraintIR.constraints.filter((constraint) => constraint.targetPath === 'camera.framing.shotScale')
+test('M4 merged constraints from distinct presets bind both unique supporting intents', () => {
+  const result = compileSemanticClosure(input('cosplay', cosplayRoles, [{ presetId: 'reflection-composition', inputs: { surface: 'mirror' } }, { presetId: 'mirror-composition' }]))
+  const merged = result.constraintIR.constraints.filter((constraint) => constraint.targetPath === 'camera.composition.reflection.enabled')
   assert.equal(merged.length, 1)
-  const supportingIntentIds = result.seed.changeIntents.filter((intent) => intent.targetPath === 'camera.framing.shotScale').map((intent) => intent.id)
+  const supportingIntentIds = result.seed.changeIntents.filter((intent) => intent.targetPath === 'camera.composition.reflection.enabled').map((intent) => intent.id)
   assert.equal(supportingIntentIds.length, 2)
+  assert.equal(new Set(supportingIntentIds).size, 2)
   assert.ok(supportingIntentIds.every((id) => merged[0].sourceIds.includes(id)))
   const seed = result.seed.referenceCandidateSeeds[0]
-  const syntheticSeed = { ...seed, id: 'composition-reference-seed', role: 'composition-reference', authorizedTargetPaths: ['camera.framing.shotScale'], ontologyScopes: ['camera.framing.shotScale'], supportingIntentIds }
+  const syntheticSeed = { ...seed, id: 'composition-reference-seed', role: 'composition-reference', authorizedTargetPaths: ['camera.composition.reflection.enabled'], ontologyScopes: ['camera.composition.reflection.enabled'], supportingIntentIds }
   const binding = bindReferenceCandidates({ seeds: [syntheticSeed], dependencySeeds: [], constraintIR: result.constraintIR })
   assert.deepEqual(binding.candidates[0].constraintIds, [merged[0].id])
+})
+
+test('duplicate composition preset selections fail before compilation', () => {
+  assert.throws(() => compileScenarioInput(input('cosplay', cosplayRoles, [{ presetId: 'medium-shot' }, { presetId: 'medium-shot' }])), /PLAYGROUND_COMPOSITION_SELECTION_DUPLICATE:medium-shot/)
 })
 
 test('preferred seed omits when no active or satisfied constraint survives, required seed blocks', () => {
@@ -110,6 +119,22 @@ test('reference budget keeps required references and blocks when the profile can
   const limited = planReferences({ schemaVersion: 'voce.reference-planning-input/v1alpha1', caseId: result.constraintIR.caseId, caseRevision: result.constraintIR.caseRevision, contextHash: result.constraintIR.contextHash, constraintIR: result.constraintIR, candidates: [...result.binding.candidates], dependencies: [], profile: MOCK_LIMITED_REFERENCE_PROFILE })
   assert.equal(limited.status, 'blocked')
   assert.ok(limited.blockedReferences.length >= 1)
+})
+
+test('Cosplay budget of three keeps identity, character, and prop while omitting pose', () => {
+  const limited = { ...MOCK_IMAGE_PROFILE, maximumReferenceCount: 3, referenceLimits: { ...(MOCK_IMAGE_PROFILE.referenceLimits ?? {}), maximumReferenceCount: 3 } }
+  limited.profileHash = computeProviderCapabilityProfileHash(limited)
+  const result = compileSemanticClosure(input('cosplay', [...cosplayRoles, { assetId: 'prop', role: 'signature-prop-detail' }, { assetId: 'pose', role: 'pose' }]), limited)
+  assert.deepEqual(result.referencePlan.ordered.map((item) => item.role).sort(), ['character-design', 'person-identity', 'signature-prop-detail'])
+  const poseSeed = result.seed.referenceCandidateSeeds.find((seed) => seed.role === 'pose')!
+  assert.ok(result.referencePlan.omitted.some((item) => item.candidateId === poseSeed.id && item.reasonCode === 'REFERENCE_COUNT_EXCEEDED'))
+})
+
+test('same bytes cannot be planned as mutually isolated person and character references', () => {
+  const sharedContentHash = sha256({ asset: 'shared-person-character' })
+  const scenarioInput = input('cosplay', cosplayRoles)
+  scenarioInput.assets = scenarioInput.assets.map((item) => ({ ...item, contentHash: sharedContentHash }))
+  assert.throws(() => compileSemanticClosure(scenarioInput), /PLAYGROUND_REFERENCE_PLAN_BLOCKED:REFERENCE_ISOLATION_CONFLICT/)
 })
 
 test('preferred close-up is degraded when required medium-shot owns the one-path cardinality', () => {
@@ -154,6 +179,10 @@ test('Playground semantic closure uses public package exports only', async () =>
   assert.ok(Object.isFrozen(distribution.effectiveScenario))
   assert.ok(Object.isFrozen(distribution.roles[0]))
   const posePolicy = distribution.roles.find((role) => role.role === 'pose')!
+  const poseScope = distribution.effectiveScenario.interpretationScopes.find((scope) => scope.assetRole === 'pose')!
+  assert.equal(posePolicy.minCount, poseScope.minCount)
+  assert.equal(posePolicy.maxCount, poseScope.maxCount)
+  assert.ok(posePolicy.id.endsWith(`:${poseScope.contributionId}`))
   assert.ok(posePolicy.targets.some((target) => target.targetPath === 'pose' && target.operation === 'adjust'))
   assert.ok(posePolicy.displayOnlyNonContributions.some((text) => text.includes('person identity')))
   const source = await readFile(new URL('../src/semantic-closure.ts', import.meta.url), 'utf8')

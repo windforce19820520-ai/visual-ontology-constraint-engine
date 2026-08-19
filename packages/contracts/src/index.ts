@@ -354,6 +354,8 @@ export interface ReferenceCandidate {
   ontologyScopes?: string[]
   /** ScenarioPack-derived paths this reference is explicitly forbidden to contribute. */
   prohibitedTargetPaths?: string[]
+  /** Importance for every prohibitedTargetPaths entry; keys must match exactly. */
+  prohibitedTargetPathImportance?: Record<string, Importance>
   importance?: Importance
   constraintIds?: string[]
   sourceBindingIds?: string[]
@@ -385,6 +387,8 @@ export interface PlannedReference {
   ontologyScopes: string[]
   /** Guard-protected source isolation carried through the reference plan. */
   prohibitedTargetPaths?: string[]
+  /** ScenarioPack-derived isolation importance keyed by prohibited target path. */
+  prohibitedTargetPathImportance?: Record<string, Importance>
   constraintIds: string[]
   sourceBindingIds: string[]
   dependencyIds: string[]
@@ -879,6 +883,8 @@ export interface PromptReferenceMapping {
   role: string
   /** Guard-protected source isolation for generic multi-reference providers. */
   prohibitedTargetPaths?: string[]
+  /** Accepted isolation importance keyed by prohibited target path. */
+  prohibitedTargetPathImportance?: Record<string, Importance>
   order: number
   required: boolean
   constraintIds: string[]

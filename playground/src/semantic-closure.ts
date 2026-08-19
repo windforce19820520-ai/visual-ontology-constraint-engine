@@ -81,6 +81,7 @@ export interface ReferenceCandidateSeed {
   ontologyScopes: readonly string[]
   authorizedTargetPaths: readonly string[]
   prohibitedTargetPaths: readonly string[]
+  prohibitedTargetPathImportance: Readonly<Record<string, Importance>>
   supportingIntentIds: readonly string[]
   seedHash: string
 }
@@ -235,16 +236,20 @@ export function compileScenarioInput(input: PlaygroundScenarioInput): ScenarioCo
     const seedId = stableId('candidate-seed', { scenarioId: input.scenarioId, assetId: asset.id, role: declaration.role, order: declaration.order ?? 0 })
     const authorizedTargetPaths = sortedStrings(policy.authorizedTargetPaths)
     const prohibitedTargetPaths = sortedStrings(policy.prohibitedTargetPaths)
+    const prohibitedTargetPathImportance = Object.fromEntries(Object.entries(policy.prohibitedTargetPathImportance).sort(([left], [right]) => compareCodeUnits(left, right)))
     const supportingIntentIds: string[] = []
     for (const target of policy.targets) {
       const intentId = stableId('declared-intent', { seedId, targetPath: target.targetPath, operation: target.operation, importance: target.importance })
       supportingIntentIds.push(intentId)
       changeIntents.push({ schemaVersion: 'voce.change-intent/v1alpha1', id: intentId, operation: target.operation, targetPath: target.targetPath, sourceHintIds: sortedStrings([asset.id, policy.id, seedId]), importance: target.importance, provenance: { source: 'user_explicit', sourceIds: sortedStrings([asset.id, policy.id, seedId]), createdBy: 'voce-playground-scenario-input', createdAt: FIXED_TIME } })
     }
-    const seedBase = { schemaVersion: 'voce.playground-reference-candidate-seed/v1alpha1' as const, id: seedId, assetId: asset.id, artifact: asset, role: declaration.role, orderKey: `${declaration.role}|${String(declaration.order ?? 0).padStart(4, '0')}|${asset.id}`, importance: inferredImportance(policy), ontologyScopes: authorizedTargetPaths, authorizedTargetPaths, prohibitedTargetPaths, supportingIntentIds: sortedStrings(supportingIntentIds) }
+    const seedBase = { schemaVersion: 'voce.playground-reference-candidate-seed/v1alpha1' as const, id: seedId, assetId: asset.id, artifact: asset, role: declaration.role, orderKey: `${declaration.role}|${String(declaration.order ?? 0).padStart(4, '0')}|${asset.id}`, importance: inferredImportance(policy), ontologyScopes: authorizedTargetPaths, authorizedTargetPaths, prohibitedTargetPaths, prohibitedTargetPathImportance, supportingIntentIds: sortedStrings(supportingIntentIds) }
     referenceCandidateSeeds.push({ ...seedBase, seedHash: sha256(JSON.parse(JSON.stringify(seedBase)) as JsonValue) })
   }
-  const compositionIntents = (input.compositionSelections ?? []).flatMap((selection) => expandVisualCompositionPreset(selection.presetId, { inputs: selection.inputs as Record<string, JsonValue> | undefined, sourceHintIds: [`playground-composition:${input.scenarioId}:${selection.presetId}`] }).map((intent) => ({ ...intent, importance: selection.importance ?? intent.importance })))
+  const compositionSelections = input.compositionSelections ?? []
+  const duplicatePresetIds = sortedStrings(compositionSelections.map((selection) => selection.presetId)).filter((presetId) => compositionSelections.filter((selection) => selection.presetId === presetId).length > 1)
+  if (duplicatePresetIds.length) throw new Error(`PLAYGROUND_COMPOSITION_SELECTION_DUPLICATE:${duplicatePresetIds.join(',')}`)
+  const compositionIntents = compositionSelections.flatMap((selection) => expandVisualCompositionPreset(selection.presetId, { inputs: selection.inputs as Record<string, JsonValue> | undefined, sourceHintIds: [`playground-composition:${input.scenarioId}:${selection.presetId}`] }).map((intent) => ({ ...intent, importance: selection.importance ?? intent.importance })))
   changeIntents.push(...compositionIntents)
   const roles = [...policies.values()].sort((left, right) => compareCodeUnits(left.role, right.role)).map((policy) => ({ role: policy.role, policyDigest: policy.policyDigest, declaredAssetIds: sortedStrings((assetsByRole.get(policy.role) ?? []).map((item) => item.assetId)) }))
   const rolePlanBase = { scenarioId: input.scenarioId, distributionHash: distribution.distributionHash, roles }
@@ -275,7 +280,7 @@ export function bindReferenceCandidates(input: { seeds: readonly ReferenceCandid
     }
     const constraintIds = sortedStrings(matched.map((constraint) => constraint.id))
     const goalIds = sortedStrings(matched.flatMap((constraint) => constraint.goalIds))
-    const base = { schemaVersion: 'voce.reference-candidate/v1alpha1' as const, id: seed.id, assetId: seed.assetId, artifact: clone(seed.artifact), contentHash: seed.artifact.contentHash, mediaType: seed.artifact.mediaType, byteLength: seed.artifact.byteLength, role: seed.role, ontologyScopes: sortedStrings(seed.ontologyScopes), prohibitedTargetPaths: sortedStrings(seed.prohibitedTargetPaths), importance: seed.importance, constraintIds, sourceBindingIds: [], goalIds, orderKey: seed.orderKey }
+    const base = { schemaVersion: 'voce.reference-candidate/v1alpha1' as const, id: seed.id, assetId: seed.assetId, artifact: clone(seed.artifact), contentHash: seed.artifact.contentHash, mediaType: seed.artifact.mediaType, byteLength: seed.artifact.byteLength, role: seed.role, ontologyScopes: sortedStrings(seed.ontologyScopes), prohibitedTargetPaths: sortedStrings(seed.prohibitedTargetPaths), prohibitedTargetPathImportance: clone(seed.prohibitedTargetPathImportance), importance: seed.importance, constraintIds, sourceBindingIds: [], goalIds, orderKey: seed.orderKey }
     candidates.push(createReferenceCandidate(base))
   }
   const candidateIds = new Set(candidates.map((candidate) => candidate.id))

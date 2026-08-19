@@ -146,6 +146,11 @@ function sortedStrings(values: string[] | undefined): string[] {
   return [...new Set(values ?? [])].sort(compareCodeUnits)
 }
 
+function sortedImportanceMap(value: Record<string, PromptProhibition['importance']> | undefined): Record<string, PromptProhibition['importance']> | undefined {
+  if (value === undefined) return undefined
+  return Object.fromEntries(Object.entries(value).sort(([left], [right]) => compareCodeUnits(left, right)))
+}
+
 function sortedBy<T>(values: T[], key: (value: T) => string): T[] {
   return values.map((value) => clone(value)).sort((left, right) => compareCodeUnits(key(left), key(right)) || compareCodeUnits(canonicalize(jsonReady(left)), canonicalize(jsonReady(right))))
 }
@@ -226,7 +231,8 @@ function promptReferenceMappingProjection(mapping: PromptReferenceMapping): Json
     role: mapping.role,
     order: mapping.order,
     required: mapping.required,
-    prohibitedTargetPaths: sortedStrings(mapping.prohibitedTargetPaths),
+    ...(mapping.prohibitedTargetPaths === undefined ? {} : { prohibitedTargetPaths: sortedStrings(mapping.prohibitedTargetPaths) }),
+    ...(mapping.prohibitedTargetPathImportance === undefined ? {} : { prohibitedTargetPathImportance: sortedImportanceMap(mapping.prohibitedTargetPathImportance) }),
     constraintIds: sortedStrings(mapping.constraintIds),
     sourceBindingIds: sortedStrings(mapping.sourceBindingIds),
     decisionIds: sortedStrings(mapping.decisionIds),
@@ -596,7 +602,8 @@ function referenceMapping(reference: PlannedReference, constraints: Constraint[]
     role: reference.role,
     order: reference.order,
     required,
-    prohibitedTargetPaths: sortedStrings(reference.prohibitedTargetPaths ?? []),
+    ...(reference.prohibitedTargetPaths === undefined ? {} : { prohibitedTargetPaths: sortedStrings(reference.prohibitedTargetPaths) }),
+    ...(reference.prohibitedTargetPathImportance === undefined ? {} : { prohibitedTargetPathImportance: sortedImportanceMap(reference.prohibitedTargetPathImportance) }),
     constraintIds: effectiveConstraintIds,
     sourceBindingIds: sortedStrings(reference.sourceBindingIds),
     decisionIds: sortedStrings(decisionIds),
@@ -695,7 +702,7 @@ export class PromptCompiler {
           text: `Reference ${reference.label} must not contribute ${targetPath}.`,
           constraintIds: sortedStrings(reference.constraintIds),
           sourceIds: sortedStrings([reference.assetId, ...reference.sourceBindingIds]),
-          importance: reference.constraintIds.some((id) => constraints.find((constraint) => constraint.id === id)?.importance === 'hard') ? 'hard' as const : 'required' as const,
+          importance: reference.prohibitedTargetPathImportance?.[targetPath] ?? 'required',
         }))),
       ]
       const coverage = constraints.map((constraint) => coverageForConstraint(constraint, sections, parameters, mappings))
@@ -1098,7 +1105,7 @@ function renderProjection(request: Omit<ProviderRenderRequest, 'requestHash'>): 
     sections: request.sections.map(promptSectionProjection),
     parameters: sortedBy(request.parameters, (item) => item.id).map(promptParameterProjection),
     referenceMappings: [...request.referenceMappings].sort((left, right) => left.order - right.order || compareCodeUnits(left.id, right.id)).map(promptReferenceMappingProjection),
-    forbidden: sortedBy(request.forbidden ?? [], (item) => item.id),
+    ...(request.forbidden === undefined ? {} : { forbidden: sortedBy(request.forbidden, (item) => item.id) }),
     output: clone(request.output),
     pipelinePlanHash: request.pipelinePlanHash,
   }) as JsonObject
@@ -1135,7 +1142,7 @@ export function createProviderRenderRequest(input: ProviderRenderInput): Provide
     sections: clone(sections),
     parameters: clone(parameters),
     referenceMappings: clone(mappings),
-    forbidden: clone(safePrompt.forbidden),
+    ...(safePrompt.forbidden.length === 0 ? {} : { forbidden: clone(safePrompt.forbidden) }),
     output: clone(safePrompt.output),
     pipelinePlanHash: input.pipelinePlanHash ?? safePrompt.pipelinePlanHash,
   }

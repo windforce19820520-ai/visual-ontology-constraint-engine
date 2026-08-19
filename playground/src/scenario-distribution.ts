@@ -7,6 +7,7 @@ import type {
   LocalScenarioPackSource,
   OntologyPathDefinition,
   PromptSectionContribution,
+  ResolvedContribution,
   ScenarioInputExpectation,
   ScenarioPack,
   ScenarioPackContribution,
@@ -40,6 +41,7 @@ export interface ScenarioRolePolicy {
   targets: readonly { targetPath: string; operation: 'preserve' | 'replace' | 'adjust'; importance: Importance }[]
   authorizedTargetPaths: readonly string[]
   prohibitedTargetPaths: readonly string[]
+  prohibitedTargetPathImportance: Readonly<Record<string, Importance>>
   displayOnlyNonContributions: readonly string[]
   policyDigest: string
 }
@@ -131,17 +133,27 @@ function contribution<T extends Record<string, unknown>>(id: string, schemaVersi
   return { ...base, contentDigest: sha256(JSON.parse(JSON.stringify(base)) as JsonValue) } as unknown as T & ScenarioPackContribution
 }
 
-function roleContribution(id: string, role: string, bindings: readonly ScenarioRoleBinding[]): ScenarioPackContribution {
-  return contribution(id, 'voce.interpretation-scope/v1alpha1', { assetRole: role, bindings: bindings.map((binding) => ({ ...binding })) })
+function roleContribution(id: string, definition: typeof scenarioDefinitions[PlaygroundScenarioId]['roles'][number]): ScenarioPackContribution {
+  return contribution(id, 'voce.interpretation-scope/v1alpha1', { assetRole: definition.role, minCount: definition.minCount, maxCount: definition.maxCount, bindings: definition.bindings.map((binding) => ({ ...binding })) })
 }
 
-function rolePolicy(scenarioId: PlaygroundScenarioId, packId: string, definition: typeof scenarioDefinitions[PlaygroundScenarioId]['roles'][number], scope: ScenarioPackContribution): ScenarioRolePolicy {
-  const bindings = (scope.bindings as unknown as ScenarioRoleBinding[]).map((binding) => ({ ...binding }))
+function rolePolicy(scenarioId: PlaygroundScenarioId, scope: ResolvedContribution): ScenarioRolePolicy {
+  const role = typeof scope.assetRole === 'string' ? scope.assetRole : ''
+  const minCount = scope.minCount
+  const maxCount = scope.maxCount
+  const rawBindings = scope.bindings
+  if (!role || !Number.isInteger(minCount) || !Number.isInteger(maxCount) || Number(minCount) < 0 || Number(maxCount) < Number(minCount) || !Array.isArray(rawBindings)) throw new Error(`PLAYGROUND_ROLE_POLICY_INVALID:${scope.contributionId}`)
+  const bindings: ScenarioRoleBinding[] = rawBindings.map((raw) => {
+    const binding = raw as unknown as Partial<ScenarioRoleBinding>
+    if (binding.assetRole !== role || typeof binding.targetPath !== 'string' || !['preserve', 'reproduce', 'inspire', 'exclude'].includes(binding.relation ?? '') || !['hard', 'required', 'preferred'].includes(binding.priority ?? '')) throw new Error(`PLAYGROUND_ROLE_BINDING_INVALID:${scope.contributionId}`)
+    return { assetRole: binding.assetRole, targetPath: binding.targetPath, relation: binding.relation, priority: binding.priority } as ScenarioRoleBinding
+  })
   const targets = bindings.filter((binding) => binding.relation !== 'exclude').map((binding) => ({ targetPath: binding.targetPath, operation: binding.relation === 'preserve' ? 'preserve' as const : binding.relation === 'reproduce' ? 'replace' as const : 'adjust' as const, importance: binding.priority })).sort((left, right) => compareCodeUnits(left.targetPath, right.targetPath) || compareCodeUnits(left.operation, right.operation) || compareCodeUnits(left.importance, right.importance))
   const authorizedTargetPaths = sortedStrings(bindings.filter((binding) => binding.relation !== 'exclude').map((binding) => binding.targetPath))
   const prohibitedTargetPaths = sortedStrings(bindings.filter((binding) => binding.relation === 'exclude').map((binding) => binding.targetPath))
+  const prohibitedTargetPathImportance = Object.fromEntries(prohibitedTargetPaths.map((path) => [path, bindings.filter((binding) => binding.relation === 'exclude' && binding.targetPath === path).reduce<Importance>((current, binding) => binding.priority === 'hard' || current === 'hard' ? 'hard' : binding.priority === 'required' || current === 'required' ? 'required' : 'preferred', 'preferred')]))
   const displayOnlyNonContributions = prohibitedTargetPaths.map((path) => `This reference does not control ${path.replaceAll('.', ' ')}.`)
-  const base = { schemaVersion: 'voce.playground-role-policy/v1alpha1' as const, id: `${packId}:${definition.role}`, scenarioId, role: definition.role, minCount: definition.minCount, maxCount: definition.maxCount, bindings, targets, authorizedTargetPaths, prohibitedTargetPaths, displayOnlyNonContributions }
+  const base = { schemaVersion: 'voce.playground-role-policy/v1alpha1' as const, id: `${scope.packId}:${scope.contributionId}`, scenarioId, role, minCount: Number(minCount), maxCount: Number(maxCount), bindings, targets, authorizedTargetPaths, prohibitedTargetPaths, prohibitedTargetPathImportance, displayOnlyNonContributions, sourceContributionDigest: scope.contentDigest }
   return deepFreeze({ ...base, policyDigest: sha256(JSON.parse(JSON.stringify(base)) as JsonValue) })
 }
 
@@ -157,8 +169,8 @@ function manifest(packId: string, version: string, contributionIndex: ScenarioPa
     outputExpectations: [{ id: 'image', artifactKind: 'image', dataType: 'image', producedIn: ['reference_guided'], cardinality: { min: 1, max: 1 }, mediaTypes: ['image/png', 'image/jpeg'] }],
     license: 'Apache-2.0',
     provenance: { publisher: 'VOCE Playground', sourceRepository: 'https://github.com/windforce19820520-ai/visual-ontology-constraint-engine', sourceRevision: 'playground-pr0' },
-    coreRange: '>=0.1.0-rc.4',
-    contractRanges: { '@voce-engine/contracts': '0.1.0-rc.4' },
+    coreRange: '>=0.1.0-rc.5 <0.2.0',
+    contractRanges: { '@voce-engine/contracts': '0.1.0-rc.5' },
     ui: { defaultLocale: 'en', locales: { en: { displayName: packId, description: 'Immutable offline Playground semantic distribution.', messages: {} } }, disclosures: [], accessibility: { textAlternativesRequired: true, keyboardOperableReferenceUI: true, doesNotRelyOnColorAlone: true } },
     dependencies: [],
     conflicts: [],
@@ -173,28 +185,28 @@ function manifest(packId: string, version: string, contributionIndex: ScenarioPa
   }
 }
 
-function createPack(scenarioId: PlaygroundScenarioId): { pack: ScenarioPack; roles: readonly ScenarioRolePolicy[] } {
+function createPack(scenarioId: PlaygroundScenarioId): ScenarioPack {
   const packId = `voce.playground.${scenarioId}`
   const version = '1.0.0'
   const definition = scenarioDefinitions[scenarioId]
   const ontology = contribution(`${scenarioId}.ontology`, 'voce.ontology-vocabulary/v1alpha1', { paths: [...definition.paths, ...compositionPaths] })
   const rules = contribution(`${scenarioId}.rules`, 'voce.declarative-rule-pack/v1alpha1', { namespace: `voce.playground.${scenarioId}`, rules: [] }) as DeclarativeRulePackContribution
-  const scopes = definition.roles.map((item) => roleContribution(`${scenarioId}.scope.${item.role}`, item.role, item.bindings))
+  const scopes = definition.roles.map((item) => roleContribution(`${scenarioId}.scope.${item.role}`, item))
   const prompt = contribution(`${scenarioId}.prompt-sections`, 'voce.prompt-section-contribution/v1alpha1', { sections: commonPromptSections }) as PromptSectionContribution
   const contributions = { ontologyVocabulary: [ontology], rulePacks: [rules], interpretationScopes: scopes, promptSections: [prompt], reviewTemplates: [], defaults: [], overridePoints: [] }
   const index = Object.fromEntries(Object.entries(contributions).map(([category, values]) => [category, values.map((item) => ({ id: item.id, schemaVersion: item.schemaVersion, contentDigest: item.contentDigest }))])) as unknown as ScenarioPackManifest['contributions']
-  const pack = { manifest: manifest(packId, version, index), contributions: { ...contributions, fixtureSuites: [] }, migrations: [] } as unknown as ScenarioPack
-  const roles = scopes.map((scope, indexValue) => rolePolicy(scenarioId, packId, definition.roles[indexValue], scope))
-  return { pack, roles }
+  return { manifest: manifest(packId, version, index), contributions: { ...contributions, fixtureSuites: [] }, migrations: [] } as unknown as ScenarioPack
 }
 
 function loadDistribution(scenarioId: PlaygroundScenarioId): ScenarioDistribution {
-  const { pack, roles } = createPack(scenarioId)
+  const pack = createPack(scenarioId)
   const registry: ScenarioPackRegistry = createScenarioPackRegistry()
   const source: LocalScenarioPackSource = { kind: 'memory', definition: pack, logicalFiles: [] }
   registry.register(source)
   const result = registry.resolve({ root: { packId: pack.manifest.packId, versionRange: pack.manifest.version }, extensions: [] })
   if (result.status !== 'resolved') throw new Error(`PLAYGROUND_SCENARIO_BLOCKED:${scenarioId}`)
+  const roles = result.effectiveScenario.interpretationScopes.map((scope) => rolePolicy(scenarioId, scope)).sort((left, right) => compareCodeUnits(left.role, right.role))
+  if (new Set(roles.map((role) => role.role)).size !== roles.length) throw new Error(`PLAYGROUND_ROLE_POLICY_DUPLICATE:${scenarioId}`)
   return deepFreeze({ scenarioId, packId: pack.manifest.packId, version: pack.manifest.version, effectiveScenario: result.effectiveScenario, distributionHash: result.effectiveScenario.effectiveScenarioHash, roles })
 }
 

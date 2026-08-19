@@ -137,6 +137,20 @@ function sortedStrings(values: string[] | undefined): string[] {
   return [...new Set(values ?? [])].sort(compareCodeUnits)
 }
 
+function sortedImportanceMap(value: Record<string, Importance> | undefined): Record<string, Importance> | undefined {
+  if (value === undefined) return undefined
+  return Object.fromEntries(Object.entries(value).sort(([left], [right]) => compareCodeUnits(left, right)))
+}
+
+function mergeImportanceMaps(left: Record<string, Importance> | undefined, right: Record<string, Importance> | undefined): Record<string, Importance> | undefined {
+  if (left === undefined && right === undefined) return undefined
+  const merged: Record<string, Importance> = {}
+  for (const [path, importance] of [...Object.entries(left ?? {}), ...Object.entries(right ?? {})].sort(([leftPath], [rightPath]) => compareCodeUnits(leftPath, rightPath))) {
+    merged[path] = stableImportance(merged[path], importance)
+  }
+  return merged
+}
+
 function sortedBy<T>(values: T[], key: (value: T) => string): T[] {
   return values.map((value) => clone(value)).sort((left, right) => compareCodeUnits(key(left), key(right)) || compareCodeUnits(canonicalize(jsonReady(left)), canonicalize(jsonReady(right))))
 }
@@ -334,7 +348,8 @@ function referenceCandidateProjection(candidate: ReferenceCandidate): JsonObject
     byteLength: candidate.byteLength,
     role: candidate.role,
     ontologyScopes: sortedStrings(candidate.ontologyScopes),
-    prohibitedTargetPaths: sortedStrings(candidate.prohibitedTargetPaths),
+    ...(candidate.prohibitedTargetPaths === undefined ? {} : { prohibitedTargetPaths: sortedStrings(candidate.prohibitedTargetPaths) }),
+    ...(candidate.prohibitedTargetPathImportance === undefined ? {} : { prohibitedTargetPathImportance: sortedImportanceMap(candidate.prohibitedTargetPathImportance) }),
     importance: candidate.importance,
     constraintIds: sortedStrings(candidate.constraintIds),
     sourceBindingIds: sortedStrings(candidate.sourceBindingIds),
@@ -1378,7 +1393,8 @@ function normalizedCandidate(candidate: ReferenceCandidate, constraintIR: Constr
     byteLength: candidate.byteLength ?? artifact?.byteLength,
     role: candidate.role ?? artifact?.role ?? 'reference',
     ontologyScopes: sortedStrings(candidate.ontologyScopes),
-    prohibitedTargetPaths: sortedStrings(candidate.prohibitedTargetPaths),
+    ...(candidate.prohibitedTargetPaths === undefined ? {} : { prohibitedTargetPaths: sortedStrings(candidate.prohibitedTargetPaths) }),
+    ...(candidate.prohibitedTargetPathImportance === undefined ? {} : { prohibitedTargetPathImportance: sortedImportanceMap(candidate.prohibitedTargetPathImportance) }),
     importance: inferredImportance,
     constraintIds: constraints,
     sourceBindingIds: sortedStrings(candidate.sourceBindingIds),
@@ -1399,6 +1415,12 @@ function candidateValidation(candidate: ReferenceCandidate): string[] {
     if (artifact.availability !== 'available') reasons.push('REFERENCE_ARTIFACT_UNAVAILABLE')
   }
   if (candidate.byteLength !== undefined && (!Number.isInteger(candidate.byteLength) || candidate.byteLength < 0)) reasons.push('REFERENCE_BYTE_LENGTH_INVALID')
+  const prohibitedPaths = sortedStrings(candidate.prohibitedTargetPaths)
+  const importanceMap = candidate.prohibitedTargetPathImportance
+  if (candidate.prohibitedTargetPaths !== undefined) {
+    if (!importanceMap || canonicalize(sortedStrings(Object.keys(importanceMap))) !== canonicalize(prohibitedPaths) || Object.values(importanceMap).some((value) => !['hard', 'required', 'preferred'].includes(value))) reasons.push('REFERENCE_ISOLATION_IMPORTANCE_INVALID')
+  } else if (importanceMap !== undefined) reasons.push('REFERENCE_ISOLATION_IMPORTANCE_INVALID')
+  if (prohibitedPaths.some((prohibited) => (candidate.ontologyScopes ?? []).some((allowed) => pathMatches(prohibited, allowed)))) reasons.push('REFERENCE_ISOLATION_CONFLICT')
   return sortedStrings(reasons)
 }
 
@@ -1468,7 +1490,8 @@ function makePlannedReference(candidate: ReferenceCandidate, dependencyIds: stri
     ...(candidate.byteLength === undefined ? {} : { byteLength: candidate.byteLength }),
     role: candidate.role ?? 'reference',
     ontologyScopes: sortedStrings(candidate.ontologyScopes),
-    prohibitedTargetPaths: sortedStrings(candidate.prohibitedTargetPaths),
+    ...(candidate.prohibitedTargetPaths === undefined ? {} : { prohibitedTargetPaths: sortedStrings(candidate.prohibitedTargetPaths) }),
+    ...(candidate.prohibitedTargetPathImportance === undefined ? {} : { prohibitedTargetPathImportance: sortedImportanceMap(candidate.prohibitedTargetPathImportance) }),
     constraintIds: sortedStrings(candidate.constraintIds),
     sourceBindingIds: sortedStrings(candidate.sourceBindingIds),
     dependencyIds: sortedStrings(dependencyIds),
@@ -1504,7 +1527,7 @@ function blockedReferencePlan(input: Partial<ReferencePlanningInput>, reasons: s
   return clone(base)
 }
 
-interface CandidateGroup { key: string; representative: ReferenceCandidate; aliases: string[]; bytes?: number; required: boolean; members: ReferenceCandidate[] }
+interface CandidateGroup { key: string; representative: ReferenceCandidate; aliases: string[]; bytes?: number; required: boolean; members: ReferenceCandidate[]; isolationConflict: boolean }
 
 function groupCandidates(candidates: ReferenceCandidate[]): CandidateGroup[] {
   const groups = new Map<string, CandidateGroup>()
@@ -1512,19 +1535,24 @@ function groupCandidates(candidates: ReferenceCandidate[]): CandidateGroup[] {
     const key = candidate.contentHash
     const existing = groups.get(key)
     if (!existing) {
-      groups.set(key, { key, representative: clone(candidate), aliases: [candidate.id], bytes: candidate.byteLength, required: candidate.importance !== 'preferred', members: [clone(candidate)] })
+      groups.set(key, { key, representative: clone(candidate), aliases: [candidate.id], bytes: candidate.byteLength, required: candidate.importance !== 'preferred', members: [clone(candidate)], isolationConflict: false })
       continue
     }
     existing.aliases.push(candidate.id)
     existing.members.push(clone(candidate))
     existing.required = existing.required || candidate.importance !== 'preferred'
+    const ontologyScopes = sortedStrings([...(existing.representative.ontologyScopes ?? []), ...(candidate.ontologyScopes ?? [])])
+    const prohibitedTargetPaths = sortedStrings([...(existing.representative.prohibitedTargetPaths ?? []), ...(candidate.prohibitedTargetPaths ?? [])])
+    const prohibitedTargetPathImportance = mergeImportanceMaps(existing.representative.prohibitedTargetPathImportance, candidate.prohibitedTargetPathImportance)
+    existing.isolationConflict = existing.isolationConflict || prohibitedTargetPaths.some((prohibited) => ontologyScopes.some((allowed) => pathMatches(prohibited, allowed)))
     existing.representative = clone({
       ...existing.representative,
       id: [existing.representative.id, candidate.id].sort(compareCodeUnits)[0],
       importance: stableImportance(existing.representative.importance, candidate.importance),
       role: [existing.representative.role ?? 'reference', candidate.role ?? 'reference'].sort(compareCodeUnits)[0],
-      ontologyScopes: sortedStrings([...(existing.representative.ontologyScopes ?? []), ...(candidate.ontologyScopes ?? [])]),
-      prohibitedTargetPaths: sortedStrings([...(existing.representative.prohibitedTargetPaths ?? []), ...(candidate.prohibitedTargetPaths ?? [])]),
+      ontologyScopes,
+      ...(existing.representative.prohibitedTargetPaths === undefined && candidate.prohibitedTargetPaths === undefined ? {} : { prohibitedTargetPaths }),
+      ...(prohibitedTargetPathImportance === undefined ? {} : { prohibitedTargetPathImportance }),
       constraintIds: sortedStrings([...(existing.representative.constraintIds ?? []), ...(candidate.constraintIds ?? [])]),
       sourceBindingIds: sortedStrings([...(existing.representative.sourceBindingIds ?? []), ...(candidate.sourceBindingIds ?? [])]),
       goalIds: sortedStrings([...(existing.representative.goalIds ?? []), ...(candidate.goalIds ?? [])]),
@@ -1615,6 +1643,11 @@ export class ReferenceBudgetOptimizer {
     }
     if (dependencyReasons.length) return blockedReferencePlan(input, dependencyReasons)
     const groups = groupCandidates(validCandidates)
+    const isolationConflicts = groups.filter((group) => group.isolationConflict)
+    if (isolationConflicts.length) {
+      const blocked = isolationConflicts.flatMap((group) => group.members.map((candidate) => makeReferenceOmission(candidate, candidateDependencyIds(candidate, dependencies), 'REFERENCE_ISOLATION_CONFLICT', 'The same content cannot be assigned mutually contradictory allowed and prohibited contribution paths.')))
+      return blockedReferencePlan(input, ['REFERENCE_ISOLATION_CONFLICT'], [], blocked)
+    }
     const omissions: ReferenceOmission[] = []
     const blockedReferences: ReferenceOmission[] = []
     const groupEdges = dependencyGroupEdges(dependencies, groups)
