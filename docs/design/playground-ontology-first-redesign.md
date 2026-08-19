@@ -29,9 +29,9 @@ The following decisions are normative for the Playground implementation.
 7. **Provider materialization is mechanical.** It may serialize accepted sections, parameters, mappings, artifacts, and protocol fields. It may not add scenario fidelity prose, provider glosses, dropped constraints, inferred facts, or unguarded user text.
 8. **Core remains scenario-agnostic.** No `if (scenario === 'cosplay')` or equivalent scenario-name branch may be added to Core.
 9. **The Playground remains an external-style Host.** It lives outside `packages/*`, consumes public package entry points, does not import `packages/core/src/**`, and has a registry-install build gate.
-10. **Render is disabled by default.** CI and ordinary development use mocks only. An approved Provider/profile is enabled only after a separate capability, privacy, and cost review plus explicit authorization. Seedream and Grok Imagine are initial candidates, not pre-approved defaults.
+10. **Render remains disabled in CI and ordinary development, while the product default is Cloudflare Free.** The first selected real default profile is Cloudflare Workers AI `@cf/black-forest-labs/flux-2-klein-4b`. A deployment may enable it only with an approved server-side Cloudflare account/token and a hard free-quota gate. Seedream and Grok Imagine remain optional BYOK choices. No real transport, secret injection, or smoke call is authorized merely by selecting these profiles in code.
 11. **Pose is a reference role, not an editor feature.** A ready-made skeleton image, ordinary pose photograph, or pose sketch may be declared as a `pose` reference. V1 does not generate, extract, or edit skeletons. The source may contribute only the approved pose scope and must not contribute identity, clothing, background, or style.
-12. **BYOK credentials are ephemeral Host secrets.** Compile remains usable without a credential. Generate may accept a user-provided Seedream or Grok API key for one request, but the key is never stored, logged, hashed, returned, placed in VOCE contracts, or used for an automatic validation or retry call.
+12. **Credential modes are explicit.** Cloudflare uses an operator-managed server credential that is never exposed to the browser; Seedream and Grok use an ephemeral user-provided key for one request. Compile remains usable without any credential. Neither credential mode may be stored, logged, hashed, returned, placed in VOCE contracts, or used for an automatic validation or retry call.
 
 ## 3. Repository-grounded current state
 
@@ -620,7 +620,19 @@ A mismatch returns `409 PLAN_BINDING_MISMATCH` and performs zero Provider calls.
 
 ## 14. Approved Provider and capability gate
 
-No Provider is selected by this design. Seedream and Grok Imagine are initial candidates, and free-tier models may be added later. Before implementation, Codex must produce a separate capability matrix based on current official Provider documentation and the exact model/profile.
+The approved initial selector order is:
+
+1. Cloudflare Workers AI `@cf/black-forest-labs/flux-2-klein-4b` — product default, free-quota, operator-managed credential;
+2. Seedream 4.0 — optional user-funded BYOK;
+3. Grok Imagine image quality — optional user-funded BYOK.
+
+Mock remains a development/test Provider and is hidden from the ordinary product selector. Cloudflare's official profile supports multipart generation/editing with at most four ordered binary inputs, each smaller than 512×512, output width and height from 256–1920, and a fixed four-step distilled model. Workers AI currently provides 10,000 free Neurons per day and resets the allocation at 00:00 UTC. The Host must enforce a disclosed cap at or below the free allocation and fail closed when exhausted; it may never silently continue on paid overage, switch Provider, or ask the user for a Cloudflare key.
+
+Official capability sources:
+
+- [Cloudflare FLUX.2 klein 4B launch and multipart limits](https://developers.cloudflare.com/changelog/post/2026-01-15-flux-2-klein-4b-workers-ai/)
+- [Cloudflare Workers AI pricing and free allocation](https://developers.cloudflare.com/workers-ai/platform/pricing/)
+- [Cloudflare Workers AI quota error semantics](https://developers.cloudflare.com/workers-ai/platform/errors/)
 
 Minimum generation requirements:
 
@@ -635,9 +647,21 @@ Minimum generation requirements:
 - privacy terms acceptable for person images;
 - no requirement to expose secrets or public source-image URLs.
 
-If the configured Provider cannot meet the scenario reference count, Compile remains available and Generate is disabled. References are never silently deleted.
+If the configured Provider cannot meet the scenario reference count, Compile remains available and Generate is disabled. In particular, Cloudflare cannot generate Try-On with the optional fifth pose reference or any Cosplay request above four references. References are never silently deleted, and selecting Cloudflare never silently changes the scenario or promotes a paid Provider.
 
-### 14.1 User-provided ephemeral credentials (BYOK)
+### 14.1 Default Cloudflare credential and user disclosure
+
+The browser does not receive or request a Cloudflare key. A deployment injects `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` only into the Host transport. Source code, fixtures, tests, responses, and client JavaScript contain neither value. PR C may implement the credential mode, configuration schema, bridge, disabled transport boundary, and mock fixtures; actual secret injection and a real call remain separately authorized deployment actions.
+
+Before Compile and again before Generate, the Cloudflare option must disclose in plain language:
+
+- it is the default free-quota model and requires no user key;
+- at most four references are accepted and every input must already be smaller than 512×512; an oversize input is blocked before transport without changing role or order;
+- free capacity is shared and limited; quota exhaustion blocks the call and does not incur or trigger a paid fallback;
+- it is a fast distilled 4B/four-step model and may provide weaker identity, garment, prop-detail, and complex-composition fidelity than Seedream or Grok;
+- output dimensions are bounded by the approved profile and only one output is requested.
+
+### 14.2 User-provided ephemeral credentials (BYOK)
 
 Compile and plan inspection require no API key. Generate may offer an allow-listed Provider/profile selector and accept a user-provided API key for that request only.
 
@@ -650,7 +674,7 @@ Compile and plan inspection require no API key. Generate may offer an allow-list
 - The UI discloses Provider, model, destination/region when known, image count, credential handling, retention information, and estimated per-call cost before authorization.
 - User-funded calls still pass Host concurrency and abuse controls.
 
-An operator-managed shared credential is a separate future deployment mode with its own budget and authorization. It is not implied by BYOK support.
+The operator-managed mode is approved only for the allow-listed Cloudflare free profile and its hard free-quota gate. It does not authorize shared Seedream/Grok credentials or any paid fallback.
 
 ## 15. Security, privacy, and logs
 
@@ -749,18 +773,23 @@ Deliver:
 - cleanup and redaction tests;
 - zero real Provider calls.
 
-### PR C — Approved Provider profiles and BYOK integration
+### PR C — Cloudflare default-free profile plus Seedream/Grok BYOK
 
-Before code, deliver a current official-doc capability, privacy, credential, and cost report for Seedream, Grok Imagine, and any free-tier candidate, then obtain product approval for the initial Provider/profile set.
+The approved default is Cloudflare Workers AI `@cf/black-forest-labs/flux-2-klein-4b`; Seedream and Grok remain optional BYOK profiles. Keep the current official-doc capability, privacy, credential, and cost report synchronized with all three.
 
 Then deliver:
 
-- provider-specific materializer or adapter bridge;
-- allow-listed Provider/profile selection and user-ephemeral credential injection;
+- an additive Cloudflare multipart bridge that mechanically maps accepted prompt, typed parameters, output, and stable references to `input_image_0` through `input_image_3`;
+- an allow-listed selector ordered Cloudflare Free, Seedream BYOK, Grok BYOK, with Mock hidden outside development mode;
+- operator-managed Cloudflare credential mode with no browser key field, plus existing user-ephemeral credential injection for Seedream/Grok;
+- profile-driven preflight for the strict below-512×512 input bound and the four-reference maximum;
+- explicit limitations/quality/quota disclosure and zero silent paid fallback;
 - disabled-by-default live transport;
 - mock transport tests;
 - deployment configuration with no secrets committed;
 - no real call until separately authorized.
+
+This is an additive scope. Do not refactor or change the already reviewed semantic closure, composition behavior, Seedream/Grok bridges, BYOK redaction, plan binding, or Provider-neutral Compile path except for the smallest type/registry/selector extension required to add Cloudflare. If that cannot be done without redesigning a reviewed path, stop and report the blocker.
 
 ### PR D — Public deployment and adoption loop
 
@@ -801,6 +830,12 @@ Only after explicit authorization:
 ### Provider and security
 
 - Insufficient Provider reference capacity fails before network access.
+- Cloudflare is the first ordinary selector option and Mock is absent from the ordinary product selector.
+- Cloudflare accepts zero to four references in stable order, uses multipart fields `input_image_0` through `input_image_3`, and blocks a fifth reference before transport.
+- Cloudflare inputs at or above 512 pixels on either dimension are blocked before transport; this increment does not add a new image-resizing dependency or silently mutate an upload.
+- Cloudflare Generate requires an injected Host credential but never a browser-supplied key; missing Host configuration fails before transport without revealing configuration details.
+- The free-quota gate blocks exhaustion and performs zero automatic retry, paid continuation, or Provider switch.
+- Model selection displays Cloudflare's four-image/size/quota/quality limitations and displays Seedream/Grok as user-key choices.
 - Render disabled performs zero network calls.
 - CI performs zero real Provider calls and contains zero credentials.
 - Success, failure, timeout, and cancellation all clean temporary assets.
@@ -829,11 +864,9 @@ credential persistence, credential logging, arbitrary Provider endpoints, or an 
 
 The following decisions are intentionally deferred:
 
-1. Which exact Seedream and Grok Imagine model/profile versions, regions, prices, and retention terms are approved after the current capability review, and whether any free-tier profile is also offered.
-2. Whether general free text is omitted or admitted through a guarded suggestion path.
-3. The smallest RC.5 contract shape that carries ScenarioPack-derived prohibited contributions through Prompt IR, Prompt Guard, and `ProviderRenderRequest`; Host-only or post-Guard isolation prose is not an acceptable option.
-4. Whether pose remains preferred by default in both scenarios or the UI may explicitly promote it to required, subject to Provider capacity.
-5. The deployment region, rate limits, daily cap, and retention timeout.
-6. Whether a real Reference Interpreter is in scope after MVP. Pose extraction and skeleton editing remain separate future tools even if an interpreter is later added.
+1. Whether general free text is omitted or admitted through a guarded suggestion path.
+2. The deployment-specific Cloudflare account, token, cap below 10,000 Neurons/day, region/privacy review, and retention timeout.
+3. Whether pose remains preferred by default in both scenarios or the UI may explicitly promote it to required, subject to Provider capacity.
+4. Whether a real Reference Interpreter is in scope after MVP. Pose extraction and skeleton editing remain separate future tools even if an interpreter is later added.
 
 Until those decisions are approved, the implementation must remain offline and mock-only.

@@ -542,7 +542,7 @@ Generate 不信任客户端返回的 plan。Server 必须重新编译、重新�
 
 Draft PR 通过后停止。
 
-## 8. PR C：经批准的 Provider Profiles 与 BYOK
+## 8. PR C 增量：Cloudflare 默认免费 Provider
 
 ### 8.1 先做能力评估，不先写 Adapter
 
@@ -574,23 +574,51 @@ no silent paid fallback
 one output
 ```
 
-初始候选至少评估 Seedream 与 Grok Imagine；它们不是因为被写进任务书就自动获批。免费模型可以作为额外候选，但不是硬性要求。
+产品已确认首选默认免费模型为 Cloudflare Workers AI：
+
+```text
+Provider: Cloudflare Workers AI
+model: @cf/black-forest-labs/flux-2-klein-4b
+selector role: default free-quota model
+credential mode: operator_managed（仅 Host；浏览器不输入 Cloudflare Key）
+wire format: multipart/form-data
+maximum references: 4
+input fields: input_image_0 ... input_image_3
+input dimensions: every reference strictly smaller than 512x512
+output dimensions: width/height 256...1920
+inference: fixed 4 steps, distilled 4B
+free allocation: 10,000 Neurons/day, reset 00:00 UTC
+overage policy: fail closed; zero automatic paid continuation or Provider switch
+```
+
+官方依据：
+
+- https://developers.cloudflare.com/changelog/post/2026-01-15-flux-2-klein-4b-workers-ai/
+- https://developers.cloudflare.com/workers-ai/platform/pricing/
+- https://developers.cloudflare.com/workers-ai/platform/errors/
+
+Seedream 4.0 与 Grok Imagine image quality 保留为可选 BYOK Provider，不改现有已评审 profile、bridge、提示语义或安全边界。
 
 ### 8.2 产品确认后编码
 
-只有在用户明确选择 Provider/profile 后，才实现：
+只增量实现 Cloudflare 所需内容：
 
-- provider-specific materializer/bridge；
-- allow-listed Provider/profile selector；
-- `user_ephemeral` BYOK credential mode；
+- `cloudflare-flux-2-klein-4b` allow-listed capability/profile，作为普通产品 selector 第一项和默认项；
+- `operator_managed` credential mode；浏览器不显示 Cloudflare Key 输入框，Host 配置只声明 `CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN`，不得提交真实值；
+- Cloudflare multipart bridge，机械映射 Guard 接受的 prompt、typed parameters、output 和稳定引用顺序；禁止 Provider-specific semantic rewriting；
+- 引用字段严格为 `input_image_0` 到 `input_image_3`；第五张图在 transport 前阻断，不得删图、换角色或自动切 Seedream/Grok；
+- profile-driven input preflight：任一维度达到或超过 512 像素即在 transport 前阻断；本增量不新增缩图依赖，也不静默修改上传图片；
+- Cloudflare free-quota gate：Host 上限不得超过每天 10,000 Neurons，00:00 UTC 重置；配额不足直接阻断，零重试、零付费超额、零 Provider fallback；
+- ordinary product selector 隐藏 Mock；开发/测试模式仍可显式使用 Mock；
+- selector 必须展示 Cloudflare 的四图、输入尺寸、共享免费额度、固定四步/4B 蒸馏模型，以及身份、服装、道具细节和复杂构图能力可能弱于 Seedream/Grok；
+- Seedream/Grok 继续显示“用户提供 Key”，并沿用现有 `user_ephemeral` 安全路径；
+- capability report、Playground README 和测试同步更新；
 - disabled-by-default transport；
-- capability profile；
-- upload preprocessing policy；
 - mock transport fixtures；
 - deployment env schema；
 - no secret committed。
 
-Compile 在没有 API Key 时始终可用。Generate 的用户 Key：
+Compile 在没有任何 API Key 时始终可用。Cloudflare Generate 使用部署 Host 注入的 operator credential；缺少 Host 配置时在 transport 前返回稳定、安全且不泄漏配置细节的错误。Seedream/Grok Generate 的用户 Key：
 
 - 仅通过 HTTPS request-scoped secret channel 传入；
 - 不写 Cookie、localStorage、sessionStorage、数据库、缓存、analytics 或错误报告；
@@ -615,6 +643,39 @@ Compile 在没有 API Key 时始终可用。Generate 的用户 Key：
 ```
 
 未经批准只允许 preflight 和 Mock。
+
+### 8.4 硬性增量范围
+
+本任务只开发新增 Cloudflare 默认免费 Provider。此前已经评审通过的以下内容不得改写、重构或顺手优化：
+
+```text
+Core / Contracts public semantic contract
+ScenarioPack distribution and role semantics
+composition catalog and conflict handling
+semantic closure and Provider-neutral Compile
+Prompt IR / Prompt Guard / reference isolation
+Seedream profile and bridge
+Grok profile and JSON bridge
+BYOK redaction and all-outcome cleanup
+plan binding and generationRequestHash behavior
+existing budget/rate gates except additive Cloudflare quota support
+```
+
+只允许为 Cloudflare 增加最小必要的 union member、profile registry entry、transport type、selector metadata/UI、尺寸 preflight、quota state 和测试。若必须改变已评审行为才能继续，立即停止并报告，不得自行扩大范围。
+
+### 8.5 必须新增的回归测试
+
+- Cloudflare 是普通产品 selector 默认第一项，Mock 默认隐藏且开发模式仍可用；
+- Cloudflare 不渲染用户 Key 输入框，Seedream/Grok 仍要求 ephemeral Key；
+- 0–4 张引用保持稳定顺序并机械映射到 `input_image_0`…`input_image_3`；
+- 第 5 张 required reference 在 transport 前阻断且 calls=0；
+- 任一维度达到或超过 512 像素的输入在 transport 前阻断，calls=0，原角色/顺序不变；
+- 缺少 operator credential、免费额度耗尽、429 account-limited 和 transport failure 均返回安全错误，不泄漏 token/account/header/body；
+- quota exhaustion 不重试、不切 Provider、不产生付费路径；
+- Cloudflare materialization 保留 accepted prohibitions/reference isolation、typed parameters、output contract 和引用顺序；
+- UI 明示免费额度、四图、尺寸和质量限制；
+- 现有 Seedream/Grok/Mock、160 项全仓测试、安全门禁、release-candidate、clean-room 和 checksum 不回归；
+- 所有标准测试和 CI 的真实 Provider calls=0。
 
 ## 9. PR D：部署与反馈闭环
 
