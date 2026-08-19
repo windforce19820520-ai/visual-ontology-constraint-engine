@@ -143,9 +143,14 @@ class AcceptedRequestMaterializer implements ProviderRequestMaterializer {
       output: clone(request.output),
       protocol: { count: 1, responseFormat: 'normalized' },
     }
-    // The prompt is only the ordered, accepted section projection.  No
-    // scenario name, raw browser text, or provider gloss is introduced here.
-    const native = { ...nativeBase, prompt: sections.map((section) => section.content).join('\n') }
+    // Both positive sections and accepted prohibitions are part of the
+    // Guard-approved request. Keep them in one deterministic provider prompt
+    // so a transport cannot accidentally send only the positive half.
+    const promptParts = [
+      ...sections.map((section) => section.content),
+      ...forbidden.map((item) => item.text),
+    ]
+    const native = { ...nativeBase, prompt: promptParts.join('\n') }
     const nativeRequest = clone(native)
     const traces: MaterializationTrace[] = []
     for (const section of sections) traces.push({ nativeInstructionId: `section:${section.id}`, sourceKind: 'accepted_section', sourceId: section.id, constraintIds: sorted(request.sections.find((item) => item.id === section.id)?.constraintIds ?? []) })

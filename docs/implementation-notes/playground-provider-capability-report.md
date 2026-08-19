@@ -33,13 +33,14 @@ Seedream 4.0 是当前满足 Playground 多参考路径的候选：官方接口�
 | 输入 | Imagine overview 的 image editing 支持最多 3 张参考图；官方模型页列图像输入最大 20 MiB、JPEG/PNG | `maximumReferenceCount=3`、每图 20 MiB、JPEG/PNG；4/5 图路径明确阻断 |
 | 输出/价格 | 当前 quality profile 官方 pricing 页列输入图 0.01 USD/张、1K 输出 0.05 USD、2K 输出 0.07 USD | 当前 profile 逐张计输入费用并按输出尺寸选择 1K/2K 输出价；例如 3 张输入加 1K 输出估算 0.08 USD。固定单图，实际账单以 Provider 为准 |
 | 鉴权 | `Authorization: Bearer $XAI_API_KEY`；官方 quickstart 要求 API key | 只允许 `user_ephemeral`，不得写入磁盘、Cookie、localStorage、sessionStorage、analytics 或日志；不发起额外验证请求 |
-| 引用传输 | 官方编辑 API 支持 public URL 或 Base64；Files API 可用私有 `file_id` | Host 不要求公开输入 URL；当前真实 transport 关闭 |
+| 引用传输 | 官方编辑 API 使用 `application/json`，支持 public URL 或 Base64；Files API 可用私有 `file_id` | bridge 明确标记 `xai-image-edits-json`，不使用 multipart；Host 不要求公开输入 URL；当前真实 transport 关闭 |
 | 隐私/留存 | xAI 官方 Security FAQ：默认 API 请求和响应加密留存 30 天用于滥用审计；不以这些数据训练；团队级 ZDR 可关闭内容留存但会禁用依赖存储的功能 | 不宣称默认零留存；如果未来启用，部署前必须确认团队 ZDR/条款及文件能力 |
 | 限流/失败 | 官方模型页给出 5 requests/second；生成失败、内容策略和服务错误语义仍由 API 返回 | Host 侧 5 rps/单调用/无自动重试；失败只返回安全错误映射 |
 
 官方链接：
 
 - [Imagine overview（最多 3 张编辑参考）](https://docs.x.ai/developers/model-capabilities/imagine)
+- [xAI image editing JSON 请求格式](https://docs.x.ai/developers/model-capabilities/images/editing)
 - [Grok Imagine image model](https://docs.x.ai/developers/models/grok-imagine-image)
 - [xAI Imagine pricing](https://docs.x.ai/developers/pricing)
 - [Imagine 私有 Files 输入](https://docs.x.ai/developers/model-capabilities/imagine/files/inputs)
@@ -47,4 +48,6 @@ Seedream 4.0 是当前满足 Playground 多参考路径的候选：官方接口�
 
 ## 代码边界
 
-本阶段实现 allow-listed capability profiles、完整 profile digest、机械 materializer、Seedream/Grok provider-call bridge、BYOK 请求级边界、Mock transport、能力/尺寸/媒体 preflight，以及按币种、自然日、客户端和 Provider 速率限制的预算门。Seedream 与 Grok 的网络 transport 仍默认不存在，必须由部署 Host 显式注入；没有注入真实 secret、没有真实或付费 Provider 调用、没有公网部署。任何真实调用、secret 注入、公开部署或超过披露预算的动作都需要用户再次明确批准。
+本阶段实现 allow-listed capability profiles、完整 profile digest、机械 materializer、Seedream/Grok provider-call bridge、BYOK 请求级边界、Mock transport、能力/尺寸/媒体 preflight，以及按币种、自然日、客户端和 Provider 速率限制的预算门。Provider call 只投影 Guard 已接受的正向段落、禁止项、typed parameters、output contract 与稳定引用顺序；transport 失败统一映射为安全错误码，不能把原始错误或 BYOK 回显给浏览器。Compile 使用不可生成、不会出现在 allow-list 的 inspection profile 保留完整声明计划，再对所选 Provider 单独做 capability preflight；Generate 会用所选 profile 重编译并核对绑定 hash。
+
+Seedream 与 Grok 的网络 transport 仍默认不存在，必须由部署 Host 显式注入；没有注入真实 secret、没有真实或付费 Provider 调用、没有公网部署。任何真实调用、secret 注入、公开部署或超过披露预算的动作都需要用户再次明确批准。

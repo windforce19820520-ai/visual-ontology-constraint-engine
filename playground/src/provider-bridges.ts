@@ -16,7 +16,7 @@ export interface PlaygroundProviderCall {
   provider: 'seedream' | 'grok-imagine'
   endpoint: string
   model: string
-  wireFormat: 'seedream-json-data-uri' | 'xai-image-edits-multipart'
+  wireFormat: 'seedream-json-data-uri' | 'xai-image-edits-json'
   requestHash: string
   prompt: string
   references: readonly { assetId: string; contentHash: string; mediaType: string; bytes: Uint8Array }[]
@@ -47,13 +47,17 @@ export function buildProviderCall(input: {
     if (!asset || asset.contentHash !== mapping.contentHash) throw new Error(`PROVIDER_ASSET_BINDING_MISMATCH:${mapping.assetId}`)
     return { assetId: asset.id, contentHash: asset.contentHash, mediaType: asset.mediaType, bytes: asset.bytes }
   })
+  const acceptedControls: JsonObject = {
+    parameters: JSON.parse(JSON.stringify(input.materialization.request.parameters)) as JsonObject,
+    output: JSON.parse(JSON.stringify(input.materialization.request.output)) as JsonObject,
+  }
   const controls: JsonObject = input.profile.provider === 'seedream'
-    ? { count: 1, sequentialImageGeneration: false, responseFormat: 'normalized' }
-    : { count: 1, responseFormat: 'normalized' }
+    ? { count: 1, sequentialImageGeneration: false, responseFormat: 'normalized', ...acceptedControls }
+    : { count: 1, responseFormat: 'normalized', ...acceptedControls }
   return {
     schemaVersion: 'voce.playground-provider-call/v1alpha1', provider: input.profile.provider,
     endpoint: input.profile.endpoint, model: input.profile.model,
-    wireFormat: input.profile.provider === 'seedream' ? 'seedream-json-data-uri' : 'xai-image-edits-multipart',
+    wireFormat: input.profile.provider === 'seedream' ? 'seedream-json-data-uri' : 'xai-image-edits-json',
     requestHash: input.request.requestHash, prompt: input.materialization.request.prompt,
     references, controls, timeoutMs: input.profile.timeoutMs,
   }

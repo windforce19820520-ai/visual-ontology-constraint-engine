@@ -64,6 +64,22 @@ export const MOCK_PLAYGROUND_PROFILE = profile({
   rateLimit: { requestsPerSecond: 10, imagesPerMinute: 120 }, dailyBudgetDefault: 0, documentation: [], capabilityVerifiedAt: '2026-08-19',
 })
 
+/**
+ * Compile-only profile. It deliberately fits the complete declared scenario
+ * so Compile can remain inspectable before a selected Provider preflight.
+ * It is not allow-listed for generation and is never exposed in /api/meta.
+ */
+export const PLAYGROUND_INSPECTION_PROFILE = profile({
+  schemaVersion: 'voce.provider-capability-profile/v1alpha1', id: 'playground-inspection', version: '1.0.0', versionSummary: 'Compile-only profile for provider-neutral plan inspection.',
+  adapterId: 'mock.image-generator', adapterDigest: sha256({ fixture: 'playground-inspection', version: '1.0.0' } as never), verificationStatus: 'verified',
+  maximumReferenceCount: 14, maximumTotalReferenceBytes: 210_000_000, maximumBytesPerReference: 15_000_000,
+  allowedReferenceMediaTypes: ['image/jpeg', 'image/png', 'image/webp'], allowedReferenceRoles: roles, referenceOrdering: 'stable', referenceRoleOrder: roleOrder,
+  supportsMultipleReferences: true, supportsEditing: true, supportsBatchOutput: false, outputMediaTypes: ['image/png'], supportsTransparentOutput: false, supportsAlpha: false,
+  knownIncompatibilities: ['Compile-only; generation is forbidden.'], timeoutMs: 30_000, streaming: false, destination: 'mock://playground-inspection', dataCategories: ['reference_image', 'prompt'],
+  provider: 'mock', model: 'playground-inspection', endpoint: 'mock://playground-inspection', credentialMode: 'none', pricePerImage: 0, priceModel: { flatOutput: 0 }, currency: 'USD',
+  rateLimit: { requestsPerSecond: 10, imagesPerMinute: 120 }, dailyBudgetDefault: 0, documentation: [], capabilityVerifiedAt: '2026-08-19',
+})
+
 export const SEEDREAM_4_PROFILE = profile({
   schemaVersion: 'voce.provider-capability-profile/v1alpha1', id: 'seedream-4.0', version: '1.0.0-250828', versionSummary: 'Seedream 4.0 image generation/editing profile; official limits checked 2026-08-19.',
   adapterId: 'seedream.image-generator', adapterDigest: adapterDigest('seedream.image-generator', '1.0.0'), verificationStatus: 'verified',

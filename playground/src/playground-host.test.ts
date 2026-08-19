@@ -31,8 +31,22 @@ test('meta and composition APIs are UI-safe projections', () => {
   const serialized = JSON.stringify(meta)
   assert.equal(serialized.includes('targetPath'), false)
   assert.equal(serialized.includes('prompt'), false)
-  const presets = playgroundCompositionPresets()
+  assert.equal(serialized.includes('playground-inspection'), false)
+  const presets = playgroundCompositionPresets() as any
   assert.ok(JSON.stringify(presets).includes('full-shot'))
+  const parameterized = presets.presets.filter((preset: any) => preset.requiredInputs.length > 0)
+  assert.equal(parameterized.length, 4)
+  assert.ok(parameterized.every((preset: any) => preset.inputs.length === preset.requiredInputs.length && preset.inputs.every((item: any) => item.options.length > 0)))
+})
+
+test('all parameterized composition presets expose a valid browser choice and compile', () => {
+  const presets = playgroundCompositionPresets() as any
+  for (const presetId of ['dutch-angle', 'leading-room', 'negative-space', 'reflection-composition']) {
+    const preset = presets.presets.find((item: any) => item.id === presetId)
+    assert.ok(preset)
+    const inputs = Object.fromEntries(preset.inputs.map((item: any) => [item.id, item.options[0]]))
+    assert.doesNotThrow(() => compilePlayground({ ...input(), compositionSelections: [{ presetId, inputs }], rightsConfirmed: true, providerProfileId: 'mock-image' }))
+  }
 })
 
 test('compile response exposes Human Plan and accepted ProviderRenderRequest with no evidence', () => {
@@ -45,7 +59,7 @@ test('compile response exposes Human Plan and accepted ProviderRenderRequest wit
 })
 
 test('materialization is deterministic and every trace source is accepted', () => {
-  const response = compilePlayground({ ...input(), rightsConfirmed: true, providerProfileId: 'mock-image' })
+  const response = compileSemanticClosure(input(), MOCK_PLAYGROUND_PROFILE)
   const materializer = createProviderRequestMaterializer('mock.materializer', '1.0.0', MOCK_PLAYGROUND_PROFILE)
   const first = materializer.materialize(response.providerRenderRequest)
   const second = materializer.materialize(response.providerRenderRequest)
@@ -53,6 +67,7 @@ test('materialization is deterministic and every trace source is accepted', () =
   assert.ok(first.receipt.traces.length >= response.providerRenderRequest.sections.length)
   assert.ok(first.receipt.traces.every((trace) => trace.sourceKind.startsWith('accepted_')))
   assert.equal(first.request.references.length, 4)
+  assert.ok(first.request.forbidden.every((item) => first.request.prompt.includes(item.text)))
 })
 
 test('Grok profile blocks four-reference Try-On before transport', () => {
@@ -64,7 +79,7 @@ test('Grok profile blocks four-reference Try-On before transport', () => {
 })
 
 test('Mock Provider render-disabled gate produces zero calls', async () => {
-  const response = compilePlayground({ ...input(), rightsConfirmed: true, providerProfileId: 'mock-image' })
+  const response = compileSemanticClosure(input(), MOCK_PLAYGROUND_PROFILE)
   const materializer = createProviderRequestMaterializer('mock.materializer', '1.0.0', MOCK_PLAYGROUND_PROFILE)
   const mock = new MockProvider()
   const result = await mock.generate({ request: response.providerRenderRequest, profile: MOCK_PLAYGROUND_PROFILE, materializer, assets: tryOnRoles.map((item) => ({ ...asset(item.assetId), role: item.role })), clientId: 'test', renderEnabled: false, confirmSingleCall: true })
@@ -76,7 +91,7 @@ test('Mock Provider render-disabled gate produces zero calls', async () => {
 })
 
 test('Mock Provider requires explicit confirmation and succeeds exactly once when enabled', async () => {
-  const response = compilePlayground({ ...input(), rightsConfirmed: true, providerProfileId: 'mock-image' })
+  const response = compileSemanticClosure(input(), MOCK_PLAYGROUND_PROFILE)
   const materializer = createProviderRequestMaterializer('mock.materializer', '1.0.0', MOCK_PLAYGROUND_PROFILE)
   const mock = new MockProvider()
   const budget = new InMemoryBudgetGate({ dailyCost: 0, perClientCost: 0, maxConcurrent: 1, currency: 'USD' })
@@ -92,7 +107,7 @@ test('plan binding detects changed role, profile, or materializer before call', 
   const response = compilePlayground({ ...input(), rightsConfirmed: true, providerProfileId: 'mock-image' })
   const materializer = createProviderRequestMaterializer('mock.materializer', '1.0.0', MOCK_PLAYGROUND_PROFILE)
   const assets = tryOnRoles.map((item) => ({ ...asset(item.assetId), role: item.role }))
-  const binding = createPlaygroundPlanBinding({ request: response.providerRenderRequest, assets, scenarioDistributionHash: response.planBinding.scenarioDistributionHash, profile: MOCK_PLAYGROUND_PROFILE, materializer, credentialMode: 'none' })
+  const binding = createPlaygroundPlanBinding({ request: response.providerRenderRequest, generationRequestHash: response.planBinding.generationRequestHash, assets, scenarioDistributionHash: response.planBinding.scenarioDistributionHash, profile: MOCK_PLAYGROUND_PROFILE, materializer, credentialMode: 'none' })
   assert.doesNotThrow(() => assertPlaygroundPlanBinding(binding, response.planBinding))
   assert.throws(() => assertPlaygroundPlanBinding({ ...binding, assetSetHash: sha256({ changed: true }) }, response.planBinding), /PLAN_BINDING_MISMATCH/)
 })
@@ -140,6 +155,9 @@ test('browser bootstrap fetches both metadata endpoints and has mobile/accessibi
   assert.match(PLAYGROUND_HTML, /@media\(max-width:480px\)/)
   assert.match(PLAYGROUND_HTML, /aria-live="polite"/)
   assert.match(PLAYGROUND_HTML, /id="byok" type="password"/)
+  assert.match(PLAYGROUND_HTML, /id="composition-inputs"/)
+  assert.match(PLAYGROUND_HTML, /preset\.inputs/)
+  assert.match(PLAYGROUND_HTML, /compositionInputs/)
 })
 
 test('actual HTTP meta, preset and page endpoints agree on 30 presets', async () => {
@@ -153,6 +171,19 @@ test('actual HTTP meta, preset and page endpoints agree on 30 presets', async ()
   })
 })
 
+test('HTTP Mock Generate recompiles the inspection plan against the selected profile', async () => {
+  await withServer({ renderEnabled: true }, async (baseUrl) => {
+    const session = 'mock-generation-session'
+    const compileInput = { ...(await uploadTryOn(baseUrl, session)), rightsConfirmed: true, providerProfileId: 'mock-image' as const }
+    const compiled = await post(baseUrl, '/api/compile', session, compileInput)
+    assert.equal(compiled.status, 200)
+    assert.notEqual(compiled.value.planBinding.requestHash, compiled.value.planBinding.generationRequestHash)
+    const generated = await post(baseUrl, '/api/generate', session, { compile: compileInput, planBinding: compiled.value.planBinding, confirmSingleCall: true })
+    assert.equal(generated.status, 200)
+    assert.equal(generated.value.result.calls, 1)
+  })
+})
+
 test('Seedream and Grok selection both compile; Grok only blocks Generate capability', () => {
   const seedream = compilePlayground({ ...input(), rightsConfirmed: true, providerProfileId: 'seedream-4.0' })
   const grok = compilePlayground({ ...input(), rightsConfirmed: true, providerProfileId: 'grok-imagine-image-quality' })
@@ -160,6 +191,19 @@ test('Seedream and Grok selection both compile; Grok only blocks Generate capabi
   assert.equal(grok.providerCapability.status, 'blocked')
   assert.ok(grok.providerCapability.reasons.includes('REFERENCE_COUNT_EXCEEDED'))
   assert.equal(grok.humanPlan.selectedReferences.length, 4)
+})
+
+test('provider-neutral Compile preserves a ten-reference Cosplay plan accepted by Seedream', () => {
+  const roles = [
+    { assetId: 'person', role: 'person-identity' },
+    { assetId: 'character', role: 'character-design' },
+    ...Array.from({ length: 4 }, (_, index) => ({ assetId: `prop-${index}`, role: 'signature-prop-detail' })),
+    ...Array.from({ length: 4 }, (_, index) => ({ assetId: `detail-${index}`, role: 'critical-detail' })),
+  ]
+  const compiled = compilePlayground({ scenarioId: 'cosplay', assets: roles.map((item) => asset(item.assetId)), declaredRoles: roles, compositionSelections: [], rightsConfirmed: true, providerProfileId: 'seedream-4.0' })
+  assert.equal(compiled.referencePlan.ordered.length, 10)
+  assert.equal(compiled.providerCapability.status, 'ok')
+  assert.notEqual(compiled.planBinding.generationRequestHash, compiled.providerRenderRequest.requestHash)
 })
 
 test('provider profiles and nested security fields are immutable and plan binding uses full digest', () => {
@@ -243,7 +287,23 @@ test('injected Seedream transport receives one ephemeral key and public output n
   assert.equal(calls[0].wireFormat, 'seedream-json-data-uri')
 })
 
-test('Grok bridge uses the reviewed multipart edit shape without adding prompt semantics', () => {
+test('provider transport errors cannot echo an ephemeral key', async () => {
+  const secret = 'secret-transport-key'
+  const sizes: number[] = []
+  const transport: PlaygroundProviderTransport = { provider: 'seedream', async send() { throw new Error(`Authorization Bearer ${secret}`) } }
+  await withServer({ renderEnabled: true, transports: { seedream: transport }, onUploadStoreSizeChange: (size) => sizes.push(size) }, async (baseUrl) => {
+    const session = 'provider-error-session'
+    const compileInput = { ...(await uploadTryOn(baseUrl, session)), rightsConfirmed: true, providerProfileId: 'seedream-4.0' as const }
+    const compiled = await post(baseUrl, '/api/compile', session, compileInput)
+    const generated = await post(baseUrl, '/api/generate', session, { compile: compileInput, planBinding: compiled.value.planBinding, confirmSingleCall: true, apiKey: secret })
+    assert.equal(generated.status, 502)
+    assert.equal(generated.value.error, 'PROVIDER_CALL_FAILED')
+    assert.equal(JSON.stringify(generated.value).includes(secret), false)
+  })
+  assert.equal(sizes.at(-1), 0)
+})
+
+test('Grok bridge uses the reviewed JSON edit shape and keeps accepted semantics', () => {
   const cosplayRoles = [{ assetId: 'person', role: 'person-identity' }, { assetId: 'character', role: 'character-design' }]
   const cosplayInput: PlaygroundScenarioInput = { scenarioId: 'cosplay', assets: cosplayRoles.map((item) => asset(item.assetId)), declaredRoles: cosplayRoles, compositionSelections: [] }
   const target = compileSemanticClosure(cosplayInput, GROK_IMAGINE_PROFILE)
@@ -251,8 +311,11 @@ test('Grok bridge uses the reviewed multipart edit shape without adding prompt s
   const materialization = materializer.materialize(target.providerRenderRequest)
   const call = buildProviderCall({ request: target.providerRenderRequest, profile: GROK_IMAGINE_PROFILE, materialization,
     assets: cosplayInput.assets.map((item, index) => ({ id: item.id, contentHash: item.contentHash, byteLength: item.byteLength, mediaType: item.mediaType, role: cosplayRoles[index].role, width: 64, height: 96, bytes: minimalPng(64 + index, 96) })) })
-  assert.equal(call.wireFormat, 'xai-image-edits-multipart')
+  assert.equal(call.wireFormat, 'xai-image-edits-json')
   assert.equal(call.prompt, materialization.request.prompt)
+  assert.ok(materialization.request.forbidden.every((item) => call.prompt.includes(item.text)))
+  assert.deepEqual(call.controls.parameters, materialization.request.parameters)
+  assert.deepEqual(call.controls.output, materialization.request.output)
   assert.equal(call.references.length, 2)
 })
 

@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { JsonObject } from '@voce-engine/contracts'
-import { VISUAL_COMPOSITION_CATALOG, sha256 } from '@voce-engine/core'
+import { VISUAL_COMPOSITION_CATALOG, expandVisualCompositionPreset, sha256 } from '@voce-engine/core'
 import { compileSemanticClosure, type PlaygroundAssetDeclaration, type PlaygroundScenarioInput } from './semantic-closure.js'
 import { scenarioDistribution } from './scenario-distribution.js'
 import { createProviderRequestMaterializer } from './provider-materializer.js'
 import { assertPlaygroundPlanBinding, computeAssetSetHash, createPlaygroundPlanBinding, MockProvider, type PlaygroundPlanBinding } from './mock-provider.js'
-import { InMemoryBudgetGate, MOCK_PLAYGROUND_PROFILE, PLAYGROUND_PROVIDER_PROFILES, estimateProviderCost, preflightProviderCapability, providerProfileFor, type PlaygroundProviderProfileId, type UploadedAssetSummary } from './providers.js'
+import { InMemoryBudgetGate, PLAYGROUND_INSPECTION_PROFILE, PLAYGROUND_PROVIDER_PROFILES, estimateProviderCost, preflightProviderCapability, providerProfileFor, type PlaygroundProviderProfileId, type UploadedAssetSummary } from './providers.js'
 import { executeProviderCall, type PlaygroundProviderTransport, type ResolvedPlaygroundAsset } from './provider-bridges.js'
 import { materializationContainsOnlyAcceptedSources } from './provider-materializer.js'
 import { PLAYGROUND_HTML } from './web.js'
@@ -128,7 +128,25 @@ export function playgroundMeta(options: { renderEnabled?: boolean; transports?: 
 }
 
 export function playgroundCompositionPresets(): JsonObject {
-  return { schemaVersion: 'voce.playground-composition-presets/v1alpha1', catalogHash: VISUAL_COMPOSITION_CATALOG.catalogHash, presets: VISUAL_COMPOSITION_CATALOG.presets.map((preset) => ({ id: preset.id, category: preset.category, labelKey: preset.labelKey, descriptionKey: preset.descriptionKey, requiredInputs: preset.requiredInputs ?? [], compatibilityHints: preset.compatibilityHints ?? [] })) }
+  const candidateValues = [...new Set(VISUAL_COMPOSITION_CATALOG.paths.flatMap((path) => path.allowedValues ?? []))]
+  return {
+    schemaVersion: 'voce.playground-composition-presets/v1alpha1',
+    catalogHash: VISUAL_COMPOSITION_CATALOG.catalogHash,
+    presets: VISUAL_COMPOSITION_CATALOG.presets.map((preset) => ({
+      id: preset.id,
+      category: preset.category,
+      labelKey: preset.labelKey,
+      descriptionKey: preset.descriptionKey,
+      requiredInputs: preset.requiredInputs ?? [],
+      inputs: (preset.requiredInputs ?? []).map((inputId) => ({
+        id: inputId,
+        options: candidateValues.filter((value) => {
+          try { expandVisualCompositionPreset(preset.id, { inputs: { [inputId]: value } }); return true } catch { return false }
+        }),
+      })),
+      compatibilityHints: preset.compatibilityHints ?? [],
+    })),
+  }
 }
 
 function normalizeAssets(body: PlaygroundCompilePayload, store: UploadStore, sessionId?: string): PlaygroundCompilePayload {
@@ -162,11 +180,11 @@ export function compilePlayground(payload: PlaygroundCompilePayload): Playground
   const profile = providerProfileFor(payload.providerProfileId ?? 'mock-image')
   // Compile is provider-neutral so users can always inspect the accepted plan.
   // Provider-specific reference limits are a separate Generate preflight.
-  const result = compileSemanticClosure(semanticInput(payload), MOCK_PLAYGROUND_PROFILE)
+  const result = compileSemanticClosure(semanticInput(payload), PLAYGROUND_INSPECTION_PROFILE)
   const materializer = createProviderRequestMaterializer(`${profile.provider}.materializer`, '1.0.0', profile)
   const summaries = assetSummaries(payload)
   const providerCapability = preflightProviderCapability({ request: result.providerRenderRequest, profile, assets: summaries, requireProfileBinding: false, requireAuthorization: false })
-  const generationRequestHash = profile.provider !== 'mock' && providerCapability.status === 'ok'
+  const generationRequestHash = providerCapability.status === 'ok'
     ? compileSemanticClosure(semanticInput(payload), profile).providerRenderRequest.requestHash
     : result.providerRenderRequest.requestHash
   const planBinding = createPlaygroundPlanBinding({ request: result.providerRenderRequest, generationRequestHash, assets: summaries, scenarioDistributionHash: result.seed.declaredRolePlan.distributionHash, profile, materializer, credentialMode: profile.credentialMode })
@@ -304,18 +322,18 @@ export function createPlaygroundServer(options: PlaygroundServerOptions = {}): S
           const summaries = assetSummaries(normalized)
           const clientHeader = request.headers['x-playground-client']
           const clientId = typeof clientHeader === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(clientHeader) ? clientHeader : 'anonymous'
+          const target = compileSemanticClosure(semanticInput(normalized), profile)
+          if (target.providerRenderRequest.requestHash !== compiled.planBinding.generationRequestHash) throw new HttpProblem(409, 'PLAN_BINDING_GENERATION_REQUEST_MISMATCH')
+          const targetCapability = preflightProviderCapability({ request: target.providerRenderRequest, profile, assets: summaries, renderEnabled: true, confirmSingleCall: true })
+          if (targetCapability.status !== 'ok') throw new HttpProblem(409, `PROVIDER_CAPABILITY_BLOCKED:${targetCapability.reasons.join(',')}`)
           if (profile.provider === 'mock') {
             const materializer = createProviderRequestMaterializer('mock.materializer', '1.0.0', profile)
-            const result = await mock.generate({ request: compiled.providerRenderRequest, profile, materializer, assets: summaries, clientId, renderEnabled: true, confirmSingleCall, credentialMode: profile.credentialMode, budgetGate })
+            const result = await mock.generate({ request: target.providerRenderRequest, profile, materializer, assets: summaries, clientId, renderEnabled: true, confirmSingleCall, credentialMode: profile.credentialMode, budgetGate })
             apiKey = ''
             return respond(response, result.status === 'ok' ? 200 : 409, { schemaVersion: 'voce.playground-generate-response/v1alpha1', renderEnabled: true, result })
           }
           const transport = options.transports?.[profile.provider]
           if (!transport) throw new HttpProblem(503, 'REAL_PROVIDER_TRANSPORT_DISABLED')
-          const target = compileSemanticClosure(semanticInput(normalized), profile)
-          if (target.providerRenderRequest.requestHash !== compiled.planBinding.generationRequestHash) throw new HttpProblem(409, 'PLAN_BINDING_GENERATION_REQUEST_MISMATCH')
-          const targetCapability = preflightProviderCapability({ request: target.providerRenderRequest, profile, assets: summaries, renderEnabled: true, confirmSingleCall: true })
-          if (targetCapability.status !== 'ok') throw new HttpProblem(409, `PROVIDER_CAPABILITY_BLOCKED:${targetCapability.reasons.join(',')}`)
           const materializer = createProviderRequestMaterializer(`${profile.provider}.materializer`, '1.0.0', profile)
           const materialization = materializer.materialize(target.providerRenderRequest)
           if (!materializationContainsOnlyAcceptedSources(materialization)) throw new HttpProblem(409, 'MATERIALIZER_UNTRUSTED_SOURCE')
@@ -329,7 +347,12 @@ export function createPlaygroundServer(options: PlaygroundServerOptions = {}): S
           let reservation
           try {
             reservation = budgetGate.reserve(clientId, profile, estimateProviderCost(target.providerRenderRequest, profile))
-            const providerResult = await executeProviderCall({ request: target.providerRenderRequest, profile, materialization, assets: resolved, transport, ephemeralApiKey: apiKey })
+            let providerResult
+            try {
+              providerResult = await executeProviderCall({ request: target.providerRenderRequest, profile, materialization, assets: resolved, transport, ephemeralApiKey: apiKey })
+            } catch {
+              throw new HttpProblem(502, 'PROVIDER_CALL_FAILED')
+            }
             apiKey = ''
             const result = { status: 'ok', providerResult, capability: targetCapability, cleanup: { status: 'completed', releasedRequestBuffers: true, releasedCredential: true }, calls: 1, logs: [{ event: 'provider.generate', requestHash: target.providerRenderRequest.requestHash, profileId: profile.id, status: 'succeeded' }] }
             return respond(response, 200, { schemaVersion: 'voce.playground-generate-response/v1alpha1', renderEnabled: true, result })
