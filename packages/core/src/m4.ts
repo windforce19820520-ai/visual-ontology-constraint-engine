@@ -334,6 +334,7 @@ function referenceCandidateProjection(candidate: ReferenceCandidate): JsonObject
     byteLength: candidate.byteLength,
     role: candidate.role,
     ontologyScopes: sortedStrings(candidate.ontologyScopes),
+    prohibitedTargetPaths: sortedStrings(candidate.prohibitedTargetPaths),
     importance: candidate.importance,
     constraintIds: sortedStrings(candidate.constraintIds),
     sourceBindingIds: sortedStrings(candidate.sourceBindingIds),
@@ -507,7 +508,7 @@ export function createConstraintWaiver(input: Omit<ConstraintWaiver, 'waiverHash
   return clone({ ...base, waiverHash: computeConstraintWaiverHash(base) })
 }
 
-interface SemanticItem { id: string; path: string; value: JsonValue; importance: Importance; sourceIds: string[] }
+interface SemanticItem { id: string; path: string; value: JsonValue; hasValue: boolean; importance: Importance; sourceIds: string[] }
 interface InternalOperand extends DeclarativeRuleOperand { match: 'all'|'any' }
 interface InternalRule {
   id: string
@@ -672,6 +673,7 @@ function semanticItems(input: ConstraintCompilationInput): SemanticItem[] {
     id: intent.id,
     path: intent.targetPath,
     value: intent.requestedValue ?? null,
+    hasValue: intent.requestedValue !== undefined,
     importance: intent.importance,
     sourceIds: sortedStrings([intent.id, ...(intent.sourceHintIds ?? [])]),
   }))
@@ -679,6 +681,7 @@ function semanticItems(input: ConstraintCompilationInput): SemanticItem[] {
     id: fact.id,
     path: fact.path,
     value: fact.value,
+    hasValue: true,
     importance: itemImportance(fact.path, input.changeIntents),
     sourceIds: sortedStrings([...fact.acceptedByIds, ...fact.acceptedByDecisionIds, ...fact.sourceBindingIds]),
   }))
@@ -1104,7 +1107,7 @@ export class ConstraintGraphCompiler {
     if (vocabularyCollisionPaths.length) return blockedConstraintIR(input, ['ONTOLOGY_PATH_DEFINITION_COLLISION'])
     const invalidOntologyValues = semanticItems(input).filter((item) => {
       const definition = vocabulary.get(item.path)
-      return definition !== undefined && !ontologyValueMatches(definition, item.value)
+      return item.hasValue && definition !== undefined && !ontologyValueMatches(definition, item.value)
     })
     if (invalidOntologyValues.length) return blockedConstraintIR(input, ['ONTOLOGY_VALUE_INVALID'])
 
@@ -1375,6 +1378,7 @@ function normalizedCandidate(candidate: ReferenceCandidate, constraintIR: Constr
     byteLength: candidate.byteLength ?? artifact?.byteLength,
     role: candidate.role ?? artifact?.role ?? 'reference',
     ontologyScopes: sortedStrings(candidate.ontologyScopes),
+    prohibitedTargetPaths: sortedStrings(candidate.prohibitedTargetPaths),
     importance: inferredImportance,
     constraintIds: constraints,
     sourceBindingIds: sortedStrings(candidate.sourceBindingIds),
@@ -1464,6 +1468,7 @@ function makePlannedReference(candidate: ReferenceCandidate, dependencyIds: stri
     ...(candidate.byteLength === undefined ? {} : { byteLength: candidate.byteLength }),
     role: candidate.role ?? 'reference',
     ontologyScopes: sortedStrings(candidate.ontologyScopes),
+    prohibitedTargetPaths: sortedStrings(candidate.prohibitedTargetPaths),
     constraintIds: sortedStrings(candidate.constraintIds),
     sourceBindingIds: sortedStrings(candidate.sourceBindingIds),
     dependencyIds: sortedStrings(dependencyIds),
@@ -1519,6 +1524,7 @@ function groupCandidates(candidates: ReferenceCandidate[]): CandidateGroup[] {
       importance: stableImportance(existing.representative.importance, candidate.importance),
       role: [existing.representative.role ?? 'reference', candidate.role ?? 'reference'].sort(compareCodeUnits)[0],
       ontologyScopes: sortedStrings([...(existing.representative.ontologyScopes ?? []), ...(candidate.ontologyScopes ?? [])]),
+      prohibitedTargetPaths: sortedStrings([...(existing.representative.prohibitedTargetPaths ?? []), ...(candidate.prohibitedTargetPaths ?? [])]),
       constraintIds: sortedStrings([...(existing.representative.constraintIds ?? []), ...(candidate.constraintIds ?? [])]),
       sourceBindingIds: sortedStrings([...(existing.representative.sourceBindingIds ?? []), ...(candidate.sourceBindingIds ?? [])]),
       goalIds: sortedStrings([...(existing.representative.goalIds ?? []), ...(candidate.goalIds ?? [])]),

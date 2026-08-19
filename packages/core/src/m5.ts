@@ -226,6 +226,7 @@ function promptReferenceMappingProjection(mapping: PromptReferenceMapping): Json
     role: mapping.role,
     order: mapping.order,
     required: mapping.required,
+    prohibitedTargetPaths: sortedStrings(mapping.prohibitedTargetPaths),
     constraintIds: sortedStrings(mapping.constraintIds),
     sourceBindingIds: sortedStrings(mapping.sourceBindingIds),
     decisionIds: sortedStrings(mapping.decisionIds),
@@ -595,6 +596,7 @@ function referenceMapping(reference: PlannedReference, constraints: Constraint[]
     role: reference.role,
     order: reference.order,
     required,
+    prohibitedTargetPaths: sortedStrings(reference.prohibitedTargetPaths ?? []),
     constraintIds: effectiveConstraintIds,
     sourceBindingIds: sortedStrings(reference.sourceBindingIds),
     decisionIds: sortedStrings(decisionIds),
@@ -684,9 +686,18 @@ export class PromptCompiler {
         schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
         id: 'prompt-suggestion-slot-default', kind: 'suggestion', priority: 10, order: 2000, content: '', text: '', constraintIds: [], sourceIds: [], decisionIds: [], assetIds: [], importance: 'preferred', mutability: 'suggestion_slot', locked: false, slotId: 'suggestion.default',
       })
-      const forbidden: PromptProhibition[] = constraints.filter((constraint) => constraint.predicate === 'absent').map((constraint) => ({
-        id: hashId('prompt-prohibition', { constraintId: constraint.id }), text: `Do not include ${constraint.targetPath ?? constraint.targetPaths.join(',')}.`, constraintIds: [constraint.id], sourceIds: sortedStrings(constraint.sourceIds), importance: constraint.importance,
-      }))
+      const forbidden: PromptProhibition[] = [
+        ...constraints.filter((constraint) => constraint.predicate === 'absent').map((constraint) => ({
+          id: hashId('prompt-prohibition', { constraintId: constraint.id }), text: `Do not include ${constraint.targetPath ?? constraint.targetPaths.join(',')}.`, constraintIds: [constraint.id], sourceIds: sortedStrings(constraint.sourceIds), importance: constraint.importance,
+        })),
+        ...safeInput.referencePlan.ordered.flatMap((reference) => (reference.prohibitedTargetPaths ?? []).map((targetPath) => ({
+          id: hashId('reference-prohibition', { referenceId: reference.id, targetPath }),
+          text: `Reference ${reference.label} must not contribute ${targetPath}.`,
+          constraintIds: sortedStrings(reference.constraintIds),
+          sourceIds: sortedStrings([reference.assetId, ...reference.sourceBindingIds]),
+          importance: reference.constraintIds.some((id) => constraints.find((constraint) => constraint.id === id)?.importance === 'hard') ? 'hard' as const : 'required' as const,
+        }))),
+      ]
       const coverage = constraints.map((constraint) => coverageForConstraint(constraint, sections, parameters, mappings))
       const prompt: PromptIR = {
         schemaVersion: PROMPT_IR_SCHEMA_VERSION,
@@ -1087,6 +1098,7 @@ function renderProjection(request: Omit<ProviderRenderRequest, 'requestHash'>): 
     sections: request.sections.map(promptSectionProjection),
     parameters: sortedBy(request.parameters, (item) => item.id).map(promptParameterProjection),
     referenceMappings: [...request.referenceMappings].sort((left, right) => left.order - right.order || compareCodeUnits(left.id, right.id)).map(promptReferenceMappingProjection),
+    forbidden: sortedBy(request.forbidden ?? [], (item) => item.id),
     output: clone(request.output),
     pipelinePlanHash: request.pipelinePlanHash,
   }) as JsonObject
@@ -1123,6 +1135,7 @@ export function createProviderRenderRequest(input: ProviderRenderInput): Provide
     sections: clone(sections),
     parameters: clone(parameters),
     referenceMappings: clone(mappings),
+    forbidden: clone(safePrompt.forbidden),
     output: clone(safePrompt.output),
     pipelinePlanHash: input.pipelinePlanHash ?? safePrompt.pipelinePlanHash,
   }

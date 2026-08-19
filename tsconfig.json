@@ -4,6 +4,7 @@
     { "path": "packages/contracts" },
     { "path": "packages/core" },
     { "path": "packages/testkit" },
-    { "path": "packages/cli" }
+    { "path": "packages/cli" },
+    { "path": "playground" }
   ]
 }

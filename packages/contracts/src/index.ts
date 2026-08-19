@@ -352,6 +352,8 @@ export interface ReferenceCandidate {
   byteLength?: number
   role?: string
   ontologyScopes?: string[]
+  /** ScenarioPack-derived paths this reference is explicitly forbidden to contribute. */
+  prohibitedTargetPaths?: string[]
   importance?: Importance
   constraintIds?: string[]
   sourceBindingIds?: string[]
@@ -381,6 +383,8 @@ export interface PlannedReference {
   byteLength?: number
   role: string
   ontologyScopes: string[]
+  /** Guard-protected source isolation carried through the reference plan. */
+  prohibitedTargetPaths?: string[]
   constraintIds: string[]
   sourceBindingIds: string[]
   dependencyIds: string[]
@@ -873,6 +877,8 @@ export interface PromptReferenceMapping {
   contentHash: string
   label: string
   role: string
+  /** Guard-protected source isolation for generic multi-reference providers. */
+  prohibitedTargetPaths?: string[]
   order: number
   required: boolean
   constraintIds: string[]
@@ -1102,6 +1108,8 @@ export interface ProviderRenderRequest {
   sections: PromptSection[]
   parameters: PromptParameter[]
   referenceMappings: PromptReferenceMapping[]
+  /** Accepted PromptIR prohibitions, including per-reference isolation paths. */
+  forbidden?: PromptProhibition[]
   output: OutputContract
   pipelinePlanHash: string
   requestHash: string

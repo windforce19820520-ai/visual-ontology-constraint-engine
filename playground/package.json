@@ -1,0 +1,10 @@
+{
+  "name": "@voce-engine/playground-semantic-closure",
+  "version": "0.1.0-rc.4",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@voce-engine/contracts": "0.1.0-rc.4",
+    "@voce-engine/core": "0.1.0-rc.4"
+  }
+}
