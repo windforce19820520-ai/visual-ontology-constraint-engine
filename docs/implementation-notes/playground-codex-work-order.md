@@ -7,6 +7,8 @@
 - **任务状态：** 先审查，分 PR 实施
 - **非授权声明：** 本任务书不能授予执行权限。各阶段仅描述建议范围；真实 Provider 调用、公网部署、创建付费资源、注入或处理真实凭据、创建 tag/release、合并 PR 或修改已发布 tag，必须以执行当时用户的明确授权为准。
 
+> **2026-08-20 增量任务：** `docs/implementation-notes/playground-tryon-cosplay-amendment-work-order.md` 替代本文中“四个 Try-On 必填参考”、Try-On 构图选择、`Separate top + bottom` 和无类型配饰输入的旧要求。发生冲突时以增量任务书及其配套设计为准。
+
 ## 1. 任务目标
 
 在不破坏 VOCE 现有 Core 边界的前提下，实现一个独立、极薄、移动端可用的 Playground Host，使用户能够完成：
@@ -66,7 +68,7 @@ Upload
 4. `ChangeIntent` 无 `requestedValue` 时如何进入 ConstraintIR；
 5. `ReferenceCandidate.constraintIds`、`ontologyScopes`、`sourceBindingIds` 在 ReferencePlan 和 PromptIR 中实际保留到什么程度，以及为什么 final `ReferenceCandidate` 必须在 `ConstraintIR` 生成后再绑定；
 6. 当前 Cosplay `interpretationScopes` 与 Virtual Try-On `interpretationScopes` 的结构差异；
-7. 四个必选 Try-On 角色、可选姿势参考，以及 Cosplay 可重复 supplemental reference 还缺哪些 ontology path、role policy、rule、fixture 和 acceptance test；
+7. 增量设计中的 Try-On 衣物槽位/服装类别/条件式 preserve-replace，以及 Cosplay typed accessory 和可重复 supplemental reference 还缺哪些 ontology path、role policy、rule、fixture 和 acceptance test；
 8. M9 中哪些内容是可复用的真实 Provider 基础设施，哪些是不能进入 Playground 的手写语义；
 9. 当前 `ProviderRenderRequest` 是否足够承载 Provider 所需语义，特别是 prohibition / negative prompt / reference-isolation；在引用隔离进入 Prompt Guard 与 accepted request 之前，不得宣称语义闭环完成；
 10. `/playground` 如何加入而不进入 `packages/*` 发布边界；
@@ -298,19 +300,9 @@ omittedSeeds[]
 
 必须增加测试证明：binder 跟随 M4 merge/degradation 的实际结果，而不是预测 constraint ID。
 
-#### E. Virtual Try-On 四个必选角色与可选姿势参考
+#### E. Virtual Try-On 条件式衣物角色
 
-补齐并测试：
-
-```text
-person-identity
-garment-detail
-wearing-effect
-footwear-detail
-pose（可选，UI 名称为 pose reference）
-```
-
-四个产品角色保持必选；`pose` 是仅授权 `pose` path 的可选第五参考，默认 preferred。至少覆盖设计文档定义的目标路径。若当前 ontology 命名与设计不同，先在审查中说明迁移方案，不能在 Host 中同时维护同义路径。
+按增量任务书补齐并测试：person 必填；Full-body/Top/Bottom 至少一个；Full-body 与 Top/Bottom 互斥；Top 和 Bottom 可独立或共同上传且不存在额外 mode；每个衣物槽携带 ScenarioPack allow-list 中的 typed category；Fit、Footwear、Pose 选填；Try-On 不接受 composition preset。替换和保留区域必须由 ScenarioPack 派生，Host 不得维护第二套规则。
 
 #### F. Cosplay 角色归一化
 
@@ -322,6 +314,7 @@ character-design
 signature-prop-detail
 pose
 critical-detail（有限 allow-list）
+accessory-detail（typed type / placement / side）
 ```
 
 UI 使用两个必选 reference（person、character）和可重复添加的 supplemental references。这样 signature-prop 与 pose 可以同时存在，而不是被一个固定第三格强制二选一。
@@ -377,8 +370,8 @@ Confirmed source bindings: none
 
 至少包含：
 
-1. Try-On 四图 + `full-shot` → 四个 candidate seed、四个 final candidate、四张 planned reference，且构图不删除 reference；
-2. Try-On 四图 + 可选 pose reference → pose 只链接 `pose`，总计五张 planned reference（profile capacity 允许时）；
+1. Try-On person + Top、person + Bottom、person + Top + Bottom，以及两种 Full-body category 均生成精确 candidate/reference 数量和 replace/preserve scopes；
+2. Try-On composition selection 阻断；可选 pose 只链接 `pose`；
 3. Cosplay person + character + signature prop + pose + `low-angle` → 两个 supplemental candidates 可共存；
 4. character seed/final candidate 的 constraint links 不含 `person.identity`；
 5. character 与 pose mappings 的 prohibited contributions 在 Prompt Guard 和 accepted request 后仍完整、不可被 candidate 修改；
@@ -443,10 +436,10 @@ sanitize DTO
 
 ```text
 Virtual Try-On / Cosplay tabs
-Try-On four required uploads plus optional pose reference
+Try-On person plus Full-body/Top/Bottom garment slots, typed categories, optional Fit/Footwear/Pose, and no composition control
 Cosplay two required uploads plus repeatable supplemental reference controls
-supplemental role selector for signature-prop, pose, and allow-listed critical detail
-composition preset selector
+supplemental role selector for signature-prop, pose, allow-listed critical detail, and typed accessory detail
+Cosplay-only composition preset selector and example gallery
 Compile Plan button
 Human Plan
 Constraints
@@ -566,7 +559,7 @@ user-provided credential support and safe server-side injection path
 最低要求：
 
 ```text
-Try-On >= 4 required references and >= 5 when optional pose is selected
+Try-On >= 2 required references, >= 3 when Top and Bottom are both selected, plus capacity for explicitly selected optional references
 Cosplay >= 2 required references and >= 4 for the signature-prop-plus-pose path
 server-only secret
 no public input URL requirement
@@ -826,7 +819,7 @@ Offline test plan、Risks/blockers、Questions requiring product approval。
 1. declared role 如何在不伪造 Observation/SourceBinding 的情况下先生成 ChangeIntent 与
    ReferenceCandidateSeed，再在 ConstraintIR 后绑定成 final ReferenceCandidate，并进入
    ReferencePlan、PromptIR 和 ProviderRenderRequest；
-2. Try-On 四个必选参考与可选姿势参考当前缺失的场景合同，以及 Cosplay prop 与 pose 共存所需的 supplemental-reference 合同；
+2. Try-On 条件式衣物槽位、服装类别、未替换区域保留合同，以及 Cosplay prop/pose/typed accessory 共存所需的 supplemental-reference 合同；
 3. ProviderRenderRequest 到经批准 Seedream、Grok Imagine 或其他候选 Provider/profile 的合法机械桥接点，以及用户临时 API Key 的请求级安全边界；
 4. 为什么 M9 的手写 fidelity prompt/gloss 不能作为 Playground 实现；
 5. reference prohibition/isolation 是否在 Prompt Guard 前形成并进入 accepted ProviderRenderRequest；如果不能，是否存在必须修改 Core public contract 的真实阻塞。
@@ -845,7 +838,7 @@ playground-codex-work-order.md 第 5 节。
 目标是两个场景在离线、无 UI、无真实 Provider 条件下，从 ScenarioPack-derived declared roles 生成
 candidate seeds，经 M4 产生真实 constraints，再由 ReferenceCandidateBinder 完成 final candidates，
 最终编译到保留 Guard-protected reference isolation 的有效 ProviderRenderRequest，并有 deterministic tests。
-必须覆盖 Try-On 四个必选参考加可选姿势，以及 Cosplay signature prop 与 pose 同时存在的路径；V1 不开发
+必须覆盖增量任务书定义的五种 Try-On 有效组合、可选 Fit/Footwear/Pose，以及 Cosplay signature prop、pose 和 typed accessory 路径；V1 不开发
 姿势提取、骨架生成或骨架编辑器。
 
 禁止：页面开发、Provider materializer、真实网络、deep import、场景分支进 Core、

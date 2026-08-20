@@ -6,6 +6,8 @@
 - **Scope:** Playground compile and bounded-render architecture
 - **Authorization:** this document does not grant execution authority. A real Provider call, public deployment, paid resource creation, secret injection, tag, release, merge, or modification of the published `v0.1.0-rc.4` tag always requires the user's current explicit authorization.
 
+> **2026-08-20 product amendment:** [Playground Try-On, Cosplay Accessory, and Local Validation Amendment](playground-tryon-cosplay-input-amendment.md) supersedes this document's fixed four-reference Try-On model, Try-On composition selector, explicit `Separate top + bottom` mode, and untyped accessory-detail assumptions. The amendment is normative where the two documents differ.
+
 ## 1. Purpose
 
 The earlier Playground proposal correctly defined the product experience: a thin public Host where a user uploads references, selects visual-composition presets, compiles a readable VOCE plan, optionally renders one image, and inspects trace and feedback information.
@@ -95,13 +97,14 @@ The script currently contains handwritten `INPUT_SPECS.binding`, `COSPLAY_FIDELI
 
 The Cosplay fixture already declares recognizable source roles such as `person-identity`, `character-design`, `signature-prop-detail`, and `pose`, with declarative target-path policies.
 
-The Virtual Try-On fixture is still an older, mostly single-reference offline fixture. It does not yet implement the intended four-role public experience:
+The Virtual Try-On fixture is still an older, mostly single-reference offline fixture. It does not yet implement the amended slot-driven public experience:
 
 ```text
 person-identity
-garment-detail
-wearing-effect
-footwear-detail
+garment-full-body | garment-top | garment-bottom (at least one garment slot)
+fit-reference (optional)
+footwear-detail (optional)
+pose (optional)
 ```
 
 The two fixture packs also use different shapes for `interpretationScopes`. The Playground must not assume that the current fixtures already form one stable, typed Host role-policy contract.
@@ -372,17 +375,7 @@ For a generic multi-reference Provider such as Seedream or Grok Imagine, the acc
 
 ### 7.1 Virtual Try-On
 
-PR 0 must add or promote a declarative scenario vocabulary and role policy supporting:
-
-| Role | Authorized target paths | Operation | Default importance |
-|---|---|---|---|
-| `person-identity` | `person.identity`, `person.face`, `person.body`, `person.hair` | `preserve` | hard/required |
-| `garment-detail` | `wardrobe.design`, `wardrobe.structure`, `wardrobe.color`, `wardrobe.material`, `wardrobe.details` | `replace` | required |
-| `wearing-effect` | `wardrobe.fit`, `wardrobe.silhouette`, `wardrobe.length`, `wardrobe.waistPosition`, `wardrobe.drape` | `adjust` or `replace`, as declared by scenario policy | required |
-| `footwear-detail` | `footwear.type`, `footwear.color`, `footwear.structure`, `footwear.signatureDetails` | `replace` | required |
-| `pose` (optional, UI label “pose reference”) | `pose` only | `adjust` | preferred |
-
-The exact vocabulary names must be reconciled with the current ScenarioPack conventions during implementation review. The Browser may not invent alternate paths. The four product references remain required; pose is an optional fifth reference and must be visibly omitted or blocked when the selected Provider profile cannot carry it.
+The normative role, garment-category, replace/preserve, and composition behavior is defined by the [2026-08-20 amendment](playground-tryon-cosplay-input-amendment.md). In summary, person is required; Full-body, Top, and Bottom are declarative garment slots with at least one garment required; Full-body is mutually exclusive with Top/Bottom; Top and Bottom may coexist without a separate mode; Fit, Footwear, and Pose are optional. Try-On does not accept the 30 composition presets.
 
 ### 7.2 Cosplay
 
@@ -636,7 +629,7 @@ Official capability sources:
 
 Minimum generation requirements:
 
-- Virtual Try-On: four ordered required references, plus a fifth when optional pose is selected;
+- Virtual Try-On: two required references for person plus one garment slot, or three when Top and Bottom are both supplied, plus only the optional references explicitly selected by the user;
 - Cosplay: two ordered required references and enough supplemental capacity for the selected signature-prop, pose, or critical-detail references; the prop-plus-pose acceptance path requires four total references;
 - supported upload media and byte limits known before call;
 - server-side credential model;
@@ -647,7 +640,7 @@ Minimum generation requirements:
 - privacy terms acceptable for person images;
 - no requirement to expose secrets or public source-image URLs.
 
-If the configured Provider cannot meet the scenario reference count, Compile remains available and Generate is disabled. In particular, Cloudflare cannot generate Try-On with the optional fifth pose reference or any Cosplay request above four references. References are never silently deleted, and selecting Cloudflare never silently changes the scenario or promotes a paid Provider.
+If the configured Provider cannot meet the resolved scenario reference count, Compile remains available and Generate is disabled. Cloudflare can carry up to four total references; the amended Try-On path therefore has two references in the common single-garment case, three when Top and Bottom are both supplied, and less remaining capacity as optional references are added. References are never silently deleted, and selecting Cloudflare never silently changes the scenario or promotes a paid Provider.
 
 ### 14.1 Default Cloudflare credential and user disclosure
 
@@ -735,7 +728,7 @@ Deliver:
 
 - current-state audit against this document;
 - immutable Host role-policy model;
-- four-role Virtual Try-On scenario distribution;
+- amended slot-driven Virtual Try-On scenario distribution with typed garment categories and conditional preserve/replace scopes;
 - normalized Cosplay role policy;
 - optional pose-reference policy for both scenarios, with no pose editor or extractor;
 - `ScenarioInputCompiler`;
@@ -752,9 +745,9 @@ Deliver:
 
 - standalone `/playground` Host;
 - Try-On and Cosplay UI;
-- four required Try-On uploads plus an optional pose reference, and two required Cosplay uploads plus repeatable supplemental references;
+- slot-driven Try-On uploads with person plus at least one garment, optional Fit/Footwear/Pose, no composition controls, and two required Cosplay uploads plus repeatable typed supplemental references;
 - uploads, pose-reference format guidance, and rights confirmation;
-- composition catalog from public Core API;
+- Cosplay-only composition catalog from the public Core API;
 - `/api/meta`, `/api/composition-presets`, `/api/compile`;
 - Human Plan and Developer View;
 - mobile and accessibility coverage;
@@ -806,7 +799,7 @@ Only after explicit authorization:
 
 ### Semantic closure
 
-- Four declared Try-On roles compile to four candidate seeds, then four finalized `ReferenceCandidate` records and four planned references when the profile permits four.
+- Person plus Top, Bottom, Top-and-Bottom, Full-body one-piece, and Full-body complete-outfit inputs each compile to the amended deterministic replace/preserve scopes and exact planned-reference count.
 - Three declared Cosplay roles compile without allowing the character seed or finalized reference candidate to support `person.identity`.
 - A ready-made pose reference can be declared in either scenario, contributes only `pose`, and carries Guard-protected prohibitions against identity, clothing, background, and style inheritance.
 - A Cosplay signature-prop reference and pose reference can coexist as separate supplemental candidates; an insufficient preferred-reference budget omits pose explicitly rather than the required prop.
@@ -814,7 +807,7 @@ Only after explicit authorization:
 - A typed explicit value, when supported, is traceable to `user_explicit` provenance.
 - Final candidate `constraintIds` are computed after M4 and each linked constraint contains one of the seed's exact supporting intent IDs in `sourceIds`.
 - A preferred seed whose only constraint is degraded is omitted deterministically; a required seed with no surviving linked constraint blocks.
-- A composition preset adds `ChangeIntent` records but does not consume reference budget.
+- A Cosplay composition preset adds `ChangeIntent` records but does not consume reference budget; a Try-On composition selection blocks before compilation.
 - Required medium-shot plus preferred close-up produces one degradation and excludes the losing constraint from Prompt IR and Provider request sections.
 - Swapping two files between roles changes `assetSetHash` and Provider request binding.
 
