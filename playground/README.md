@@ -2,7 +2,7 @@
 
 This standalone Host provides `/playground`, upload/local preview, ScenarioPack-derived role controls, Cosplay-only access to all 30 composition presets, offline compile inspection, deterministic Mock generation, and deployment-injected Provider bridges. It does not import Core internals. Standard development and CI never call a paid model.
 
-This Host is the fifth public package prepared for `v0.1.0-rc.5`. It passed local product acceptance on 2026-08-21 and is packaged for exact-version clean-room installation. The package runs a local Host; it is not a public deployment or production-readiness claim. PR D remains responsible for public deployment, shared-service limits, feedback operations, monitoring, and online acceptance.
+This Host is the fifth public package published in `v0.1.0-rc.5` under npm `next`. It passed local product acceptance, release gates, OIDC publication, and an exact-version public-registry clean consumer on 2026-08-21. The package runs a local Host; it is not a public deployment or production-readiness claim. PR D remains responsible for public deployment, shared-service limits, feedback operations, monitoring, and online acceptance.
 
 Install and start the local Host:
 

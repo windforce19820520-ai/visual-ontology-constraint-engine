@@ -37,7 +37,7 @@ The workflow is manual by design. An owner supplies an existing annotated releas
 
 The packages publish serially in dependency order: contracts, Core, testkit, CLI, then Playground. The publish inputs are the exact release-candidate tarballs that passed the clean-consumer and checksum gates, rather than a second package assembled from the source directories. The job has only `contents: read` and `id-token: write`; it does not use `NODE_AUTH_TOKEN` or an npm write secret.
 
-`@voce-engine/playground` is a new npm name in RC.5. npm requires a package to exist before its package-level trusted publisher can be configured. Therefore the RC.5 workflow must not be dispatched for all five packages until the owner has completed a one-time, explicitly authorized namespace bootstrap and configured this repository plus `publish-npm.yml` as the package's trusted publisher. The bootstrap is separate from the RC.5 tarball publication; it must use an interactive 2FA-protected npm action, must not store a token in Git or workflow files, and must not create an unreviewed RC.5 version. Once trust is configured, RC.5 itself is published by the same OIDC workflow as the other four packages and receives normal provenance.
+`@voce-engine/playground` was a new npm name in RC.5, and npm requires a package to exist before its package-level trusted publisher can be configured. The owner therefore completed a one-time, explicitly authorized `0.0.0-bootstrap.0` namespace bootstrap under the non-default `bootstrap` tag through an interactive 2FA-protected npm action. No token was stored in Git or workflow files, and neither `next` nor `latest` was changed. The package-level trusted publisher was then restricted to this repository, `publish-npm.yml`, and the `npm publish` action before the RC.5 workflow was dispatched.
 
 ## Provenance and migration state
 
@@ -58,6 +58,12 @@ The workflow was dispatched from `main@1e8baf8dc4049a34e9d14d621cc9d864047cf0db`
 RC.4 package publication succeeded in [workflow run 32127701215](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/actions/runs/32127701215). The workflow itself was selected from the annotated `v0.1.0-rc.4` tag, checked out the same tag at `70ecee52665c0d0002751e00896618ac0b74877a`, reran the release gates, and published all four `0.1.0-rc.4` package tarballs under npm `next`.
 
 The public registry exposes integrity metadata, an npm signature, and SLSA provenance for contracts, Core, testkit, and CLI. A clean directory outside the development checkout installed the four exact public versions with lifecycle scripts disabled and passed imports, declarations, schemas, CLI doctor, all 30 composition presets, and the three bundled offline ScenarioPack paths. This run proves the corrected tag-to-tag invocation boundary; it does not authorize republishing an immutable version or adding a token fallback.
+
+## RC.5 publication note
+
+RC.5 package publication succeeded in [workflow run 32468849390](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/actions/runs/32468849390). The workflow was selected from the annotated `v0.1.0-rc.5` tag, checked out the same tag at `a7eb27fecd6cd47af20767d7ed8b35c2582b48a1`, reran the release gates, and published all five `0.1.0-rc.5` package tarballs under npm `next`.
+
+The public registry exposes integrity metadata, an npm signature, and SLSA provenance for contracts, Core, testkit, CLI, and Playground. Every provenance statement names `refs/tags/v0.1.0-rc.5`, `.github/workflows/publish-npm.yml`, run `32468849390`, and the exact source commit above. A separate clean public-registry consumer installed all five exact versions with lifecycle scripts disabled and without workspace fallback, then passed runtime imports, TypeScript declarations, the public schema, the 30-preset catalog, and installed-Playground page, scenario, and bundled-image checks.
 
 ## Security boundary
 

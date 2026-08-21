@@ -4,7 +4,7 @@
 
 ## 2026-08-21 本机产品验收
 
-仓库所有者已在本机 Playground 完成当前 Virtual Try-On 与 Cosplay 主路径的手工验收，并确认本次测试结果可接受。验收覆盖英文页面、互斥的 Full outfit 与 Top/Bottom 路径、可选 typed accessory、Cosplay 30 种构图选择、Inspect Plan、真实生成开关以及免费 Cloudflare 限制说明。该确认是当前 PR #32 源码状态的产品验收，不是公开部署验收，也不把单个随机输出提升为普遍模型质量保证。
+仓库所有者已在本机 Playground 完成当前 Virtual Try-On 与 Cosplay 主路径的手工验收，并确认本次测试结果可接受。验收覆盖英文页面、互斥的 Full outfit 与 Top/Bottom 路径、可选 typed accessory、Cosplay 30 种构图选择、Inspect Plan、真实生成开关以及免费 Cloudflare 限制说明；同时使用 Cloudflare Free 与 Seedream BYOK 实际生成了多个换衣、Cosplay 和构图场景。该确认是 RC.5 源码状态的本地产品验收，不是公开部署验收，也不把若干随机输出提升为普遍模型质量保证。真实凭据、人物输入和生成图片均未提交。
 
 测试使用的个人图片、角色图、服装图、配饰图、API token 和生成结果均未加入仓库。标准测试和 GitHub Actions 仍不执行真实 Provider 调用；真实调用继续要求页面逐次确认，并受 Provider、引用数量、尺寸、预算、速率和无自动重试门禁约束。
 

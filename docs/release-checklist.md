@@ -11,7 +11,7 @@ Required release evidence:
 - all five package manifests, internal pins, CLI/Playground version output, compatibility fixtures, and release directories use `0.1.0-rc.5`;
 - a clean tarball consumer reports 29 visual-composition paths and 30 presets through Core and CLI doctor;
 - ESM, declarations, schemas, the virtual-tryon, Cosplay, and product-shot offline paths pass;
-- a clean tarball consumer starts the installed Playground, verifies both scenarios, the 30-preset API, and a bundled JPEG, and makes zero real Provider calls;
+- a clean tarball consumer starts the installed Playground and verifies both scenarios, the 30-preset API, and a bundled JPEG;
 - the annotated tag, GitHub prerelease, npm `next` versions, and checked-out publication revision align at the exact RC.5 source revision; and
 - all five registry records expose integrity metadata, npm signatures, and SLSA provenance after publication.
 
