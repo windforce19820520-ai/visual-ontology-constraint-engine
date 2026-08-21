@@ -85,6 +85,17 @@ export interface PackageProvenance { publisher:string; sourceRepository?:string;
 export interface PackageAcquisition { sourceKind:'memory'|'directory'|'file_archive'|'npm_tarball'|'github_release'; sourceLocator:string; distributionDigest:string; lifecycleScriptsExecuted:false }
 export interface ScenarioPackContribution extends JsonObject { id:string; schemaVersion:string; contentDigest:string }
 export interface ResolvedContribution extends JsonObject { packId:string; contributionKind:ScenarioContributionKind; contributionId:string; contentDigest:string }
+/** Generic declarative role-presence condition. Scenario packs may use this for
+ * conditional bindings without making Core aware of a scenario name. */
+export interface DeclarativeRoleCondition { role:string; presence:'present'|'absent' }
+export type DeclarativeRoleGroupOperator = 'atLeastOne'|'mutuallyExclusive'
+export interface DeclarativeRoleGroup { id:string; operator:DeclarativeRoleGroupOperator; roles:string[]; minCount?:number; maxCount?:number }
+export interface DeclarativeRoleBinding { assetRole:string; targetPath:string; relation:'preserve'|'reproduce'|'inspire'|'exclude'; priority:Importance; activeWhen?:DeclarativeRoleCondition[] }
+export interface DeclarativeTypedMetadataField { required:boolean; values:JsonValue[]; defaultValue?:JsonValue }
+export interface DeclarativeTypedMetadataCombination { values:Record<string,JsonValue> }
+export interface DeclarativeTypedMetadataPolicy { fields:Record<string,DeclarativeTypedMetadataField>; combinations?:DeclarativeTypedMetadataCombination[] }
+export type DeclarativeInputPolicyContribution = ScenarioPackContribution & { inputPolicy:{ roleGroups:DeclarativeRoleGroup[]; capabilities:Record<string,boolean> } }
+export type DeclarativeInterpretationScopeContribution = ScenarioPackContribution & { assetRole:string; referenceOrder:number; minCount:number; maxCount:number; bindings:DeclarativeRoleBinding[]; typedMetadata?:DeclarativeTypedMetadataPolicy }
 export type OntologyValueKind = 'boolean'|'enum'|'string'|'number'
 export type OntologyCardinality = 'one'|'many'
 export interface OntologyPathDefinition { path:string; valueKind:OntologyValueKind; cardinality:OntologyCardinality; allowedValues?:JsonValue[]; defaultImportance?:Importance }
@@ -352,6 +363,12 @@ export interface ReferenceCandidate {
   byteLength?: number
   role?: string
   ontologyScopes?: string[]
+  /** ScenarioPack-derived paths this reference is explicitly forbidden to contribute. */
+  prohibitedTargetPaths?: string[]
+  /** Importance for every prohibitedTargetPaths entry; keys must match exactly. */
+  prohibitedTargetPathImportance?: Record<string, Importance>
+  /** ScenarioPack-validated typed role metadata; never inferred from image bytes. */
+  typedMetadata?: JsonObject
   importance?: Importance
   constraintIds?: string[]
   sourceBindingIds?: string[]
@@ -381,6 +398,12 @@ export interface PlannedReference {
   byteLength?: number
   role: string
   ontologyScopes: string[]
+  /** Guard-protected source isolation carried through the reference plan. */
+  prohibitedTargetPaths?: string[]
+  /** ScenarioPack-derived isolation importance keyed by prohibited target path. */
+  prohibitedTargetPathImportance?: Record<string, Importance>
+  /** ScenarioPack-validated typed role metadata carried to Prompt IR. */
+  typedMetadata?: JsonObject
   constraintIds: string[]
   sourceBindingIds: string[]
   dependencyIds: string[]
@@ -873,6 +896,14 @@ export interface PromptReferenceMapping {
   contentHash: string
   label: string
   role: string
+  /** Guard-protected ScenarioPack paths this reference is authorized to control. */
+  authorizedTargetPaths?: string[]
+  /** Guard-protected source isolation for generic multi-reference providers. */
+  prohibitedTargetPaths?: string[]
+  /** Accepted isolation importance keyed by prohibited target path. */
+  prohibitedTargetPathImportance?: Record<string, Importance>
+  /** ScenarioPack-validated typed role metadata carried through Guard/materialization. */
+  typedMetadata?: JsonObject
   order: number
   required: boolean
   constraintIds: string[]
@@ -1102,6 +1133,8 @@ export interface ProviderRenderRequest {
   sections: PromptSection[]
   parameters: PromptParameter[]
   referenceMappings: PromptReferenceMapping[]
+  /** Accepted PromptIR prohibitions, including per-reference isolation paths. */
+  forbidden?: PromptProhibition[]
   output: OutputContract
   pipelinePlanHash: string
   requestHash: string

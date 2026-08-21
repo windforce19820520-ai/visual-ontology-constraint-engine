@@ -38,6 +38,7 @@ const requiredFiles = [
   'docs/release-process.md',
   'docs/release-checklist.md',
   'docs/acceptance/v0.1.0-rc.4.md',
+  'docs/acceptance/v0.1.0-rc.5.md',
   'docs/compatibility.md',
   'compatibility/v0.1.0-rc.1/manifest.json',
   'compatibility/v0.1.0-rc.1/consumer.ts',
@@ -45,8 +46,8 @@ const requiredFiles = [
   'compatibility/v0.1.0-rc.2/consumer.ts',
   'compatibility/v0.1.0-rc.3/manifest.json',
   'compatibility/v0.1.0-rc.3/consumer.ts',
-  'compatibility/v0.1.0-rc.4/manifest.json',
-  'compatibility/v0.1.0-rc.4/consumer.ts',
+  'compatibility/v0.1.0-rc.5/manifest.json',
+  'compatibility/v0.1.0-rc.5/consumer.ts',
   'fixtures/security/m8/corpus.json',
   'fixtures/shared/visual-composition.v1.json',
 ]
@@ -109,6 +110,8 @@ const requiredContractSchemas = [
   'packages/contracts/schemas/ExplainResult.schema.json',
   'packages/contracts/schemas/SemanticDiff.schema.json',
   'packages/contracts/schemas/PromptSection.schema.json',
+  'packages/contracts/schemas/DeclarativeInputPolicyContribution.schema.json',
+  'packages/contracts/schemas/DeclarativeInterpretationScopeContribution.schema.json',
   'packages/contracts/schemas/OntologyPathDefinition.schema.json',
   'packages/contracts/schemas/OntologyVocabularyContribution.schema.json',
   'packages/contracts/schemas/ResolvedOntologyVocabularyContribution.schema.json',
@@ -244,6 +247,7 @@ const workspaceManifestFiles = [
   'packages/core/package.json',
   'packages/testkit/package.json',
   'packages/cli/package.json',
+  'playground/package.json',
 ]
 const workspaceManifests = Object.fromEntries(await Promise.all(workspaceManifestFiles.map(async (file) => [
   file,
@@ -257,6 +261,7 @@ for (const [file, dependencies] of [
   ['packages/core/package.json', ['@voce-engine/contracts']],
   ['packages/testkit/package.json', ['@voce-engine/contracts', '@voce-engine/core']],
   ['packages/cli/package.json', ['@voce-engine/contracts', '@voce-engine/core', '@voce-engine/testkit']],
+  ['playground/package.json', ['@voce-engine/contracts', '@voce-engine/core']],
 ]) {
   for (const dependency of dependencies) {
     if (workspaceManifests[file].dependencies?.[dependency] !== releaseVersion) throw new Error(`WORKSPACE_DEPENDENCY_VERSION_MISMATCH:${file}:${dependency}`)
@@ -286,7 +291,7 @@ for (const [file, expectedVersion] of [['fixtures/m5-prompt-ir-minimal.json', 'v
 }
 
 const visualComposition = JSON.parse(await readFile(new URL('../fixtures/shared/visual-composition.v1.json', import.meta.url), 'utf8'))
-if (visualComposition.schemaVersion !== 'voce.visual-composition/v1alpha1' || visualComposition.paths?.length !== 29 || visualComposition.presets?.length !== 30 || !/^sha256:[0-9a-f]{64}$/.test(visualComposition.catalogHash ?? '')) throw new Error('VISUAL_COMPOSITION_CATALOG_SHAPE_INVALID')
+if (visualComposition.schemaVersion !== 'voce.visual-composition/v1alpha1' || visualComposition.paths?.length !== 37 || visualComposition.presets?.length !== 30 || !/^sha256:[0-9a-f]{64}$/.test(visualComposition.catalogHash ?? '')) throw new Error('VISUAL_COMPOSITION_CATALOG_SHAPE_INVALID')
 const compositionArtworkDirectory = new URL('../docs/assets/visual-composition/', import.meta.url)
 const compositionArtwork = (await readdir(compositionArtworkDirectory, { withFileTypes: true }))
   .filter((entry) => entry.isFile() && entry.name.endsWith('.jpg'))
@@ -507,6 +512,8 @@ if (
 const sharedScenarioPackIdentifiers = [
   'ScenarioPack',
   'ScenarioPackManifest',
+  'DeclarativeInputPolicyContribution',
+  'DeclarativeInterpretationScopeContribution',
   'DistributionInventoryEntry',
   'ScenarioPackRequest',
   'ScenarioPackDependency',
@@ -546,6 +553,8 @@ const sharedScenarioPackIdentifiers = [
 
 const requiredScenarioPackTypeDeclarations = [
   'AppliedOverrideRef',
+  'DeclarativeInputPolicyContribution',
+  'DeclarativeInterpretationScopeContribution',
   'DistributionInventoryEntry',
   'EffectiveScenario',
   'FixtureSuite',

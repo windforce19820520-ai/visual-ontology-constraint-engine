@@ -318,6 +318,47 @@ scope required by accepted user intent
 
 A pack cannot force exhaustive analysis, inspect an excluded scope, select an Interpreter, or authorize a remote call.
 
+The v1 alpha declarative input contract is carried in the `interpretationScopes` contribution collection so the Host can render the same role policy that the compiler enforces:
+
+```ts
+interface DeclarativeInputPolicyContribution extends ScenarioPackContribution {
+  inputPolicy: {
+    roleGroups: Array<{
+      id: string
+      operator: 'atLeastOne' | 'mutuallyExclusive'
+      roles: string[]
+      minCount?: number
+      maxCount?: number
+    }>
+    capabilities: Record<string, boolean>
+  }
+}
+
+interface DeclarativeInterpretationScopeContribution extends ScenarioPackContribution {
+  assetRole: string
+  referenceOrder: number
+  minCount: number
+  maxCount: number
+  bindings: Array<{
+    assetRole: string
+    targetPath: string
+    relation: 'preserve' | 'reproduce' | 'inspire' | 'exclude'
+    priority: 'hard' | 'required' | 'preferred'
+    activeWhen?: Array<{ role: string; presence: 'present' | 'absent' }>
+  }>
+  typedMetadata?: {
+    fields: Record<string, {
+      required: boolean
+      values: JsonValue[]
+      defaultValue?: JsonValue
+    }>
+    combinations?: Array<{ values: Record<string, JsonValue> }>
+  }
+}
+```
+
+`roleGroups` express required, alternative, and mutually exclusive input combinations without a scenario-name branch in Core. `referenceOrder` is the stable semantic order and must not depend on JSON or upload insertion order. `activeWhen` permits conditional preserve/replace scopes such as retaining an absent clothing region. Typed metadata values and permitted cross-field combinations are closed allowlists owned by the ScenarioPack; the Host may display them but cannot add values or infer a different combination. Capability flags describe scenario availability, not Provider selection, execution authorization, or evidence.
+
 ### 5.4 Prompt sections
 
 Prompt contributions are typed `PromptIR` templates with namespaced IDs, deterministic predicates, source/constraint links, mutability, and explicit ordering anchors. They may read only accepted ontology, constraints, reference plans, output contracts, and declared configuration.
@@ -901,7 +942,7 @@ Every content change requires a new version and digest. Registries reject two di
 
 The visual-composition MVP adds typed `OntologyPathDefinition`, `DeclarativeRuleCondition`, `DeclarativeRuleOperand`, `DeclarativeRuleResolution`, `DeclarativeRule`, and `PromptSectionDefinition` records. These records remain data-only ScenarioPack contributions. `cardinality=one` paths, rule condition values, degradation targets, and section order are validated before they enter an `EffectiveScenario`; identical canonical duplicates may merge, while unequal duplicates block.
 
-The shared catalog contains 29 camera-owned path definitions and 30 stable presets. Presets are ontology selectors: they may create atomic boolean, enum, or scalar change intents, but they cannot contain URLs, image bytes, source bindings, provider references, or provider-native parameters. The `full-shot` preset includes `camera.framing.crop.keepBothFeet=true`; directionless leading-room and surface-less reflection remain incomplete rather than guessed.
+The current shared catalog contains 37 provider-neutral path definitions and 30 stable presets. Presets are ontology selectors: they may create atomic boolean, enum, string, or scalar change intents, but they cannot contain URLs, image bytes, source bindings, provider references, or provider-native parameters. The `full-shot` preset includes `camera.framing.crop.keepBothFeet=true`; directionless leading-room remains incomplete rather than guessed. Environment-dependent presets pair a preferred `environment.background` fallback with `camera.composition.subjectEnvironmentPlacement`, which states the physical relationship between the person, camera, ground, foreground, opening, reflective plane, or perspective corridor. `reflection-composition` fixes water as the surface and places foreground water between the camera and a person on the dry far bank, with the shoreline below both feet and the reflection aligned below the person. A partial visible reflection is acceptable. The background fallback applies only when no approved background reference or explicit user background exists; the spatial relationship remains part of the selected composition.
 
 Prompt policy contributions are consumed by Core through a hash-verified `EffectiveScenario`. They order prompt sections and cannot authorize a provider call or alter Guard semantics. An automatically losing preference is represented as `unsatisfied` with one degradation and one `PromptConstraintExclusion`; the exclusion must remain absent from effective Prompt IR and all optimizer links.
 

@@ -12,6 +12,7 @@ const packageSources = {
   '@voce-engine/core': path.join(ROOT, 'packages', 'core'),
   '@voce-engine/testkit': path.join(ROOT, 'packages', 'testkit'),
   '@voce-engine/cli': path.join(ROOT, 'packages', 'cli'),
+  '@voce-engine/playground': path.join(ROOT, 'playground'),
 }
 const typeChecks = {}
 for (const [name, exports] of Object.entries(suite.candidatePublicSurface)) {

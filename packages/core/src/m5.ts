@@ -146,6 +146,11 @@ function sortedStrings(values: string[] | undefined): string[] {
   return [...new Set(values ?? [])].sort(compareCodeUnits)
 }
 
+function sortedImportanceMap(value: Record<string, PromptProhibition['importance']> | undefined): Record<string, PromptProhibition['importance']> | undefined {
+  if (value === undefined) return undefined
+  return Object.fromEntries(Object.entries(value).sort(([left], [right]) => compareCodeUnits(left, right)))
+}
+
 function sortedBy<T>(values: T[], key: (value: T) => string): T[] {
   return values.map((value) => clone(value)).sort((left, right) => compareCodeUnits(key(left), key(right)) || compareCodeUnits(canonicalize(jsonReady(left)), canonicalize(jsonReady(right))))
 }
@@ -226,6 +231,10 @@ function promptReferenceMappingProjection(mapping: PromptReferenceMapping): Json
     role: mapping.role,
     order: mapping.order,
     required: mapping.required,
+    ...(mapping.authorizedTargetPaths === undefined ? {} : { authorizedTargetPaths: sortedStrings(mapping.authorizedTargetPaths) }),
+    ...(mapping.prohibitedTargetPaths === undefined ? {} : { prohibitedTargetPaths: sortedStrings(mapping.prohibitedTargetPaths) }),
+    ...(mapping.prohibitedTargetPathImportance === undefined ? {} : { prohibitedTargetPathImportance: sortedImportanceMap(mapping.prohibitedTargetPathImportance) }),
+    ...(mapping.typedMetadata === undefined ? {} : { typedMetadata: clone(mapping.typedMetadata) }),
     constraintIds: sortedStrings(mapping.constraintIds),
     sourceBindingIds: sortedStrings(mapping.sourceBindingIds),
     decisionIds: sortedStrings(mapping.decisionIds),
@@ -430,9 +439,173 @@ function outputParameter(
   }
 }
 
+function readableConstraintValue(value: JsonValue | undefined): string {
+  if (typeof value === 'string') return value.replaceAll('_', ' ')
+  if (value === undefined) return ''
+  return canonicalize(value)
+}
+
+function humanizePath(path: string): string {
+  return path
+    .replaceAll('.', ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replaceAll('_', ' ')
+    .toLowerCase()
+}
+
+function referenceProhibitionText(label: string, targetPath: string): string {
+  if (targetPath === 'person.identity') {
+    return `Reference ${label} must not supply or change the person's face or identity.`
+  }
+  return `Reference ${label} must not contribute ${targetPath}.`
+}
+
+/**
+ * Deterministically turns accepted ontology constraints into model-facing English.
+ * Typed paths and values remain in ConstraintIR for audit; providers receive the
+ * semantic instruction instead of internal `camera.* value=*` tokens.
+ */
 function constraintText(constraint: Constraint): string {
-  const value = constraint.value === undefined ? '' : ` value=${canonicalize(constraint.value)}`
-  return `${constraint.predicate} ${constraint.targetPath ?? constraint.targetPaths.join(',')}${value}. ${constraint.explanation}`
+  const target = constraint.targetPath
+  const rawValue = constraint.value
+  const value = readableConstraintValue(rawValue)
+  switch (target) {
+    case 'person.identity':
+      return 'Preserve the identity and facial appearance of the person in the first reference image. Render the same person naturally from the required camera angle. Do not use or blend the face from any other reference.'
+    case 'person.identity.faceShape':
+      return "Keep the real person's face shape unchanged."
+    case 'person.identity.featureGeometry':
+      return "Keep the real person's facial features unchanged."
+    case 'person.identity.featureProportions':
+      return "Keep the real person's facial proportions unchanged."
+    case 'person.identity.skinAppearance':
+      return "Keep the real person's natural skin appearance and existing makeup."
+    case 'person.identity.expression':
+      return "Keep the real person's expression, gaze, and head pose."
+    case 'person.identity.ageAppearance':
+      return "Keep the real person's apparent age."
+    case 'character.hair':
+      return 'Replace only the hairstyle with the complete hairstyle from the approved character-design reference, including its color, cut, length, texture, ornaments, and silhouette.'
+    case 'character.makeup':
+      return "Reproduce only the character-design reference's surface-level makeup colors, liner, blush, and markings. Makeup must not change the real person's face outline, jaw, chin, eye size or shape, eyelids, brows, nose, mouth, lips, feature spacing, or facial proportions."
+    case 'environment.background':
+      return `When no approved background reference or explicit user background is available, use this default environment: ${value}. Keep it compatible with the selected composition and do not copy a background from another reference.`
+    case 'style.rendering.medium':
+      return "Render the whole result as a consistent real photograph matching the real-person reference. Use the character-design reference only for design, never for illustration style."
+    case 'character.costume':
+      return 'Reproduce the complete costume from the approved character-design reference, including garment structure, layers, colors, patterns, trim, and visible construction details.'
+    case 'character.accessories':
+      return 'Reproduce every visible character accessory from the approved character-design reference in the correct location, scale, color, and relationship to the costume and hair.'
+    case 'character.criticalDetails':
+      return 'Reproduce the declared critical costume, pattern, or accessory details exactly where they belong; do not copy unrelated content from the detail reference.'
+    case 'character.signatureProps.primary.type':
+      return 'Use the approved signature prop type; do not substitute a different object.'
+    case 'character.signatureProps.primary.silhouette':
+      return 'Match the signature prop’s defining outer silhouette from its approved reference.'
+    case 'character.signatureProps.primary.proportion':
+      return 'Match the signature prop’s proportions and scale relative to the person.'
+    case 'character.signatureProps.primary.colorScheme':
+      return 'Match the signature prop’s main colors and color placement.'
+    case 'character.signatureProps.primary.material':
+      return 'Match the signature prop’s visible material and surface appearance.'
+    case 'character.signatureProps.primary.signatureDetails':
+      return 'Reproduce the signature prop’s distinctive details from the approved close reference.'
+    case 'character.signatureProps.primary.handAssignment':
+      return 'Keep the signature prop in the declared hand and maintain a physically plausible grip.'
+    case 'character.signatureProps.primary.visibility':
+      return 'Keep the complete signature prop clearly visible and do not crop or hide its defining parts.'
+    case 'pose':
+      return constraint.predicate === 'preserve'
+        ? 'Preserve the person reference pose, body orientation, hand positions, and action.'
+        : 'Use only the body pose, orientation, hand positions, and action from the approved pose reference; do not copy that reference’s identity, clothing, background, or style.'
+    case 'camera.framing.shotScale': {
+      const shots: Record<string, string> = {
+        extreme_close_up: 'Use an extreme close-up in which one eye and its surrounding facial detail fill most of the frame.',
+        close_up: 'Use a close-up in which the complete face dominates the frame and the expression is clearly readable.',
+        head_and_shoulders: 'Use a head-and-shoulders portrait showing the complete head, neck, and both shoulders.',
+        bust_shot: 'Use a bust shot from the head to around the chest, with enough room for visible hand gestures.',
+        medium_close_up: 'Use a medium close-up from the head to the upper torso, with only a modest amount of environment.',
+        medium_shot: 'Use a medium shot from the head to around the waist, balancing expression, gesture, and environment.',
+        knee_shot: 'Frame the person from the head to around the knees without cutting through the knees.',
+        full_shot: 'Show the entire person from head to both feet.',
+        long_shot: 'Use a long shot: keep the complete person recognizable while the environment occupies most of the frame.',
+        extreme_long_shot: 'Use an extreme long shot: make the environment and spatial scale dominant while the complete person appears small but intentionally placed.',
+      }
+      return shots[String(rawValue)] ?? `Use the declared ${value} shot scale.`
+    }
+    case 'camera.framing.focusTarget':
+      return rawValue === 'eye' ? 'Make one eye the precise focal target; keep the iris, lashes, eyelids, and surrounding detail sharp and legible.' : `Make the ${value} the precise focal target.`
+    case 'camera.framing.crop.keepHead': return 'Keep the complete head and hairstyle inside the frame.'
+    case 'camera.framing.crop.keepHands': return 'Keep both hands visible and uncropped.'
+    case 'camera.framing.crop.keepBothFeet': return 'Keep both feet completely visible inside the frame; do not crop toes or heels.'
+    case 'camera.framing.crop.keepProduct': return 'Keep the complete product visible inside the frame.'
+    case 'camera.framing.crop.keepSignatureProp': return 'Keep the complete signature prop visible inside the frame.'
+    case 'camera.view.elevation': {
+      const views: Record<string, string> = {
+        eye_level: 'Use an eye-level camera.',
+        low_angle: 'Place the camera below the person and look upward with a clearly readable low-angle perspective.',
+        high_angle: 'Place the camera above the person and look downward from an elevated diagonal position.',
+        birds_eye: 'Use a near-vertical top-down bird’s-eye view that clearly reveals the surrounding spatial layout.',
+      }
+      return views[String(rawValue)] ?? `Use the declared ${value} camera elevation.`
+    }
+    case 'camera.view.relationship': {
+      const relationships: Record<string, string> = {
+        front: 'Use a front-facing camera relationship.',
+        three_quarter: 'Use a three-quarter camera relationship.',
+        profile: 'Show a clean side profile with a readable face contour, hair silhouette, costume, and identity.',
+        rear: 'Use an intentional rear view while retaining the declared character and costume cues.',
+        over_the_shoulder: 'Use an over-the-shoulder composition: a partial anonymous foreground shoulder frames the declared person, who remains clearly visible beyond it. Do not duplicate the declared person.',
+      }
+      return relationships[String(rawValue)] ?? `Use the declared ${value} camera relationship.`
+    }
+    case 'camera.composition.overShoulder.targetRole':
+      return rawValue === 'declared_subject' ? 'The declared person is the visible focal subject beyond the foreground shoulder; the shoulder belongs only to an anonymous framing figure.' : `Direct the over-the-shoulder view toward the ${value}.`
+    case 'camera.roll.mode':
+      return rawValue === 'dutch_left' ? 'Tilt the entire frame deliberately to the left for a coherent Dutch angle.' : rawValue === 'dutch_right' ? 'Tilt the entire frame deliberately to the right for a coherent Dutch angle.' : 'Keep the horizon level.'
+    case 'camera.lens.focalLengthClass':
+      return rawValue === 'telephoto' ? 'Use a telephoto focal-length look with a narrow field of view.' : `Use a ${value} focal-length look.`
+    case 'camera.lens.perspective':
+      return rawValue === 'compressed' ? 'Compress apparent depth so distant foreground and background layers look closer together and stacked.' : `Use ${value} perspective rendering.`
+    case 'camera.composition.patterns.centeredSymmetry': return 'Place the person on the central axis and balance the left and right sides of the frame.'
+    case 'camera.composition.patterns.ruleOfThirds': return 'Use a visible rule-of-thirds layout rather than centering the person.'
+    case 'camera.composition.patterns.leadingLines': return 'Use visible roads, rails, edges, or similar scene lines that converge toward and guide attention to the person.'
+    case 'camera.composition.patterns.diagonal': return 'Build the composition around a dominant diagonal formed by the person, stairs, rails, or scene geometry to create controlled direction and motion.'
+    case 'camera.composition.patterns.sCurve': return 'Use a visible S-shaped path or environmental line that carries the eye through the scene toward the person.'
+    case 'camera.composition.patterns.triangle': return 'Arrange the composition as a stable triangle without adding extra people.'
+    case 'camera.composition.patterns.triangleSource': return rawValue === 'subject_pose' ? 'Form the triangle from the single person’s head, shoulders, body, or limbs; do not invent additional people.' : `Form the triangle from the ${value}.`
+    case 'camera.composition.placement': {
+      const placements: Record<string, string> = { center: 'Place the person precisely on the central axis.', left_third: 'Place the person on the left third line or intersection.', right_third: 'Place the person on the right third line or intersection, leaving deliberate context on the left.', upper_third: 'Place the focal subject on the upper third line or intersection.', lower_third: 'Place the focal subject on the lower third line or intersection.' }
+      return placements[String(rawValue)] ?? `Use the declared ${value} placement.`
+    }
+    case 'camera.composition.negativeSpace':
+      return `Keep a large, uncluttered region of intentional negative space ${value === 'surrounding' ? 'surrounding' : `to the ${value} of`} the person.`
+    case 'camera.composition.leadingRoom.enabled': return 'Preserve deliberate open space in the person’s gaze or movement direction.'
+    case 'camera.composition.leadingRoom.direction': return `Keep open leading room toward the ${value}, aligned with the person’s gaze or movement.`
+    case 'camera.composition.foregroundTreatment':
+      return rawValue === 'soft_obstruction' ? 'Add soft, out-of-focus foreground elements at the image edge to create depth without hiding the face, costume, hands, or signature props.' : `Use a ${value} foreground treatment.`
+    case 'camera.composition.framingDevices.frameWithinFrame': return 'Use a door, window, arch, railing, or similar environmental opening to visibly surround and frame the person.'
+    case 'camera.composition.framingDevices.environmentalPortrait': return 'Create an environmental portrait in which the person remains identifiable and the surroundings provide meaningful story or location context.'
+    case 'camera.composition.reflection.enabled': return 'Include a clear, physically plausible reflection as an intentional part of the composition.'
+    case 'camera.composition.reflection.surface': return `Place the reflection on a visible ${value} surface.`
+    case 'camera.composition.reflection.role': return rawValue === 'primary' ? 'Make the reflection a primary focal element, not a minor background detail.' : rawValue === 'co_primary' ? 'Make the real person and reflection co-primary visual subjects.' : 'Use the reflection as a supporting visual element.'
+    case 'camera.composition.reflection.physicalConsistency': return 'The reflection must show the same person, pose, costume, hair, accessories, and held props at the same instant, allowing only physical reflection reversal. Do not invent a second person or action.'
+    case 'camera.composition.reflection.presentation': return rawValue === 'face_visible_in_mirror'
+      ? 'The mirror must clearly show the person’s face and identity; do not show only the back of the head in the mirror.'
+      : 'Show a readable portion of the reflection; a complete head-to-foot reflection is not required.'
+    case 'camera.composition.reflection.subjectSurfaceRelationship': return rawValue === 'on_dry_shore_beside_water'
+      ? 'Keep both feet on dry land behind one visible shoreline; the person, costume, and props must remain separate from the water.'
+      : `Use the declared ${value} relationship between the person and reflective surface.`
+    case 'camera.composition.environmentRelationship': return rawValue === 'environment_dominant' ? 'Make the environment and spatial scale dominant while keeping the person intentionally placed.' : rawValue === 'contextual' ? 'Show enough environment to establish meaningful location and scene context around the person.' : 'Keep the person visually isolated from the environment.'
+    case 'camera.composition.subjectEnvironmentPlacement': return value
+    case 'lighting.subjectRendering': return rawValue === 'silhouette' ? 'Render a clean side-profile silhouette against a contrasting background while preserving the character’s recognizable outer contour.' : 'Use natural subject rendering.'
+    default: {
+      const targets = target ? [target] : constraint.targetPaths
+      const subject = targets.map(humanizePath).join(', ')
+      const requested = value ? ` as ${value}` : ''
+      return `${constraint.predicate.charAt(0).toUpperCase()}${constraint.predicate.slice(1)} ${subject}${requested}. ${constraint.explanation}`
+    }
+  }
 }
 
 function targetPinFromProfile(profile: ProviderCapabilityProfile): VersionPin {
@@ -562,7 +735,7 @@ function promptExclusions(constraintIR: ConstraintIR): PromptConstraintExclusion
 
 function sectionForConstraint(constraint: Constraint, order: number, decisionIds: string[], definition?: PromptSectionDefinition): PromptSection {
   const locked = constraint.importance === 'hard' || constraint.importance === 'required' || constraint.kind === 'output'
-  const content = `${definition?.templateKey ? `${definition.templateKey}: ` : ''}${constraintText(constraint)}`
+  const content = constraintText(constraint)
   return {
     schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
     id: hashId('prompt-section', { kind: constraint.importance, constraintId: constraint.id, order, definitionId: definition?.id }),
@@ -586,7 +759,7 @@ function referenceMapping(reference: PlannedReference, constraints: Constraint[]
   const required = effectiveConstraintIds.some((id) => constraints.find((constraint) => constraint.id === id)?.importance !== 'preferred') || reference.sourceBindingIds.length > 0
   return {
     schemaVersion: PROMPT_REFERENCE_MAPPING_SCHEMA_VERSION,
-    id: hashId('prompt-reference-mapping', { plannedReferenceId: reference.id, assetId: reference.assetId, contentHash: reference.contentHash, order: reference.order }),
+    id: hashId('prompt-reference-mapping', { plannedReferenceId: reference.id, assetId: reference.assetId, contentHash: reference.contentHash, authorizedTargetPaths: reference.ontologyScopes, typedMetadata: reference.typedMetadata, order: reference.order }),
     plannedReferenceId: reference.id,
     referenceId: reference.id,
     assetId: reference.assetId,
@@ -595,6 +768,10 @@ function referenceMapping(reference: PlannedReference, constraints: Constraint[]
     role: reference.role,
     order: reference.order,
     required,
+    ...(reference.ontologyScopes.length ? { authorizedTargetPaths: sortedStrings(reference.ontologyScopes) } : {}),
+    ...(reference.prohibitedTargetPaths === undefined ? {} : { prohibitedTargetPaths: sortedStrings(reference.prohibitedTargetPaths) }),
+    ...(reference.prohibitedTargetPathImportance === undefined ? {} : { prohibitedTargetPathImportance: sortedImportanceMap(reference.prohibitedTargetPathImportance) }),
+    ...(reference.typedMetadata === undefined ? {} : { typedMetadata: clone(reference.typedMetadata) }),
     constraintIds: effectiveConstraintIds,
     sourceBindingIds: sortedStrings(reference.sourceBindingIds),
     decisionIds: sortedStrings(decisionIds),
@@ -684,9 +861,18 @@ export class PromptCompiler {
         schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
         id: 'prompt-suggestion-slot-default', kind: 'suggestion', priority: 10, order: 2000, content: '', text: '', constraintIds: [], sourceIds: [], decisionIds: [], assetIds: [], importance: 'preferred', mutability: 'suggestion_slot', locked: false, slotId: 'suggestion.default',
       })
-      const forbidden: PromptProhibition[] = constraints.filter((constraint) => constraint.predicate === 'absent').map((constraint) => ({
-        id: hashId('prompt-prohibition', { constraintId: constraint.id }), text: `Do not include ${constraint.targetPath ?? constraint.targetPaths.join(',')}.`, constraintIds: [constraint.id], sourceIds: sortedStrings(constraint.sourceIds), importance: constraint.importance,
-      }))
+      const forbidden: PromptProhibition[] = [
+        ...constraints.filter((constraint) => constraint.predicate === 'absent').map((constraint) => ({
+          id: hashId('prompt-prohibition', { constraintId: constraint.id }), text: `Do not include ${constraint.targetPath ?? constraint.targetPaths.join(',')}.`, constraintIds: [constraint.id], sourceIds: sortedStrings(constraint.sourceIds), importance: constraint.importance,
+        })),
+        ...safeInput.referencePlan.ordered.flatMap((reference) => (reference.prohibitedTargetPaths ?? []).map((targetPath) => ({
+          id: hashId('reference-prohibition', { referenceId: reference.id, targetPath }),
+          text: referenceProhibitionText(reference.label, targetPath),
+          constraintIds: sortedStrings(reference.constraintIds),
+          sourceIds: sortedStrings([reference.assetId, ...reference.sourceBindingIds]),
+          importance: reference.prohibitedTargetPathImportance?.[targetPath] ?? 'required',
+        }))),
+      ]
       const coverage = constraints.map((constraint) => coverageForConstraint(constraint, sections, parameters, mappings))
       const prompt: PromptIR = {
         schemaVersion: PROMPT_IR_SCHEMA_VERSION,
@@ -1087,6 +1273,7 @@ function renderProjection(request: Omit<ProviderRenderRequest, 'requestHash'>): 
     sections: request.sections.map(promptSectionProjection),
     parameters: sortedBy(request.parameters, (item) => item.id).map(promptParameterProjection),
     referenceMappings: [...request.referenceMappings].sort((left, right) => left.order - right.order || compareCodeUnits(left.id, right.id)).map(promptReferenceMappingProjection),
+    ...(request.forbidden === undefined ? {} : { forbidden: sortedBy(request.forbidden, (item) => item.id) }),
     output: clone(request.output),
     pipelinePlanHash: request.pipelinePlanHash,
   }) as JsonObject
@@ -1123,6 +1310,7 @@ export function createProviderRenderRequest(input: ProviderRenderInput): Provide
     sections: clone(sections),
     parameters: clone(parameters),
     referenceMappings: clone(mappings),
+    ...(safePrompt.forbidden.length === 0 ? {} : { forbidden: clone(safePrompt.forbidden) }),
     output: clone(safePrompt.output),
     pipelinePlanHash: input.pipelinePlanHash ?? safePrompt.pipelinePlanHash,
   }

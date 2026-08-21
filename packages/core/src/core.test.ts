@@ -260,6 +260,36 @@ test('Malformed runtime manifests fail with stable contract errors', () => {
   assert.throws(() => registry.register(source({ manifest: { ...malformed, dependencies: {} } } as never)), /PACK_MANIFEST_INVALID/)
 })
 
+test('declarative input policy and typed interpretation scopes validate as closed data contracts', () => {
+  const inputPolicy = contribution('input-policy', {
+    schemaVersion: 'voce.input-policy/v1alpha1',
+    inputPolicy: {
+      roleGroups: [{ id: 'clothing', operator: 'atLeastOne', roles: ['garment-top', 'garment-bottom'], minCount: 1, maxCount: 2 }],
+      capabilities: { composition: false },
+    },
+  })
+  const scope = contribution('garment-top', {
+    schemaVersion: 'voce.interpretation-scope/v1alpha1',
+    assetRole: 'garment-top', referenceOrder: 1, minCount: 0, maxCount: 1,
+    bindings: [{ assetRole: 'garment-top', targetPath: 'garment.top', relation: 'reproduce', priority: 'required', activeWhen: [{ role: 'garment-top', presence: 'present' }] }],
+    typedMetadata: {
+      fields: { category: { required: true, values: ['shirt', 'jacket'] } },
+      combinations: [{ values: { category: 'shirt' } }, { values: { category: 'jacket' } }],
+    },
+  })
+  const registry = createScenarioPackRegistry()
+  assert.doesNotThrow(() => registry.register(source(makePack(manifest('typed.root'), { interpretationScopes: [inputPolicy, scope] }))))
+
+  const { id: _scopeId, contentDigest: _scopeDigest, ...scopeBody } = scope
+  const badOrder = contribution('bad-order', { ...scopeBody, referenceOrder: -1 })
+  const badCombination = contribution('bad-combination', {
+    ...scopeBody,
+    typedMetadata: { fields: { category: { required: true, values: ['shirt'] } }, combinations: [{ values: { category: 'dress' } }] },
+  })
+  assert.throws(() => createScenarioPackRegistry().register(source(makePack(manifest('bad-order.root'), { interpretationScopes: [badOrder] }))), /PACK_TYPED_CONTRIBUTION_INVALID/)
+  assert.throws(() => createScenarioPackRegistry().register(source(makePack(manifest('bad-combination.root'), { interpretationScopes: [badCombination] }))), /PACK_TYPED_CONTRIBUTION_INVALID/)
+})
+
 test('SemVer conflict ranges support hyphen and explicit prerelease syntax without numeric truncation', () => {
   const registry = createScenarioPackRegistry()
   registry.register(source(makePack(manifest('first.party.root'))))

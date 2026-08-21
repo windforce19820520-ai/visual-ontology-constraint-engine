@@ -163,15 +163,33 @@ test('M4 rejects blocked M3 state and stale context/instance signatures without 
 })
 
 test('visual composition catalog expands full shot atomically and preserves selector provenance', () => {
-  assert.equal(VISUAL_COMPOSITION_PATHS.length, 29)
+  assert.equal(VISUAL_COMPOSITION_PATHS.length, 37)
   assert.equal(VISUAL_COMPOSITION_PRESETS.length, 30)
   const full = expandVisualCompositionPreset('full-shot')
   assert.deepEqual(full.map((item) => [item.targetPath, item.requestedValue]), [['camera.framing.shotScale', 'full_shot'], ['camera.framing.crop.keepBothFeet', true]])
   assert.ok(full.every((item) => item.sourceHintIds?.includes('full-shot')))
   assert.throws(() => expandVisualCompositionPreset('leading-room'), /COMPOSITION_PRESET_INPUT_REQUIRED/)
-  assert.throws(() => expandVisualCompositionPreset('reflection-composition'), /COMPOSITION_PRESET_INPUT_REQUIRED/)
   assert.throws(() => expandVisualCompositionPreset('negative-space', { inputs: { direction: 'banana' } }), /COMPOSITION_PRESET_INPUT_INVALID/)
-  assert.throws(() => expandVisualCompositionPreset('reflection-composition', { inputs: { surface: 'banana' } }), /COMPOSITION_PRESET_INPUT_INVALID/)
+  assert.deepEqual(expandVisualCompositionPreset('extreme-close-up').map((item) => [item.targetPath, item.requestedValue]), [
+    ['camera.framing.shotScale', 'extreme_close_up'],
+    ['camera.framing.focusTarget', 'eye'],
+  ])
+  assert.deepEqual(expandVisualCompositionPreset('rule-of-thirds').map((item) => [item.targetPath, item.requestedValue]), [
+    ['camera.composition.patterns.ruleOfThirds', true],
+    ['camera.composition.placement', 'right_third'],
+  ])
+  assert.deepEqual(expandVisualCompositionPreset('triangle-composition').map((item) => [item.targetPath, item.requestedValue]), [
+    ['camera.composition.patterns.triangle', true],
+    ['camera.composition.patterns.triangleSource', 'subject_pose'],
+  ])
+  assert.equal(expandVisualCompositionPreset('reflection-composition').length, 8)
+  assert.equal(expandVisualCompositionPreset('reflection-composition').find((change) => change.targetPath === 'camera.composition.subjectEnvironmentPlacement')?.requestedValue, 'Aim the camera across foreground water toward the person standing on the dry far bank. Show the shoreline directly below both feet and align the water reflection directly below the person on the same vertical image axis.')
+  assert.ok(expandVisualCompositionPreset('reflection-composition').some((item) => item.targetPath === 'camera.composition.reflection.surface' && item.requestedValue === 'water'))
+  assert.ok(expandVisualCompositionPreset('reflection-composition').some((item) => item.targetPath === 'camera.composition.reflection.subjectSurfaceRelationship' && item.requestedValue === 'on_dry_shore_beside_water'))
+  assert.ok(expandVisualCompositionPreset('reflection-composition').some((item) => item.targetPath === 'environment.background' && String(item.requestedValue).includes('calm foreground lake water')))
+  assert.equal(expandVisualCompositionPreset('mirror-composition').length, 7)
+  assert.ok(expandVisualCompositionPreset('mirror-composition').some((item) => item.targetPath === 'camera.composition.reflection.presentation' && item.requestedValue === 'face_visible_in_mirror'))
+  assert.ok(expandVisualCompositionPreset('profile-silhouette', { inputs: { silhouette: true } }).some((item) => item.targetPath === 'lighting.subjectRendering' && item.requestedValue === 'silhouette'))
 })
 
 test('visual composition catalog is immutable and expansion returns defensive provenance copies', () => {
@@ -314,6 +332,11 @@ test('compiler output is stable under insertion-order changes and defensive copi
   assert.equal(compile([intent('a', 'preserve', 'product.shape', 'required', 'round'), intent('b', 'create', 'environment.background', 'preferred', 'gray')]).deterministicSignature, hash)
 })
 
+test('legacy reference candidate hash is unchanged when isolation fields are absent', () => {
+  const legacy: ReferenceCandidate = { schemaVersion: 'voce.reference-candidate/v1alpha1', id: 'legacy-reference', assetId: 'legacy-asset', contentHash: sha256({ asset: 'legacy-asset' }) }
+  assert.equal(computeReferenceCandidateHash(legacy), sha256({ schemaVersion: legacy.schemaVersion, id: legacy.id, assetId: legacy.assetId, contentHash: legacy.contentHash, ontologyScopes: [], constraintIds: [], sourceBindingIds: [], goalIds: [] }))
+})
+
 test('reference plan counts one asset once while retaining multiple scopes', () => {
   const same = candidate('shared', 'required', 200_000)
   same.ontologyScopes = ['person.identity', 'person.hair', 'wardrobe.top']
@@ -323,6 +346,25 @@ test('reference plan counts one asset once while retaining multiple scopes', () 
   assert.equal(plan.selected.length, 1)
   assert.equal(plan.budget.usedReferenceCount, 1)
   assert.deepEqual(plan.selected[0].ontologyScopes, ['person.hair', 'person.identity', 'wardrobe.top'])
+})
+
+test('same content with mutually isolated scopes blocks instead of merging contradictory mappings', () => {
+  const identity = candidate('identity-reference', 'hard', 200_000)
+  identity.ontologyScopes = ['person.identity']
+  identity.prohibitedTargetPaths = ['character.costume']
+  identity.prohibitedTargetPathImportance = { 'character.costume': 'hard' }
+  identity.candidateHash = computeReferenceCandidateHash(identity)
+  const character = candidate('character-reference', 'required', 200_000)
+  character.contentHash = identity.contentHash
+  character.artifact = { ...character.artifact!, contentHash: identity.contentHash }
+  character.ontologyScopes = ['character.costume']
+  character.prohibitedTargetPaths = ['person.identity']
+  character.prohibitedTargetPathImportance = { 'person.identity': 'hard' }
+  character.candidateHash = computeReferenceCandidateHash(character)
+  const plan = refPlan(MOCK_IMAGE_PROFILE, [identity, character])
+  assert.equal(plan.status, 'blocked')
+  assert.equal(plan.blockedReferences.length, 2)
+  assert.ok(plan.blockedReferences.every((item) => item.reasonCode === 'REFERENCE_ISOLATION_CONFLICT'))
 })
 
 test('required parent/detail dependencies are retained together or block together', () => {

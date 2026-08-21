@@ -97,9 +97,13 @@ test('PromptCompiler emits composition sections for compatible choices and exclu
     { id: 'leading-lines', targetPath: 'camera.composition.patterns.leadingLines', requestedValue: true, importance: 'preferred' },
   ])
   const compatiblePrompt = compilePromptIR(compatible)
-  const compositionSections = compatiblePrompt.sections.filter((section) => section.content.startsWith('composition-layout-and-space:'))
+  const compositionConstraintIds = new Set(compatible.constraintIR.constraints.filter((constraint) => constraint.targetPaths.some((path) => path.startsWith('camera.composition.'))).map((constraint) => constraint.id))
+  const compositionSections = compatiblePrompt.sections.filter((section) => section.constraintIds.some((id) => compositionConstraintIds.has(id)))
   assert.equal(compositionSections.length, 2)
   assert.deepEqual(compositionSections.map((section) => section.constraintIds.length), [1, 1])
+  assert.ok(compositionSections.every((section) => !section.content.includes('camera.') && !section.content.includes('value=')))
+  assert.ok(compositionSections.some((section) => section.content.includes('rule-of-thirds')))
+  assert.ok(compositionSections.some((section) => section.content.includes('guide attention')))
   assert.equal(compatiblePrompt.excludedConstraints.length, 0)
 
   const conflicting = compositionCompilation([

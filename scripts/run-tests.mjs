@@ -1,8 +1,9 @@
 import { spawnSync } from "node:child_process"
-import { readdirSync } from "node:fs"
+import { existsSync, readdirSync } from "node:fs"
 import { join, resolve } from "node:path"
 
 const packagesDirectory = resolve("packages")
+const playgroundDirectory = resolve("playground")
 
 function findTests(directory) {
   const tests = []
@@ -14,7 +15,8 @@ function findTests(directory) {
   return tests
 }
 
-const tests = findTests(packagesDirectory).sort((left, right) => {
+const playgroundTestsDirectory = join(playgroundDirectory, "dist")
+const tests = [...findTests(packagesDirectory), ...(existsSync(playgroundTestsDirectory) ? findTests(playgroundTestsDirectory) : [])].sort((left, right) => {
   const normalizedLeft = left.replaceAll("\\", "/")
   const normalizedRight = right.replaceAll("\\", "/")
   return normalizedLeft < normalizedRight ? -1 : normalizedLeft > normalizedRight ? 1 : 0

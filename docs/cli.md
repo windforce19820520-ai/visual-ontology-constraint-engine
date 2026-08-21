@@ -1,6 +1,6 @@
 # VOCE CLI
 
-The `0.1.0-rc.4` release candidate provides the `voce` command through `packages/cli`. It is safe-by-default, deterministic, explicit-path, and offline-first.
+The `0.1.0-rc.5` release candidate provides the `voce` command through `packages/cli`. It is safe-by-default, deterministic, explicit-path, and offline-first.
 
 ## 10–15 minute clean-room quickstart
 
@@ -19,7 +19,7 @@ Open `.local-output/product-shot.html` in a local viewer. The page is a static, 
 
 ## Commands
 
-`voce --help` and `voce --version` report the CLI surface and `0.1.0-rc.4`.
+`voce --help` and `voce --version` report the CLI surface and `0.1.0-rc.5`.
 
 `pack inspect|validate|test --source <explicit path>` reads one explicit data-only `pack.json` or a standard `scenario-pack/manifest.json` directory. `test` runs the declared FixtureSuite through the same Registry/Resolver and offline Mock path. It does not execute JavaScript, lifecycle hooks, package scripts, or network access.
 
@@ -67,4 +67,4 @@ The CLI documentation is currently English-only; the bilingual ScenarioPack/syst
 
 Pack inspection and offline fixture evidence now expose the shared visual-composition catalog through Core: preset expansion, validated vocabulary paths, rule traces, conflict/degradation records, effective and excluded constraint IDs, ordered composition prompt sections, and independently compiled/planned reference counts before and after a preset-only selection. The evidence records separate constraint and reference-plan hashes for both passes. A selector is reported as ontology intent and does not create a reference attachment.
 
-The evidence path remains local and Mock-first. It does not load card artwork, discover packs, infer a missing leading-room direction or reflection surface, call a real Provider, or turn CLI field parsing into a second Prompt policy compiler.
+The evidence path remains local and Mock-first. It does not load card artwork, discover packs, infer a missing leading-room direction, call a real Provider, or turn CLI field parsing into a second Prompt policy compiler. Water reflection is a fixed preset with a water surface and a calm-lakeside fallback rather than a CLI-supplied surface choice.

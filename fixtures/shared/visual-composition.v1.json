@@ -2,67 +2,1024 @@
   "schemaVersion": "voce.visual-composition/v1alpha1",
   "id": "visual-composition.v1",
   "paths": [
-    { "path": "camera.framing.shotScale", "valueKind": "enum", "cardinality": "one", "allowedValues": ["extreme_close_up", "close_up", "head_and_shoulders", "bust_shot", "medium_close_up", "medium_shot", "knee_shot", "full_shot", "long_shot", "extreme_long_shot"], "defaultImportance": "preferred" },
-    { "path": "camera.framing.crop.keepHead", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.framing.crop.keepHands", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.framing.crop.keepBothFeet", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.framing.crop.keepProduct", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.framing.crop.keepSignatureProp", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.view.elevation", "valueKind": "enum", "cardinality": "one", "allowedValues": ["eye_level", "low_angle", "high_angle", "birds_eye"], "defaultImportance": "preferred" },
-    { "path": "camera.view.relationship", "valueKind": "enum", "cardinality": "one", "allowedValues": ["front", "three_quarter", "profile", "rear", "over_the_shoulder"], "defaultImportance": "preferred" },
-    { "path": "camera.roll.mode", "valueKind": "enum", "cardinality": "one", "allowedValues": ["level", "dutch_left", "dutch_right"], "defaultImportance": "preferred" },
-    { "path": "camera.lens.focalLengthClass", "valueKind": "enum", "cardinality": "one", "allowedValues": ["ultra_wide", "wide", "normal", "telephoto", "super_telephoto"], "defaultImportance": "preferred" },
-    { "path": "camera.lens.perspective", "valueKind": "enum", "cardinality": "one", "allowedValues": ["expanded", "natural", "compressed"], "defaultImportance": "preferred" },
-    { "path": "camera.composition.patterns.centeredSymmetry", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.composition.patterns.ruleOfThirds", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.composition.patterns.leadingLines", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.composition.patterns.diagonal", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.composition.patterns.sCurve", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.composition.patterns.triangle", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.composition.placement", "valueKind": "enum", "cardinality": "one", "allowedValues": ["center", "left_third", "right_third", "upper_third", "lower_third"], "defaultImportance": "preferred" },
-    { "path": "camera.composition.negativeSpace", "valueKind": "enum", "cardinality": "one", "allowedValues": ["none", "left", "right", "above", "below", "surrounding"], "defaultImportance": "preferred" },
-    { "path": "camera.composition.leadingRoom.enabled", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.composition.leadingRoom.direction", "valueKind": "enum", "cardinality": "one", "allowedValues": ["left", "right", "forward", "up", "down"], "defaultImportance": "preferred" },
-    { "path": "camera.composition.foregroundTreatment", "valueKind": "enum", "cardinality": "one", "allowedValues": ["clear", "soft_obstruction", "strong_obstruction"], "defaultImportance": "preferred" },
-    { "path": "camera.composition.framingDevices.frameWithinFrame", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.composition.framingDevices.environmentalPortrait", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.composition.reflection.enabled", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-    { "path": "camera.composition.reflection.surface", "valueKind": "enum", "cardinality": "one", "allowedValues": ["mirror", "glass", "water", "screen", "polished_surface"], "defaultImportance": "preferred" },
-    { "path": "camera.composition.reflection.role", "valueKind": "enum", "cardinality": "one", "allowedValues": ["supporting", "co_primary", "primary"], "defaultImportance": "preferred" },
-    { "path": "camera.composition.environmentRelationship", "valueKind": "enum", "cardinality": "one", "allowedValues": ["isolated", "contextual", "environment_dominant"], "defaultImportance": "preferred" },
-    { "path": "lighting.subjectRendering", "valueKind": "enum", "cardinality": "one", "allowedValues": ["natural", "silhouette"], "defaultImportance": "preferred" }
+    {
+      "path": "camera.framing.shotScale",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "extreme_close_up",
+        "close_up",
+        "head_and_shoulders",
+        "bust_shot",
+        "medium_close_up",
+        "medium_shot",
+        "knee_shot",
+        "full_shot",
+        "long_shot",
+        "extreme_long_shot"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.framing.focusTarget",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "eye",
+        "face_detail",
+        "costume_detail",
+        "prop_detail"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.framing.crop.keepHead",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.framing.crop.keepHands",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.framing.crop.keepBothFeet",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.framing.crop.keepProduct",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.framing.crop.keepSignatureProp",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.view.elevation",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "eye_level",
+        "low_angle",
+        "high_angle",
+        "birds_eye"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.view.relationship",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "front",
+        "three_quarter",
+        "profile",
+        "rear",
+        "over_the_shoulder"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.overShoulder.targetRole",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "declared_subject",
+        "secondary_subject",
+        "environment_or_object"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.roll.mode",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "level",
+        "dutch_left",
+        "dutch_right"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.lens.focalLengthClass",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "ultra_wide",
+        "wide",
+        "normal",
+        "telephoto",
+        "super_telephoto"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.lens.perspective",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "expanded",
+        "natural",
+        "compressed"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.patterns.centeredSymmetry",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.patterns.ruleOfThirds",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.patterns.leadingLines",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.patterns.diagonal",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.patterns.sCurve",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.patterns.triangle",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.patterns.triangleSource",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "subject_pose",
+        "subject_and_prop",
+        "environment"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.placement",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "center",
+        "left_third",
+        "right_third",
+        "upper_third",
+        "lower_third"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.negativeSpace",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "none",
+        "left",
+        "right",
+        "above",
+        "below",
+        "surrounding"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.leadingRoom.enabled",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.leadingRoom.direction",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "left",
+        "right",
+        "forward",
+        "up",
+        "down"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.foregroundTreatment",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "clear",
+        "soft_obstruction",
+        "strong_obstruction"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.framingDevices.frameWithinFrame",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.framingDevices.environmentalPortrait",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.reflection.enabled",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.reflection.surface",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "mirror",
+        "glass",
+        "water",
+        "screen",
+        "polished_surface"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.reflection.role",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "supporting",
+        "co_primary",
+        "primary"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.reflection.physicalConsistency",
+      "valueKind": "boolean",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.reflection.presentation",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "surface_reflection",
+        "face_visible_in_mirror"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.reflection.subjectSurfaceRelationship",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "on_dry_shore_beside_water",
+        "in_water",
+        "above_water",
+        "on_reflective_surface"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.environmentRelationship",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "isolated",
+        "contextual",
+        "environment_dominant"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "camera.composition.subjectEnvironmentPlacement",
+      "valueKind": "string",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "lighting.subjectRendering",
+      "valueKind": "enum",
+      "cardinality": "one",
+      "allowedValues": [
+        "natural",
+        "silhouette"
+      ],
+      "defaultImportance": "preferred"
+    },
+    {
+      "path": "environment.background",
+      "valueKind": "string",
+      "cardinality": "one",
+      "defaultImportance": "preferred"
+    }
   ],
   "presets": [
-    { "id": "extreme-close-up", "labelKey": "visualComposition.extreme-close-up.label", "descriptionKey": "visualComposition.extreme-close-up.description", "category": "framing", "changes": [{ "operation": "replace", "targetPath": "camera.framing.shotScale", "requestedValue": "extreme_close_up" }] },
-    { "id": "close-up", "labelKey": "visualComposition.close-up.label", "descriptionKey": "visualComposition.close-up.description", "category": "framing", "changes": [{ "operation": "replace", "targetPath": "camera.framing.shotScale", "requestedValue": "close_up" }] },
-    { "id": "head-and-shoulders", "labelKey": "visualComposition.head-and-shoulders.label", "descriptionKey": "visualComposition.head-and-shoulders.description", "category": "framing", "changes": [{ "operation": "replace", "targetPath": "camera.framing.shotScale", "requestedValue": "head_and_shoulders" }, { "operation": "adjust", "targetPath": "camera.framing.crop.keepHead", "requestedValue": true }] },
-    { "id": "bust-shot", "labelKey": "visualComposition.bust-shot.label", "descriptionKey": "visualComposition.bust-shot.description", "category": "framing", "changes": [{ "operation": "replace", "targetPath": "camera.framing.shotScale", "requestedValue": "bust_shot" }, { "operation": "adjust", "targetPath": "camera.framing.crop.keepHead", "requestedValue": true }] },
-    { "id": "medium-close-up", "labelKey": "visualComposition.medium-close-up.label", "descriptionKey": "visualComposition.medium-close-up.description", "category": "framing", "changes": [{ "operation": "replace", "targetPath": "camera.framing.shotScale", "requestedValue": "medium_close_up" }] },
-    { "id": "medium-shot", "labelKey": "visualComposition.medium-shot.label", "descriptionKey": "visualComposition.medium-shot.description", "category": "framing", "changes": [{ "operation": "replace", "targetPath": "camera.framing.shotScale", "requestedValue": "medium_shot" }] },
-    { "id": "knee-shot", "labelKey": "visualComposition.knee-shot.label", "descriptionKey": "visualComposition.knee-shot.description", "category": "framing", "changes": [{ "operation": "replace", "targetPath": "camera.framing.shotScale", "requestedValue": "knee_shot" }] },
-    { "id": "full-shot", "labelKey": "visualComposition.full-shot.label", "descriptionKey": "visualComposition.full-shot.description", "category": "framing", "changes": [{ "operation": "replace", "targetPath": "camera.framing.shotScale", "requestedValue": "full_shot" }, { "operation": "adjust", "targetPath": "camera.framing.crop.keepBothFeet", "requestedValue": true }] },
-    { "id": "long-shot", "labelKey": "visualComposition.long-shot.label", "descriptionKey": "visualComposition.long-shot.description", "category": "framing", "changes": [{ "operation": "replace", "targetPath": "camera.framing.shotScale", "requestedValue": "long_shot" }, { "operation": "adjust", "targetPath": "camera.composition.environmentRelationship", "requestedValue": "contextual" }] },
-    { "id": "extreme-long-shot", "labelKey": "visualComposition.extreme-long-shot.label", "descriptionKey": "visualComposition.extreme-long-shot.description", "category": "framing", "changes": [{ "operation": "replace", "targetPath": "camera.framing.shotScale", "requestedValue": "extreme_long_shot" }, { "operation": "adjust", "targetPath": "camera.composition.environmentRelationship", "requestedValue": "environment_dominant" }] },
-    { "id": "low-angle", "labelKey": "visualComposition.low-angle.label", "descriptionKey": "visualComposition.low-angle.description", "category": "view", "changes": [{ "operation": "adjust", "targetPath": "camera.view.elevation", "requestedValue": "low_angle" }] },
-    { "id": "high-angle", "labelKey": "visualComposition.high-angle.label", "descriptionKey": "visualComposition.high-angle.description", "category": "view", "changes": [{ "operation": "adjust", "targetPath": "camera.view.elevation", "requestedValue": "high_angle" }] },
-    { "id": "birds-eye-view", "labelKey": "visualComposition.birds-eye-view.label", "descriptionKey": "visualComposition.birds-eye-view.description", "category": "view", "changes": [{ "operation": "adjust", "targetPath": "camera.view.elevation", "requestedValue": "birds_eye" }] },
-    { "id": "over-the-shoulder", "labelKey": "visualComposition.over-the-shoulder.label", "descriptionKey": "visualComposition.over-the-shoulder.description", "category": "view", "compatibilityHints": ["foreground-shoulder-subject-or-declared-equivalent"], "changes": [{ "operation": "adjust", "targetPath": "camera.view.relationship", "requestedValue": "over_the_shoulder" }] },
-    { "id": "dutch-angle", "labelKey": "visualComposition.dutch-angle.label", "descriptionKey": "visualComposition.dutch-angle.description", "category": "view", "requiredInputs": ["direction"], "changes": [{ "operation": "adjust", "targetPath": "camera.roll.mode", "valueFrom": "direction" }] },
-    { "id": "centered-symmetry", "labelKey": "visualComposition.centered-symmetry.label", "descriptionKey": "visualComposition.centered-symmetry.description", "category": "layout", "changes": [{ "operation": "adjust", "targetPath": "camera.composition.patterns.centeredSymmetry", "requestedValue": true }, { "operation": "adjust", "targetPath": "camera.composition.placement", "requestedValue": "center" }] },
-    { "id": "rule-of-thirds", "labelKey": "visualComposition.rule-of-thirds.label", "descriptionKey": "visualComposition.rule-of-thirds.description", "category": "layout", "changes": [{ "operation": "adjust", "targetPath": "camera.composition.patterns.ruleOfThirds", "requestedValue": true }] },
-    { "id": "leading-lines", "labelKey": "visualComposition.leading-lines.label", "descriptionKey": "visualComposition.leading-lines.description", "category": "layout", "compatibilityHints": ["suitable-scene-geometry-or-review"], "changes": [{ "operation": "adjust", "targetPath": "camera.composition.patterns.leadingLines", "requestedValue": true }] },
-    { "id": "leading-room", "labelKey": "visualComposition.leading-room.label", "descriptionKey": "visualComposition.leading-room.description", "category": "layout", "requiredInputs": ["direction"], "changes": [{ "operation": "adjust", "targetPath": "camera.composition.leadingRoom.enabled", "requestedValue": true }, { "operation": "adjust", "targetPath": "camera.composition.leadingRoom.direction", "valueFrom": "direction" }] },
-    { "id": "diagonal-composition", "labelKey": "visualComposition.diagonal-composition.label", "descriptionKey": "visualComposition.diagonal-composition.description", "category": "layout", "changes": [{ "operation": "adjust", "targetPath": "camera.composition.patterns.diagonal", "requestedValue": true }] },
-    { "id": "s-curve-composition", "labelKey": "visualComposition.s-curve-composition.label", "descriptionKey": "visualComposition.s-curve-composition.description", "category": "layout", "changes": [{ "operation": "adjust", "targetPath": "camera.composition.patterns.sCurve", "requestedValue": true }] },
-    { "id": "triangle-composition", "labelKey": "visualComposition.triangle-composition.label", "descriptionKey": "visualComposition.triangle-composition.description", "category": "layout", "changes": [{ "operation": "adjust", "targetPath": "camera.composition.patterns.triangle", "requestedValue": true }] },
-    { "id": "negative-space", "labelKey": "visualComposition.negative-space.label", "descriptionKey": "visualComposition.negative-space.description", "category": "layout", "requiredInputs": ["direction"], "changes": [{ "operation": "adjust", "targetPath": "camera.composition.negativeSpace", "valueFrom": "direction" }] },
-    { "id": "frame-within-frame", "labelKey": "visualComposition.frame-within-frame.label", "descriptionKey": "visualComposition.frame-within-frame.description", "category": "depth", "changes": [{ "operation": "adjust", "targetPath": "camera.composition.framingDevices.frameWithinFrame", "requestedValue": true }] },
-    { "id": "foreground-obstruction", "labelKey": "visualComposition.foreground-obstruction.label", "descriptionKey": "visualComposition.foreground-obstruction.description", "category": "depth", "changes": [{ "operation": "adjust", "targetPath": "camera.composition.foregroundTreatment", "requestedValue": "soft_obstruction" }] },
-    { "id": "profile-silhouette", "labelKey": "visualComposition.profile-silhouette.label", "descriptionKey": "visualComposition.profile-silhouette.description", "category": "view", "changes": [{ "operation": "adjust", "targetPath": "camera.view.relationship", "requestedValue": "profile" }] },
-    { "id": "reflection-composition", "labelKey": "visualComposition.reflection-composition.label", "descriptionKey": "visualComposition.reflection-composition.description", "category": "depth", "requiredInputs": ["surface"], "changes": [{ "operation": "adjust", "targetPath": "camera.composition.reflection.enabled", "requestedValue": true }, { "operation": "adjust", "targetPath": "camera.composition.reflection.surface", "valueFrom": "surface" }] },
-    { "id": "mirror-composition", "labelKey": "visualComposition.mirror-composition.label", "descriptionKey": "visualComposition.mirror-composition.description", "category": "depth", "changes": [{ "operation": "adjust", "targetPath": "camera.composition.reflection.enabled", "requestedValue": true }, { "operation": "adjust", "targetPath": "camera.composition.reflection.surface", "requestedValue": "mirror" }] },
-    { "id": "telephoto-compression", "labelKey": "visualComposition.telephoto-compression.label", "descriptionKey": "visualComposition.telephoto-compression.description", "category": "lens", "changes": [{ "operation": "adjust", "targetPath": "camera.lens.focalLengthClass", "requestedValue": "telephoto" }, { "operation": "adjust", "targetPath": "camera.lens.perspective", "requestedValue": "compressed" }] },
-    { "id": "environmental-portrait", "labelKey": "visualComposition.environmental-portrait.label", "descriptionKey": "visualComposition.environmental-portrait.description", "category": "depth", "changes": [{ "operation": "adjust", "targetPath": "camera.composition.framingDevices.environmentalPortrait", "requestedValue": true }, { "operation": "adjust", "targetPath": "camera.composition.environmentRelationship", "requestedValue": "contextual" }] }
+    {
+      "id": "extreme-close-up",
+      "labelKey": "visualComposition.extreme-close-up.label",
+      "descriptionKey": "visualComposition.extreme-close-up.description",
+      "category": "framing",
+      "changes": [
+        {
+          "operation": "replace",
+          "targetPath": "camera.framing.shotScale",
+          "requestedValue": "extreme_close_up"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.framing.focusTarget",
+          "requestedValue": "eye"
+        }
+      ]
+    },
+    {
+      "id": "close-up",
+      "labelKey": "visualComposition.close-up.label",
+      "descriptionKey": "visualComposition.close-up.description",
+      "category": "framing",
+      "changes": [
+        {
+          "operation": "replace",
+          "targetPath": "camera.framing.shotScale",
+          "requestedValue": "close_up"
+        }
+      ]
+    },
+    {
+      "id": "head-and-shoulders",
+      "labelKey": "visualComposition.head-and-shoulders.label",
+      "descriptionKey": "visualComposition.head-and-shoulders.description",
+      "category": "framing",
+      "changes": [
+        {
+          "operation": "replace",
+          "targetPath": "camera.framing.shotScale",
+          "requestedValue": "head_and_shoulders"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.framing.crop.keepHead",
+          "requestedValue": true
+        }
+      ]
+    },
+    {
+      "id": "bust-shot",
+      "labelKey": "visualComposition.bust-shot.label",
+      "descriptionKey": "visualComposition.bust-shot.description",
+      "category": "framing",
+      "changes": [
+        {
+          "operation": "replace",
+          "targetPath": "camera.framing.shotScale",
+          "requestedValue": "bust_shot"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.framing.crop.keepHead",
+          "requestedValue": true
+        }
+      ]
+    },
+    {
+      "id": "medium-close-up",
+      "labelKey": "visualComposition.medium-close-up.label",
+      "descriptionKey": "visualComposition.medium-close-up.description",
+      "category": "framing",
+      "changes": [
+        {
+          "operation": "replace",
+          "targetPath": "camera.framing.shotScale",
+          "requestedValue": "medium_close_up"
+        }
+      ]
+    },
+    {
+      "id": "medium-shot",
+      "labelKey": "visualComposition.medium-shot.label",
+      "descriptionKey": "visualComposition.medium-shot.description",
+      "category": "framing",
+      "changes": [
+        {
+          "operation": "replace",
+          "targetPath": "camera.framing.shotScale",
+          "requestedValue": "medium_shot"
+        }
+      ]
+    },
+    {
+      "id": "knee-shot",
+      "labelKey": "visualComposition.knee-shot.label",
+      "descriptionKey": "visualComposition.knee-shot.description",
+      "category": "framing",
+      "changes": [
+        {
+          "operation": "replace",
+          "targetPath": "camera.framing.shotScale",
+          "requestedValue": "knee_shot"
+        }
+      ]
+    },
+    {
+      "id": "full-shot",
+      "labelKey": "visualComposition.full-shot.label",
+      "descriptionKey": "visualComposition.full-shot.description",
+      "category": "framing",
+      "changes": [
+        {
+          "operation": "replace",
+          "targetPath": "camera.framing.shotScale",
+          "requestedValue": "full_shot"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.framing.crop.keepBothFeet",
+          "requestedValue": true
+        }
+      ]
+    },
+    {
+      "id": "long-shot",
+      "labelKey": "visualComposition.long-shot.label",
+      "descriptionKey": "visualComposition.long-shot.description",
+      "category": "framing",
+      "changes": [
+        {
+          "operation": "replace",
+          "targetPath": "camera.framing.shotScale",
+          "requestedValue": "long_shot"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.environmentRelationship",
+          "requestedValue": "contextual"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Keep the complete person supported on one visible promenade ground plane, separated from the water by the shoreline, with enough space around the body to read the location."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "a spacious lakeside promenade with trees, a visible shoreline, and enough depth for the complete person to remain readable"
+        }
+      ]
+    },
+    {
+      "id": "extreme-long-shot",
+      "labelKey": "visualComposition.extreme-long-shot.label",
+      "descriptionKey": "visualComposition.extreme-long-shot.description",
+      "category": "framing",
+      "changes": [
+        {
+          "operation": "replace",
+          "targetPath": "camera.framing.shotScale",
+          "requestedValue": "extreme_long_shot"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.environmentRelationship",
+          "requestedValue": "environment_dominant"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Use the complete person as a small scale anchor on a clearly visible path or shore ground plane; never place the person in open water, sky, or unsupported space."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "an expansive lakeside park with broad water, distant shoreline, open sky, and a clearly readable sense of scale"
+        }
+      ]
+    },
+    {
+      "id": "low-angle",
+      "labelKey": "visualComposition.low-angle.label",
+      "descriptionKey": "visualComposition.low-angle.description",
+      "category": "view",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.view.elevation",
+          "requestedValue": "low_angle"
+        }
+      ]
+    },
+    {
+      "id": "high-angle",
+      "labelKey": "visualComposition.high-angle.label",
+      "descriptionKey": "visualComposition.high-angle.description",
+      "category": "view",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.view.elevation",
+          "requestedValue": "high_angle"
+        }
+      ]
+    },
+    {
+      "id": "birds-eye-view",
+      "labelKey": "visualComposition.birds-eye-view.label",
+      "descriptionKey": "visualComposition.birds-eye-view.description",
+      "category": "view",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.view.elevation",
+          "requestedValue": "birds_eye"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Place the person on the visible paved ground plane below the top-down camera, with paths and shoreline edges surrounding rather than cutting through the body."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "a paved lakeside plaza with paths, shoreline edges, and ground geometry that remain legible from directly above"
+        }
+      ]
+    },
+    {
+      "id": "over-the-shoulder",
+      "labelKey": "visualComposition.over-the-shoulder.label",
+      "descriptionKey": "visualComposition.over-the-shoulder.description",
+      "category": "view",
+      "compatibilityHints": [
+        "foreground-shoulder-subject-or-declared-equivalent"
+      ],
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.view.relationship",
+          "requestedValue": "over_the_shoulder"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.overShoulder.targetRole",
+          "requestedValue": "declared_subject"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Put one anonymous shoulder close to the camera and the declared person farther away on a visibly supported overlook or path, with open depth between them and no duplicated declared person."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "a lakeside overlook with clear depth beyond the anonymous foreground shoulder and an unobstructed view toward the declared person"
+        }
+      ]
+    },
+    {
+      "id": "dutch-angle",
+      "labelKey": "visualComposition.dutch-angle.label",
+      "descriptionKey": "visualComposition.dutch-angle.description",
+      "category": "view",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.roll.mode",
+          "valueFrom": "direction"
+        }
+      ],
+      "requiredInputs": [
+        "direction"
+      ]
+    },
+    {
+      "id": "centered-symmetry",
+      "labelKey": "visualComposition.centered-symmetry.label",
+      "descriptionKey": "visualComposition.centered-symmetry.description",
+      "category": "layout",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.patterns.centeredSymmetry",
+          "requestedValue": true
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.placement",
+          "requestedValue": "center"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Place the person on the walkway centerline with both feet supported on the floor; keep matching architecture around and behind the body without merging the person into columns or rails."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "a symmetrical lakeside pavilion walkway with matching columns, railings, and balanced left-right scenery"
+        }
+      ]
+    },
+    {
+      "id": "rule-of-thirds",
+      "labelKey": "visualComposition.rule-of-thirds.label",
+      "descriptionKey": "visualComposition.rule-of-thirds.description",
+      "category": "layout",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.patterns.ruleOfThirds",
+          "requestedValue": true
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.placement",
+          "requestedValue": "right_third"
+        }
+      ]
+    },
+    {
+      "id": "leading-lines",
+      "labelKey": "visualComposition.leading-lines.label",
+      "descriptionKey": "visualComposition.leading-lines.description",
+      "category": "layout",
+      "compatibilityHints": [
+        "suitable-scene-geometry-or-review"
+      ],
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.patterns.leadingLines",
+          "requestedValue": true
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Stand the person securely on the boardwalk at the visual convergence point; let rails and paving seams lead toward the person without passing through or replacing body parts."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "a lakeside boardwalk whose railings, paving seams, and shoreline edges visibly converge toward the person"
+        }
+      ]
+    },
+    {
+      "id": "leading-room",
+      "labelKey": "visualComposition.leading-room.label",
+      "descriptionKey": "visualComposition.leading-room.description",
+      "category": "layout",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.leadingRoom.enabled",
+          "requestedValue": true
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.leadingRoom.direction",
+          "valueFrom": "direction"
+        }
+      ],
+      "requiredInputs": [
+        "direction"
+      ]
+    },
+    {
+      "id": "diagonal-composition",
+      "labelKey": "visualComposition.diagonal-composition.label",
+      "descriptionKey": "visualComposition.diagonal-composition.description",
+      "category": "layout",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.patterns.diagonal",
+          "requestedValue": true
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Support the person on one step or landing while stairs or railings create the dominant diagonal around the figure; do not tilt, stretch, or embed the body into the architecture."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "outdoor stone steps and diagonal railings beside a landscaped lake, arranged as one controlled dominant diagonal"
+        }
+      ]
+    },
+    {
+      "id": "s-curve-composition",
+      "labelKey": "visualComposition.s-curve-composition.label",
+      "descriptionKey": "visualComposition.s-curve-composition.description",
+      "category": "layout",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.patterns.sCurve",
+          "requestedValue": true
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Place the person on solid ground beside or at the visual end of the S-shaped path so the path leads toward the figure without running through the body."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "a landscaped lakeside garden with one clearly visible S-shaped path leading through the scene toward the person"
+        }
+      ]
+    },
+    {
+      "id": "triangle-composition",
+      "labelKey": "visualComposition.triangle-composition.label",
+      "descriptionKey": "visualComposition.triangle-composition.description",
+      "category": "layout",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.patterns.triangle",
+          "requestedValue": true
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.patterns.triangleSource",
+          "requestedValue": "subject_pose"
+        }
+      ]
+    },
+    {
+      "id": "negative-space",
+      "labelKey": "visualComposition.negative-space.label",
+      "descriptionKey": "visualComposition.negative-space.description",
+      "category": "layout",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.negativeSpace",
+          "valueFrom": "direction"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Keep the person physically supported on solid shore at the edge opposite the selected negative-space region; use water or sky as empty space without making the person float in it."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "an uncluttered lakeside scene with broad open water and sky that can provide the selected area of clean negative space"
+        }
+      ],
+      "requiredInputs": [
+        "direction"
+      ]
+    },
+    {
+      "id": "frame-within-frame",
+      "labelKey": "visualComposition.frame-within-frame.label",
+      "descriptionKey": "visualComposition.frame-within-frame.description",
+      "category": "depth",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.framingDevices.frameWithinFrame",
+          "requestedValue": true
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Place the person beyond and fully inside one architectural opening as seen by the camera; keep the opening edges in front of and separate from the body without clipping or fusing with it."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "a lakeside pavilion with one clear archway, doorway, or window opening that physically surrounds the person as an inner frame"
+        }
+      ]
+    },
+    {
+      "id": "foreground-obstruction",
+      "labelKey": "visualComposition.foreground-obstruction.label",
+      "descriptionKey": "visualComposition.foreground-obstruction.description",
+      "category": "depth",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.foregroundTreatment",
+          "requestedValue": "soft_obstruction"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Place soft foliage close to the camera, the person farther away on a visible garden path, and clear depth between them; foreground elements may touch frame edges but not cover critical person details."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "a lakeside garden with nearby leaves or flowers available as a soft out-of-focus foreground layer while the person stays unobstructed"
+        }
+      ]
+    },
+    {
+      "id": "profile-silhouette",
+      "labelKey": "visualComposition.profile-silhouette.label",
+      "descriptionKey": "visualComposition.profile-silhouette.description",
+      "category": "view",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.view.relationship",
+          "requestedValue": "profile"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Support the person on a visible shore or ridge, with the bright sky behind the side profile and a clean horizon that does not cut through the face."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "a lakeside horizon with a bright, uncluttered sunset sky that clearly separates the person’s side profile"
+        }
+      ],
+      "optionalInputs": [
+        "silhouette"
+      ]
+    },
+    {
+      "id": "reflection-composition",
+      "labelKey": "visualComposition.reflection-composition.label",
+      "descriptionKey": "visualComposition.reflection-composition.description",
+      "category": "depth",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.reflection.enabled",
+          "requestedValue": true
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.reflection.surface",
+          "requestedValue": "water"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.reflection.role",
+          "requestedValue": "co_primary"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.reflection.physicalConsistency",
+          "requestedValue": true
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.reflection.presentation",
+          "requestedValue": "surface_reflection"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.reflection.subjectSurfaceRelationship",
+          "requestedValue": "on_dry_shore_beside_water"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Aim the camera across foreground water toward the person standing on the dry far bank. Show the shoreline directly below both feet and align the water reflection directly below the person on the same vertical image axis."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "calm foreground lake water facing a dry far shoreline where the person can stand, with enough visible water below the person to carry a reflection"
+        }
+      ]
+    },
+    {
+      "id": "mirror-composition",
+      "labelKey": "visualComposition.mirror-composition.label",
+      "descriptionKey": "visualComposition.mirror-composition.description",
+      "category": "depth",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.reflection.enabled",
+          "requestedValue": true
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.reflection.surface",
+          "requestedValue": "mirror"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.reflection.role",
+          "requestedValue": "primary"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.reflection.physicalConsistency",
+          "requestedValue": true
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.reflection.presentation",
+          "requestedValue": "face_visible_in_mirror"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Place the camera just behind and slightly over the person’s shoulder. Show only a softly out-of-focus partial back, shoulder, and back of the hairstyle at one foreground edge; make the sharp front-facing reflection inside the ornate mirror the dominant subject. Keep both views connected by one physically plausible mirror angle and the same pose, action, costume, hair, accessories, and held props."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "an elegant theatrical dressing room with one large ornate gold-framed full-length mirror, deep navy curtains, dark refined furnishings, and warm golden practical lighting"
+        }
+      ]
+    },
+    {
+      "id": "telephoto-compression",
+      "labelKey": "visualComposition.telephoto-compression.label",
+      "descriptionKey": "visualComposition.telephoto-compression.description",
+      "category": "lens",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.lens.focalLengthClass",
+          "requestedValue": "telephoto"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.lens.perspective",
+          "requestedValue": "compressed"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Place the person on the receding promenade ground plane along the lens axis, with repeated rails and trees layered in front of and behind the person without intersecting the body."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "a long tree-lined lakeside promenade with repeating railings and layered distant scenery that visibly compress under a telephoto lens"
+        }
+      ]
+    },
+    {
+      "id": "environmental-portrait",
+      "labelKey": "visualComposition.environmental-portrait.label",
+      "descriptionKey": "visualComposition.environmental-portrait.description",
+      "category": "depth",
+      "changes": [
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.framingDevices.environmentalPortrait",
+          "requestedValue": true
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.environmentRelationship",
+          "requestedValue": "contextual"
+        },
+        {
+          "operation": "adjust",
+          "targetPath": "camera.composition.subjectEnvironmentPlacement",
+          "requestedValue": "Keep the complete person supported on one visible promenade ground plane, separated from the water by the shoreline, with enough space around the body to read the location."
+        },
+        {
+          "operation": "create",
+          "targetPath": "environment.background",
+          "requestedValue": "a spacious lakeside promenade with trees, a visible shoreline, and enough depth for the complete person to remain readable"
+        }
+      ]
+    }
   ],
-  "catalogHash": "sha256:1e7956f9c652b7bc3563056b038f5d7d4d760936e8a0abc37a796d676fe961e0"
+  "catalogHash": "sha256:4e8f2bf786d6ed5bde84ee9de3bb385f3eb8b843ee0ed81ff9a2725e95e65263"
 }
