@@ -1,6 +1,6 @@
 # Public Playground deployment readiness
 
-PR A prepares the Playground Host for a later, separately authorized public deployment. It does not create a cloud service, domain, DNS record, TLS certificate, GitHub Secret, npm publication, Release, or tag.
+The current implementation prepares the Playground Host for separately authorized public deployment. Source checkout alone does not create a cloud service, domain, DNS record, TLS certificate, GitHub Secret, npm publication, Release, or tag.
 
 ## Runtime modes
 
@@ -9,7 +9,7 @@ Local mode is the default: `PLAYGROUND_PUBLIC_MODE=0`, `PLAYGROUND_HOST=127.0.0.
 Public mode must be explicit. The Host refuses to start unless all of the following are true:
 
 - `PLAYGROUND_PUBLIC_MODE=1` and `PLAYGROUND_BEHIND_REVERSE_PROXY=1` are set;
-- `PLAYGROUND_HOST` is an intentional bind address; the PR B single-host baseline uses loopback so the Node port is never public;
+- `PLAYGROUND_HOST` is an intentional bind address; the reviewed single-host baseline uses loopback so the Node port is never public;
 - `PLAYGROUND_EXTERNAL_SCHEME=https` confirms TLS termination outside this process;
 - development Mock rendering and validation-package export are disabled;
 - `PLAYGROUND_SINGLE_INSTANCE=1` and `PLAYGROUND_PROVIDER_HARD_LIMITS_CONFIRMED=1` acknowledge the current quota durability boundary; and
@@ -19,7 +19,7 @@ The process reads `PLAYGROUND_HOST` and `PLAYGROUND_PORT`, exposes `GET /healthz
 
 ## Reverse proxy contract
 
-PR A does not configure a proxy or HTTPS. PR B supplies reviewed generic Nginx and systemd templates in [`deploy/public-playground`](../deploy/public-playground/README.md). An authorized deployment must render the hostname outside source control, terminate HTTPS, preserve same-origin routing, set a request-body limit no larger than `PLAYGROUND_REQUEST_BODY_LIMIT_BYTES` (default `20,100,000` bytes), disable proxy request buffering and request/response body logging, and avoid caching `/api/*` responses. The server enforces the same body ceiling independently.
+The application does not configure a proxy or HTTPS by itself. The repository supplies reviewed generic Nginx and systemd templates in [`deploy/public-playground`](../deploy/public-playground/README.md). An authorized deployment must render the hostname outside source control, terminate HTTPS, preserve same-origin routing, set a request-body limit no larger than `PLAYGROUND_REQUEST_BODY_LIMIT_BYTES` (default `20,100,000` bytes), disable proxy request buffering and request/response body logging, and avoid caching `/api/*` responses. The server enforces the same body ceiling independently.
 
 Forwarded client IP headers are ignored by default. `PLAYGROUND_TRUST_PROXY=1` is valid only when reverse-proxy mode is explicit and a non-empty `PLAYGROUND_TRUSTED_PROXY_CIDRS` allow-list is supplied. The Host uses the first forwarded address only when the immediate socket peer matches that list. The single-host template trusts only `127.0.0.1/32`; it must never be broadened to a public network.
 
@@ -31,7 +31,7 @@ Uploads allow PNG, JPEG, and WebP only after MIME, signature, byte, decoded-dime
 
 Generated results default to a 15-minute TTL, four items per session, 32 items/128 MB globally. A worst-case 50 MB result reservation is checked before a real Provider call; capacity exhaustion therefore rejects before transport. Generation completion always releases request uploads and the ephemeral BYOK value. Session deletion and process shutdown clear both stores.
 
-`RequestQuotaStore` is the storage interface for per-session, trusted-client, Provider-rate, global-concurrency, and daily-call accounting. PR A ships only `InMemoryRequestQuotaStore`. It is deterministic and suitable for local tests but is not a reliable multi-process or restart-durable global daily counter. Therefore public mode permits it only with an explicitly declared single instance and independently configured Provider/platform hard limits. A future durable store must provide an atomic implementation of the same transaction boundary before horizontal scaling.
+`RequestQuotaStore` is the storage interface for per-session, trusted-client, Provider-rate, global-concurrency, and daily-call accounting. The current implementation ships only `InMemoryRequestQuotaStore`. It is deterministic and suitable for local tests but is not a reliable multi-process or restart-durable global daily counter. Therefore public mode permits it only with an explicitly declared single instance and independently configured Provider/platform hard limits. A future durable store must provide an atomic implementation of the same transaction boundary before horizontal scaling.
 
 Cloudflare additionally has a fail-closed Host cap no greater than 10,000 Neurons per UTC day. Seedream and Grok remain paid BYOK calls and are also subject to their Provider account limits. No gate retries, switches Provider, or continues into paid overage silently.
 
@@ -40,17 +40,19 @@ Cloudflare additionally has a fail-closed Host cap no greater than 10,000 Neuron
 The Public Playground product contract is Provider-enabled. The source/CI default of disabled transports is only a safe development baseline and must not be presented as the intended public user experience. A normal public deployment enables all three reviewed transports; compile-only operation is reserved for development, regression, or an explicitly communicated maintenance state.
 
 - Seedream is the recommended high-quality option. `PLAYGROUND_ENABLE_SEEDREAM_TRANSPORT=1` enables the allow-listed Ark BYOK transport. The user supplies the key for one request.
-- Grok is optional high quality. `PLAYGROUND_ENABLE_GROK_TRANSPORT=1` enables the allow-listed xAI `/v1/images/edits` JSON BYOK transport. Its Mock-HTTP success/failure paths are tested; PR A makes no real Grok call or quality claim.
+- Grok is optional high quality. `PLAYGROUND_ENABLE_GROK_TRANSPORT=1` enables the allow-listed xAI `/v1/images/edits` JSON BYOK transport. Its Mock-HTTP success/failure paths are tested; standard acceptance makes no real Grok call or quality claim.
 - Cloudflare is a free experimental preview, not the quality default. It requires `PLAYGROUND_ENABLE_CLOUDFLARE_TRANSPORT=1` plus server-side `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
 
 Seedream and Grok availability does not depend on a server-stored user key. When their transport is deployed, the UI keeps them available and asks for BYOK only for the one Generate request. A missing key blocks that request without changing Compile or the Provider's deployment status. Cloudflare is available when its operator credential and transport are configured. Capability mismatch, consent, limits, or maintenance may still block Generate with a safe reason.
 
 Compile/Inspect remains available with every transport disabled or every Generate quota exhausted.
 
-## PR B baseline and Provider-enabled deployment
+## Single-host baseline and Provider-enabled deployment
 
-The checked-in PR B environment example is a safe source default, not the intended public product state. All three real transports and Mock rendering are disabled in that example, so copying it cannot accidentally produce calls. The authorized deployed environment enables the three reviewed transports while continuing to bind Node to loopback, use one systemd process, cap memory, expose only Nginx, and keep validation export disabled.
+The checked-in environment example is a safe source default, not the intended public product state. All three real transports and Mock rendering are disabled in that example, so copying it cannot accidentally produce calls. An authorized deployed environment may enable the three reviewed transports while continuing to bind Node to loopback, use one systemd process, cap memory, expose only Nginx, and keep validation export disabled.
 
 After separate authorization, a deployment may enable Seedream and Grok BYOK transports without storing either user key. Cloudflare may be enabled with an operator-managed credential stored only in the root-owned `0600` `/etc/voce-playground/cloudflare.env` file. The compile-only systemd unit denies non-loopback networking; Provider activation therefore also requires the reviewed `voce-playground-provider-egress.conf` drop-in. Application adapters continue to allow-list the exact Cloudflare, Ark, xAI, and Provider-owned output hosts. Deployment acceptance must use Mock tests and capability metadata unless a real call is separately authorized.
 
-Before deployment, the owner must separately authorize the cloud account/project, exact region, hostname/DNS/TLS, proxy CIDRs/body limit, single-instance process policy, monitoring destination, public privacy/contact text, secret injection, and real Provider calls. PR B does not change PR A into a release, merge, npm publication, or tag operation.
+Before deployment, the owner must separately authorize the cloud account/project, exact region, hostname/DNS/TLS, proxy CIDRs/body limit, single-instance process policy, monitoring destination, public privacy/contact text, secret injection, and real Provider calls. Deployment authorization does not imply authorization for a Release, npm publication, tag, repository About change, or Provider acceptance call.
+
+The authorized 2026-08-21 single-instance acceptance deployment is recorded separately in [`acceptance/public-playground-single-instance.md`](acceptance/public-playground-single-instance.md). Its temporary hostname is deployment evidence, not a stable product URL.

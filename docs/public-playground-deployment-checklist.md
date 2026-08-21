@@ -1,6 +1,6 @@
-# Public Playground PR B deployment checklist
+# Public Playground deployment checklist
 
-PR A completion does not authorize any item below. PR B must record owner authorization and evidence for each applicable item.
+Source readiness or a merged change does not authorize any operator action below. Every deployment must record owner authorization and evidence for each applicable item.
 
 ## Infrastructure and secrets
 
@@ -27,6 +27,7 @@ PR A completion does not authorize any item below. PR B must record owner author
 - [ ] Publish the operator-specific privacy notice, retention statement, Provider list, contact, region, and deletion behavior.
 - [ ] Verify structured logs contain no API key, image/Base64, full prompt, cookie, raw IP, Provider body, or output URL.
 - [ ] Confirm `/healthz` and `/readyz`, graceful shutdown, TTL sweeping, capacity alerts, and incident rollback.
+- [ ] After restart, use a bounded readiness wait; do not treat one connection refusal during process binding as a failed release or retry indefinitely.
 - [ ] Confirm validation export, Mock rendering, source maps containing secrets, and development flags are absent/disabled.
 
 ## Acceptance
@@ -35,4 +36,6 @@ PR A completion does not authorize any item below. PR B must record owner author
 - [ ] With separate authorization, run one bounded online acceptance per enabled Provider; record calls, cost, and deletion evidence without committing inputs/outputs/secrets.
 - [ ] Verify Compile remains available when all Generate transports are disabled and when every Host quota is exhausted.
 - [ ] Verify ordinary errors show a safe explanation; technical details show only code, request ID, and limit reason.
-- [ ] Do not merge, publish npm, create a Release/tag, edit repository About, or announce a public URL without separate authorization.
+- [ ] Do not merge, publish npm, create a Release/tag, edit repository About, or announce a stable public URL without separate authorization.
+
+The authorized 2026-08-21 single-instance acceptance snapshot is recorded in [`acceptance/public-playground-single-instance.md`](acceptance/public-playground-single-instance.md). It does not mark unchecked operator-specific items complete for future deployments.

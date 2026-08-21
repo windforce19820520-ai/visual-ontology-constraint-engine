@@ -1,6 +1,6 @@
 # Public Playground single-instance deployment
 
-These files define the PR B baseline for a small Linux host behind Nginx. They do not create infrastructure, DNS, certificates, secrets, releases, or Provider calls by themselves. Replace `__VOCE_HOSTNAME__` during an authorized deployment; never commit the resulting operator-specific file.
+These files define the reviewed single-instance baseline for a small Linux host behind Nginx. They do not create infrastructure, DNS, certificates, secrets, releases, or Provider calls by themselves. Replace `__VOCE_HOSTNAME__` during an authorized deployment; never commit the resulting operator-specific file.
 
 ## Safety boundary
 
@@ -22,4 +22,8 @@ The service listens only on `127.0.0.1:4173`. Nginx is the sole public listener 
 
 Before exposing the route, verify `GET /healthz`, `GET /readyz`, the Playground page, Compile/Inspect, secure session cookies, request-size rejection, and sanitized logs. In compile-only mode, verify the safe disabled-Generate message. In an authorized Provider-enabled deployment, verify `/api/meta` reports only the intended transports and that BYOK fields are not persisted; do not use a real key or generate an image as part of deployment acceptance unless separately authorized. Test graceful stop and start once.
 
+After a restart, wait for systemd to report the unit active and poll `/readyz` with a short bounded deadline before judging the release. The Node listener may legitimately refuse the first connection while the new process is still binding; never replace this bounded readiness wait with an unbounded retry loop or an automatic Provider call.
+
 Keep the previous release directory. Roll back by atomically pointing `/opt/voce-playground/current` to the previous reviewed commit, restarting the service, and repeating health/readiness checks. Do not scale beyond one process until an atomic durable quota store is implemented and reviewed.
+
+The 2026-08-21 temporary-host deployment evidence is recorded in [`docs/acceptance/public-playground-single-instance.md`](../../docs/acceptance/public-playground-single-instance.md).
