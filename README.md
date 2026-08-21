@@ -7,9 +7,9 @@ An open-source visual ontology, constraint compiler, prompt optimization, and ev
 
 ## Incubation status and v0.1 release candidate
 
-`v0.1.0-rc.4` is the visual-composition release candidate for GitHub and the four public npm packages under the `next` distribution tag. It adds the 30-preset catalog to the packaged public surface while retaining the RC.3 Cosplay fidelity repair. This candidate is **not production-ready**: APIs, schemas, package contracts, and behavior may change before `v0.1.0`.
+`v0.1.0-rc.5` is the Playground release candidate for GitHub and five public npm packages under the `next` distribution tag. It packages the local-first Playground separately as `@voce-engine/playground`, while retaining the RC.4 30-preset catalog and the earlier Cosplay fidelity repair. This candidate is **not production-ready**: APIs, schemas, package contracts, and behavior may change before `v0.1.0`.
 
-The repository contains deterministic runtime packages, data-only ScenarioPack fixtures, three offline vertical cases, bundle manifests, a Mock execution path, credentialed Seedream multi-reference smoke tooling, and clean-room/release-candidate checks. The four public packages are validated from their packed tarballs, clean consumers compile against installed declarations, and package contents, checksums, and reproducibility are verified on the release path. See the [release-readiness checklist](docs/release-checklist.md), [candidate compatibility surface](docs/compatibility.md), and [changelog](CHANGELOG.md).
+The repository contains deterministic runtime packages, data-only ScenarioPack fixtures, three offline vertical cases, bundle manifests, a Mock execution path, the local Playground Host, credentialed Seedream multi-reference smoke tooling, and clean-room/release-candidate checks. All five public packages are validated from their packed tarballs; the clean consumer also starts the installed Playground, reads its metadata, and loads a bundled composition example without a real Provider call. Package contents, checksums, and reproducibility are verified on the release path. See the [release-readiness checklist](docs/release-checklist.md), [candidate compatibility surface](docs/compatibility.md), and [changelog](CHANGELOG.md).
 
 The runtime also includes 30 declarative visual-composition presets. A host displays the bundled example artwork, submits a stable preset ID plus any required typed inputs, and expands that selection into ordinary `ChangeIntent` records before constraint and prompt compilation. The artwork is UI/documentation guidance, not a model reference image and does not consume reference budget. See [visual composition presets and integration](docs/visual-composition.md) or the [简体中文指南](docs/zh-CN/visual-composition.md).
 
@@ -21,9 +21,9 @@ Each card below pairs the bundled selection artwork with the exact stable `prese
 
 Full guides: [English](docs/visual-composition.md) · [简体中文](docs/zh-CN/visual-composition.md)
 
-## Try the source Playground
+## Try the Playground
 
-The current source branch under review in PR [#32](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/pull/32) includes an experimental standalone Playground Host. It is not part of the published `v0.1.0-rc.4` npm packages and is not a public deployment or production-readiness claim.
+RC.5 packages the standalone local Host as `@voce-engine/playground`. Installing the package gives users the web UI and its 30 bundled Cosplay composition examples; it does not create a shared public deployment or make a production-readiness claim.
 
 The Playground provides two distinct workflows:
 
@@ -32,11 +32,11 @@ The Playground provides two distinct workflows:
 
 Cloudflare Workers AI FLUX.2 klein 4B is the default free quick-preview profile. It accepts at most four references and every input must be strictly smaller than 512×512. Exact face identity, small accessory details, complete feet/framing, and complex spatial composition can be less reliable than Seedream or Grok; the UI states these limits before a call. Cloudflare credentials are deployment-managed and never entered in the Browser. Seedream 5.0 Pro and Grok Imagine remain optional BYOK choices, subject to their declared reference limits and availability.
 
-After installing and building the workspace, run `node playground/dist/server-entry.js` and open `http://127.0.0.1:4173/playground`. Rendering is disabled unless the Host explicitly enables an approved transport. See the [Playground usage and security guide](playground/README.md), [Try-On/Cosplay product amendment](docs/design/playground-tryon-cosplay-input-amendment.md), and [Provider capability report](docs/implementation-notes/playground-provider-capability-report.md).
+Install `@voce-engine/playground@0.1.0-rc.5`, run `voce-playground`, and open `http://127.0.0.1:4173/playground`. Rendering is disabled unless the Host explicitly enables an approved transport. See the [Playground usage and security guide](playground/README.md), [Try-On/Cosplay product amendment](docs/design/playground-tryon-cosplay-input-amendment.md), and [Provider capability report](docs/implementation-notes/playground-provider-capability-report.md).
 
 ## What works today
 
-[`v0.1.0-rc.4`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.4) is the current release candidate. Its public packages expose all 30 visual-composition presets, and a clean packed consumer verifies the catalog through both Core and `voce doctor --json`. Three separately authorized Seedream calls exercised conflict resolution, prompt generation, and representative composition combinations; all three transport calls succeeded, while subjective image quality remains non-blocking evidence. See the [RC.4 acceptance report](docs/acceptance/v0.1.0-rc.4.md).
+`v0.1.0-rc.5` is the current candidate line. In addition to the established deterministic Core, Contracts, testkit, and CLI surfaces, its fifth package provides the installable local Playground. The RC.4 publication and real-Provider composition evidence remain recorded in the [RC.4 acceptance report](docs/acceptance/v0.1.0-rc.4.md); RC.5 standard gates remain offline and Mock-only.
 
 The public CLI remains offline-first and Mock-first by default. Separately, the Seedream adapter has been exercised through explicitly authorized local multi-reference smoke tests for virtual try-on and cosplay, with successful Provider responses. Real-Provider calls are intentionally excluded from standard CI and are not the default CLI execution path. See the [M9 Seedream smoke decisions](docs/implementation-notes/m9-seedream-smoke.md).
 
@@ -169,15 +169,16 @@ No API key or network model access is required.
 The RC is published under the npm `next` dist-tag. Pin the exact version when reproducibility matters:
 
 ```bash
-npm install @voce-engine/contracts@0.1.0-rc.4
-npm install @voce-engine/core@0.1.0-rc.4
-npm install --save-dev @voce-engine/testkit@0.1.0-rc.4
-npm install --global @voce-engine/cli@0.1.0-rc.4
+npm install @voce-engine/contracts@0.1.0-rc.5
+npm install @voce-engine/core@0.1.0-rc.5
+npm install --save-dev @voce-engine/testkit@0.1.0-rc.5
+npm install --global @voce-engine/cli@0.1.0-rc.5
+npm install --global @voce-engine/playground@0.1.0-rc.5
 ```
 
-The tagged source archive is available from the [`v0.1.0-rc.4` GitHub prerelease](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.4). The four package tarballs are distributed through npm with registry integrity metadata, signatures, and SLSA provenance. The repository's release-candidate gate also verifies a local 93-file checksum manifest; no separate package tarballs are attached to the GitHub Release.
+The RC.5 release process uses an annotated `v0.1.0-rc.5` tag and publishes five exact, gate-verified tarballs through npm Trusted Publishing under `next`. The repository's release-candidate gate verifies its local checksum manifest; no separate package tarballs are attached to the GitHub Release.
 
-RC.4 is published through the same npm Trusted Publishing boundary and is exercised from a clean npm consumer, including the 30-preset catalog, CLI doctor summary, and all three bundled ScenarioPack compilation, Mock run, and static trace paths. See the [RC.4 acceptance report](docs/acceptance/v0.1.0-rc.4.md). The [RC.3](docs/acceptance/v0.1.0-rc.3.md), [RC.2](docs/acceptance/v0.1.0-rc.2.md), and [RC.1](docs/acceptance/v0.1.0-rc.1.md) reports remain historical evidence.
+The RC.5 clean consumer additionally imports and starts the installed Playground package, checks both scenarios and all 30 preset records, and loads a packaged example image without network generation. See the [RC.5 acceptance report](docs/acceptance/v0.1.0-rc.5.md). The [RC.4](docs/acceptance/v0.1.0-rc.4.md), [RC.3](docs/acceptance/v0.1.0-rc.3.md), [RC.2](docs/acceptance/v0.1.0-rc.2.md), and [RC.1](docs/acceptance/v0.1.0-rc.1.md) reports remain historical evidence.
 
 ## Use the offline CLI
 

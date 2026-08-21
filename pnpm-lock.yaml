@@ -15,25 +15,16 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
-  playground:
-    dependencies:
-      '@voce-engine/contracts':
-        specifier: workspace:*
-        version: link:../packages/contracts
-      '@voce-engine/core':
-        specifier: workspace:*
-        version: link:../packages/core
-
   packages/cli:
     dependencies:
       '@voce-engine/contracts':
-        specifier: 0.1.0-rc.4
+        specifier: 0.1.0-rc.5
         version: link:../contracts
       '@voce-engine/core':
-        specifier: 0.1.0-rc.4
+        specifier: 0.1.0-rc.5
         version: link:../core
       '@voce-engine/testkit':
-        specifier: 0.1.0-rc.4
+        specifier: 0.1.0-rc.5
         version: link:../testkit
 
   packages/contracts: {}
@@ -41,7 +32,7 @@ importers:
   packages/core:
     dependencies:
       '@voce-engine/contracts':
-        specifier: 0.1.0-rc.4
+        specifier: 0.1.0-rc.5
         version: link:../contracts
       semver:
         specifier: 7.7.2
@@ -54,11 +45,20 @@ importers:
   packages/testkit:
     dependencies:
       '@voce-engine/contracts':
-        specifier: 0.1.0-rc.4
+        specifier: 0.1.0-rc.5
         version: link:../contracts
       '@voce-engine/core':
-        specifier: 0.1.0-rc.4
+        specifier: 0.1.0-rc.5
         version: link:../core
+
+  playground:
+    dependencies:
+      '@voce-engine/contracts':
+        specifier: 0.1.0-rc.5
+        version: link:../packages/contracts
+      '@voce-engine/core':
+        specifier: 0.1.0-rc.5
+        version: link:../packages/core
 
 packages:
 

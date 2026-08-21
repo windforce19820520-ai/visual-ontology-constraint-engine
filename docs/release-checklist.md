@@ -1,21 +1,21 @@
-# v0.1.0-rc.4 release-readiness checklist
+# v0.1.0-rc.5 release-readiness checklist
 
-This checklist describes the local release candidate gate. Passing it does not itself authorize npm publishing, a GitHub Release, a tag, a merge, or a production-readiness claim. `v0.1.0-rc.4` publication remains an explicitly owner-authorized RC operation.
+This checklist describes the local release candidate gate. Passing it does not itself authorize npm publishing, a GitHub Release, a tag, a merge, or a production-readiness claim. `v0.1.0-rc.5` publication remains an explicitly owner-authorized RC operation.
 
-## Recorded publication state
+## Candidate scope
 
-RC.4 adds the 30-preset visual-composition catalog to the four-package public surface. PR [#28](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/pull/28) was squash-merged as `70ecee52665c0d0002751e00896618ac0b74877a`; the annotated tag, GitHub prerelease, OIDC workflow checkout, and npm packages use that source revision. Local and public-registry clean consumers passed on 2026-08-18. A separately authorized three-call Seedream run exercised representative composition combinations with no retries and no credential recording.
+RC.5 retains the four existing runtime packages and adds `@voce-engine/playground` as a separate fifth package. The Playground tarball includes its local Host, public declarations, executable, Cloudflare environment-name example, and all 30 Cosplay composition example images. It does not include credentials, uploaded inputs, generated outputs, or a public deployment.
 
-Completed release evidence:
+Required release evidence:
 
-- all four package manifests, internal pins, CLI output, compatibility fixtures, and release directories use `0.1.0-rc.4`;
+- all five package manifests, internal pins, CLI/Playground version output, compatibility fixtures, and release directories use `0.1.0-rc.5`;
 - a clean tarball consumer reports 29 visual-composition paths and 30 presets through Core and CLI doctor;
-- ESM, schemas, the virtual-tryon, Cosplay, and product-shot offline paths pass;
-- the annotated tag, GitHub prerelease, npm `next` versions, and checked-out publication revision are aligned at RC.4 / `70ecee5`;
-- all four registry records contain integrity metadata, npm signatures, and SLSA provenance; and
-- an exact public-registry consumer repeated the package, composition-catalog, declaration, schema, CLI, and three offline-path checks after publication.
+- ESM, declarations, schemas, the virtual-tryon, Cosplay, and product-shot offline paths pass;
+- a clean tarball consumer starts the installed Playground, verifies both scenarios, the 30-preset API, and a bundled JPEG, and makes zero real Provider calls;
+- the annotated tag, GitHub prerelease, npm `next` versions, and checked-out publication revision align at the exact RC.5 source revision; and
+- all five registry records expose integrity metadata, npm signatures, and SLSA provenance after publication.
 
-See the [RC.4 acceptance report](acceptance/v0.1.0-rc.4.md). The real images remain qualitative evidence and are not committed release artifacts or an automatic pass/fail gate.
+See the [RC.5 acceptance report](acceptance/v0.1.0-rc.5.md). Historical real-image evidence remains qualitative and is not a committed release artifact or an automatic pass/fail gate.
 
 ## Local commands
 
@@ -40,10 +40,10 @@ git diff --check
 
 ## Gate coverage
 
-- Four public packages are packed and consumed from local tarballs with `--ignore-scripts` and package-import copy mode.
-- Installed consumers use public ESM entrypoints, package declarations, the CLI bin, the documented schema subpath, and the same Registry/Resolver path for first-party and renamed third-party data-only packs.
+- Five public packages are packed and consumed from local tarballs with `--ignore-scripts` and package-import copy mode.
+- Installed consumers use public ESM entrypoints, package declarations, both executable entrypoints, the documented schema subpath, the Playground HTTP surface and packaged assets, and the same Registry/Resolver path for first-party and renamed third-party data-only packs.
 - Product-shot compile, Mock run, static trace, two-bundle compare, and virtual-tryon/cosplay assertion IDs, statuses, and hashes are retained in the generated consumer summary.
-- Tarballs contain only `package.json`, `LICENSE`, `README.md`, declared `dist`/schema files, and no source, tests, source maps, node_modules, caches, credentials, or lifecycle scripts.
+- Tarballs contain only `package.json`, `LICENSE`, `README.md`, declared `dist`/schema/Playground asset files, and no source, tests, source maps, node_modules, caches, credentials, or lifecycle scripts.
 - The local checksum verifier covers the build manifest, rejects links and special files, and is exercised against both an ordinary artifact tamper and a build-manifest tamper; both verifications must fail.
 - The local SBOM/license report uses only the lockfile and installed public metadata. Missing metadata remains `unknown`.
 - The local build manifest always declares `officialAttestation: false`.

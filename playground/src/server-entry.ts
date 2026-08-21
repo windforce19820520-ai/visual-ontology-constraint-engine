@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { startPlaygroundServer } from './server.js'
 import { cloudflareCredentialFromEnv, FetchCloudflareProviderTransport } from './cloudflare-provider.js'
 import { FetchSeedreamProviderTransport } from './seedream-provider.js'

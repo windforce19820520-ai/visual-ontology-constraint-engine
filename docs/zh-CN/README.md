@@ -22,6 +22,7 @@
 - [架构摘要（英文）](../architecture.md)
 - [路线图（英文）](../roadmap.md)
 - [v0.1.0-rc.4 构图与发布验收（英文）](../acceptance/v0.1.0-rc.4.md)
+- [v0.1.0-rc.5 Playground 独立包验收（英文）](../acceptance/v0.1.0-rc.5.md)
 - [v0.1.0-rc.3 公共包与真实 Provider 验收（英文）](../acceptance/v0.1.0-rc.3.md)
 - [历史记录：RC.4 前 main 构图验收说明（英文）](../acceptance/visual-composition-main.md)
 

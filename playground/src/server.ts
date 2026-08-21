@@ -150,7 +150,7 @@ function isLoopbackAddress(address: string | undefined): boolean {
 }
 
 const compositionPreviewIds = new Set(VISUAL_COMPOSITION_CATALOG.presets.map((preset) => preset.id))
-const compositionPreviewRoot = new URL('../../docs/assets/visual-composition/', import.meta.url)
+const compositionPreviewRoot = new URL('../assets/visual-composition/', import.meta.url)
 
 async function respondCompositionPreview(response: ServerResponse, pathname: string): Promise<boolean> {
   const match = /^\/assets\/visual-composition\/([a-z0-9-]+)\.jpg$/.exec(pathname)

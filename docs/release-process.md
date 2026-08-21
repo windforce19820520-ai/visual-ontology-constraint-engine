@@ -1,8 +1,8 @@
 # Release-candidate process
 
-This repository produces an auditable local release candidate before any external publication. Publication is a separate, explicitly owner-authorized operation. `v0.1.0-rc.4` is the current visual-composition candidate for GitHub and npm `next`. It is not production-ready.
+This repository produces an auditable local release candidate before any external publication. Publication is a separate, explicitly owner-authorized operation. `v0.1.0-rc.5` is the current Playground packaging candidate for GitHub and npm `next`. It is not production-ready.
 
-## Current v0.1.0-rc.4 publication status
+## Historical v0.1.0-rc.4 publication status
 
 As of 2026-08-18:
 
@@ -34,9 +34,9 @@ pnpm run verify-checksums
 git diff --check
 ```
 
-`pnpm run clean-room` packs the four public packages, installs only those local tarballs in the repository-controlled `clean-room/v0.1.0-rc.4` directory with `--ignore-scripts --offline`, checks that installed packages are not workspace symlinks, compiles a TypeScript consumer against installed declarations, checks the documented schema path, verifies removal does not fall back to the workspace, and runs version, doctor, composition-catalog, pack inspect/validate/test, the three vertical compile/run/trace paths, and compare.
+`pnpm run clean-room` packs the five public packages, installs only those local tarballs in the repository-controlled `clean-room/m8-0.1.0-rc.5` directory with `--ignore-scripts --offline`, checks that installed packages are not workspace symlinks, compiles a TypeScript consumer against installed declarations, checks the documented schema path, starts the installed Playground and verifies its page, metadata, preset catalog, and one bundled image, verifies removal does not fall back to the workspace, and runs version, doctor, pack inspect/validate/test, the three vertical compile/run/trace paths, and compare.
 
-`pnpm run release-candidate` requires a clean tracked tree, binds the output to the exact `HEAD`, runs the compatibility, security, consumer, and two-consecutive-build reproducibility gates, writes safe vertical/consumer summaries, per-file SHA-256 checksums, a strict package allowlist audit, a version matrix, a metadata-only local SBOM/license report, and a local build manifest under the ignored `release-candidate/v0.1.0-rc.4` directory. `pnpm run verify-checksums` verifies that directory and rejects a tampered file.
+`pnpm run release-candidate` requires a clean tracked tree, binds the output to the exact `HEAD`, runs the compatibility, security, five-package consumer, and two-consecutive-build reproducibility gates, writes safe vertical/consumer summaries, per-file SHA-256 checksums, a strict package allowlist audit, a version matrix, a metadata-only local SBOM/license report, and a local build manifest under the ignored `release-candidate/v0.1.0-rc.5` directory. `pnpm run verify-checksums` verifies that directory and rejects a tampered file.
 
 `pnpm run compatibility`, `pnpm run security`, `pnpm run reproducibility`, and `pnpm run consumer` are the M8专项 commands. The first three write only ignored release-candidate summaries; the consumer writes its controlled clean-room under `clean-room/`.
 
@@ -54,4 +54,4 @@ The container bytes of `.tgz` files are not required to match across tar/gzip to
 
 The local gates and standard validation or release-candidate workflows never publish to npm, create a GitHub Release or tag, merge a pull request, call a real Provider, send credentials, or claim production readiness. The dedicated, manually dispatched `publish-npm.yml` workflow is the only npm publishing exception; it runs only after explicit owner authorization and a separate review of the tag, release permissions, and provenance.
 
-For an authorized release, create the reviewed annotated tag, select that same tag in the workflow's **Use workflow from** control, then dispatch `publish-npm.yml` with the exact tag and intended npm distribution tag. The workflow rejects a trigger ref that differs from `release_ref`, reruns the release gates, publishes contracts, Core, testkit, and CLI in dependency order, and tolerates bounded npm registry propagation delay during verification. Verify each registry result before creating or finalizing the GitHub Release. A browser login is not publication authorization, and credentials must never enter Git or release artifacts.
+For an authorized release, create the reviewed annotated tag, select that same tag in the workflow's **Use workflow from** control, then dispatch `publish-npm.yml` with the exact tag and intended npm distribution tag. The workflow rejects a trigger ref that differs from `release_ref`, reruns the release gates, publishes contracts, Core, testkit, CLI, and Playground in dependency order, and tolerates bounded npm registry propagation delay during verification. Verify each registry result before creating or finalizing the GitHub Release. A browser login is not publication authorization, and credentials must never enter Git or release artifacts.

@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Publish four public packages
+    name: Publish five public packages
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -78,6 +78,7 @@ jobs:
             'packages/core/package.json',
             'packages/testkit/package.json',
             'packages/cli/package.json',
+            'playground/package.json',
           ]
           const packages = await Promise.all(paths.map(async (path) =>
             JSON.parse(await readFile(path, 'utf8')),
@@ -130,12 +131,13 @@ jobs:
           npm publish "${release_dir}/voce-engine-core-${version}.tgz" --access public --tag "${DIST_TAG}"
           npm publish "${release_dir}/voce-engine-testkit-${version}.tgz" --access public --tag "${DIST_TAG}"
           npm publish "${release_dir}/voce-engine-cli-${version}.tgz" --access public --tag "${DIST_TAG}"
+          npm publish "${release_dir}/voce-engine-playground-${version}.tgz" --access public --tag "${DIST_TAG}"
 
       - name: Verify public registry versions
         run: |
           set -euo pipefail
           version="$(node --input-type=module -e "import pkg from './package.json' with { type: 'json' }; process.stdout.write(pkg.version)")"
-          for package in contracts core testkit cli; do
+          for package in contracts core testkit cli playground; do
             published=""
             for attempt in $(seq 1 12); do
               published="$(npm view "@voce-engine/${package}@${version}" version --registry https://registry.npmjs.org 2>/dev/null || true)"

@@ -1,15 +1,40 @@
 {
-  "name": "@voce-engine/playground-semantic-closure",
-  "version": "0.0.0-private",
-  "private": true,
+  "name": "@voce-engine/playground",
+  "version": "0.1.0-rc.5",
+  "description": "A local-first web Playground for VOCE Virtual Try-On and Cosplay planning and approved Provider calls.",
+  "license": "Apache-2.0",
   "type": "module",
+  "exports": { ".": "./dist/index.js" },
+  "types": "./dist/index.d.ts",
+  "bin": { "voce-playground": "dist/server-entry.js" },
+  "files": [
+    "dist/index.js", "dist/index.d.ts",
+    "dist/semantic-closure.js", "dist/semantic-closure.d.ts",
+    "dist/scenario-distribution.js", "dist/scenario-distribution.d.ts",
+    "dist/provider-materializer.js", "dist/provider-materializer.d.ts",
+    "dist/provider-bridges.js", "dist/provider-bridges.d.ts",
+    "dist/providers.js", "dist/providers.d.ts",
+    "dist/mock-provider.js", "dist/mock-provider.d.ts",
+    "dist/cloudflare-provider.js", "dist/cloudflare-provider.d.ts",
+    "dist/seedream-provider.js", "dist/seedream-provider.d.ts",
+    "dist/validation-export.js", "dist/validation-export.d.ts",
+    "dist/server.js", "dist/server.d.ts",
+    "dist/server-entry.js", "dist/server-entry.d.ts",
+    "dist/web.js", "dist/web.d.ts",
+    "assets", "cloudflare.env.example", "README.md", "LICENSE"
+  ],
+  "engines": { "node": ">=20" },
+  "repository": { "type": "git", "url": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine.git", "directory": "playground" },
+  "homepage": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/tree/main/playground#readme",
+  "bugs": { "url": "https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues" },
+  "publishConfig": { "access": "public", "tag": "next" },
   "scripts": {
     "build": "tsc -b",
     "test": "node --test dist/*.test.js",
     "start": "node dist/server-entry.js"
   },
   "dependencies": {
-    "@voce-engine/contracts": "workspace:*",
-    "@voce-engine/core": "workspace:*"
+    "@voce-engine/contracts": "0.1.0-rc.5",
+    "@voce-engine/core": "0.1.0-rc.5"
   }
 }

@@ -18,6 +18,7 @@ export async function runConsumer(room = path.join(ROOT, 'clean-room', `m8-${REL
     '@voce-engine/core': `file:../tarballs/${tarballName('@voce-engine/core')}`,
     '@voce-engine/testkit': `file:../tarballs/${tarballName('@voce-engine/testkit')}`,
     '@voce-engine/cli': `file:../tarballs/${tarballName('@voce-engine/cli')}`,
+    '@voce-engine/playground': `file:../tarballs/${tarballName('@voce-engine/playground')}`,
     semver: `file:../tarballs/${semverTarball}`,
   }
   await writeFile(path.join(app, 'package.json'), JSON.stringify({ name: 'voce-m8-consumer', private: true, type: 'module', dependencies: localDependencies }, null, 2) + '\n', 'utf8')
@@ -26,7 +27,7 @@ export async function runConsumer(room = path.join(ROOT, 'clean-room', `m8-${REL
   try { run(PNPM, ['install', '--ignore-scripts', '--package-import-method', 'copy', '--offline'], app) } catch { installMode = 'local-tarballs-plus-open-source-dependencies'; run(PNPM, ['install', '--ignore-scripts', '--package-import-method', 'copy'], app) }
 
   const dependencyPaths = {}
-  for (const name of ['contracts', 'core', 'testkit', 'cli']) {
+  for (const name of ['contracts', 'core', 'testkit', 'cli', 'playground']) {
     const dependencyPath = path.join(app, 'node_modules', '@voce-engine', name); const metadata = await lstat(dependencyPath); const resolved = await realpath(dependencyPath)
     if (!resolved.startsWith(room + path.sep) || resolved.includes(`${path.sep}packages${path.sep}`)) fail(`M8_CONSUMER_WORKSPACE_FALLBACK:${name}`)
     dependencyPaths[`@voce-engine/${name}`] = { insideRoom: true, symlinkToWorkspace: false }
@@ -42,15 +43,25 @@ import * as contracts from '@voce-engine/contracts'
 import * as core from '@voce-engine/core'
 import * as testkit from '@voce-engine/testkit'
 import { CLI_VERSION, runCli } from '@voce-engine/cli'
+import { PLAYGROUND_VERSION, createPlaygroundServer } from '@voce-engine/playground'
 const require = createRequire(import.meta.url)
 const schemaPath = require.resolve('@voce-engine/contracts/schemas/BundleManifest.schema.json')
 const schema = JSON.parse(readFileSync(schemaPath, 'utf8'))
 const adapter = new core.MockProviderAdapter()
-if (CLI_VERSION !== '${RELEASE_CANDIDATE}' || contracts.BUNDLE_MANIFEST_SCHEMA_VERSION !== 'voce.bundle-manifest/v1alpha1' || schema.$id !== 'voce.bundle-manifest/v1alpha1' || adapter.offline !== true) process.exit(2)
+if (CLI_VERSION !== '${RELEASE_CANDIDATE}' || PLAYGROUND_VERSION !== '${RELEASE_CANDIDATE}' || contracts.BUNDLE_MANIFEST_SCHEMA_VERSION !== 'voce.bundle-manifest/v1alpha1' || schema.$id !== 'voce.bundle-manifest/v1alpha1' || adapter.offline !== true) process.exit(2)
 if (typeof core.createScenarioPackRegistry !== 'function' || typeof testkit.fixtureM5ExecutionInput !== 'function' || typeof runCli !== 'function') process.exit(3)
 const compositionChanges = core.expandVisualCompositionPreset('environmental-portrait', { sourceHintIds: ['clean-consumer'] })
 if (core.VISUAL_COMPOSITION_CATALOG.paths.length !== 37 || core.VISUAL_COMPOSITION_PRESETS.length !== 30 || compositionChanges.length !== 4 || !compositionChanges.every((item) => item.sourceHintIds.includes('clean-consumer'))) process.exit(4)
-console.log(JSON.stringify({ status: 'passed', cliVersion: CLI_VERSION, schemaId: schema.$id, schemaReadableFromInstalledPackage: true, mockAdapterOffline: true, visualComposition: { paths: core.VISUAL_COMPOSITION_CATALOG.paths.length, presets: core.VISUAL_COMPOSITION_PRESETS.length, environmentalPortraitChanges: compositionChanges.length } }))
+const playground = createPlaygroundServer()
+await new Promise((resolve) => playground.listen(0, '127.0.0.1', resolve))
+const address = playground.address()
+if (!address || typeof address === 'string') process.exit(5)
+const base = 'http://127.0.0.1:' + address.port
+const [page, meta, presets, preview] = await Promise.all([fetch(base + '/playground'), fetch(base + '/api/meta'), fetch(base + '/api/composition-presets'), fetch(base + '/assets/visual-composition/full-shot.jpg')])
+const [pageText, metaJson, presetJson, previewBytes] = await Promise.all([page.text(), meta.json(), presets.json(), preview.arrayBuffer()])
+await new Promise((resolve, reject) => playground.close((error) => error ? reject(error) : resolve()))
+if (!page.ok || !pageText.includes('VOCE Playground') || !meta.ok || metaJson.scenarios?.length !== 2 || !presets.ok || presetJson.presets?.length !== 30 || !preview.ok || preview.headers.get('content-type') !== 'image/jpeg' || previewBytes.byteLength === 0) process.exit(6)
+console.log(JSON.stringify({ status: 'passed', cliVersion: CLI_VERSION, playgroundVersion: PLAYGROUND_VERSION, schemaId: schema.$id, schemaReadableFromInstalledPackage: true, mockAdapterOffline: true, visualComposition: { paths: core.VISUAL_COMPOSITION_CATALOG.paths.length, presets: core.VISUAL_COMPOSITION_PRESETS.length, environmentalPortraitChanges: compositionChanges.length }, playground: { installedPackage: true, page: true, scenarios: metaJson.scenarios.length, presets: presetJson.presets.length, previewAsset: true, realProviderCalls: 0 } }))
 `, 'utf8')
   const consumerCheck = parseJsonLine(run(process.execPath, [checkScript], app))
   const typeFixture = path.join(app, 'consumer.ts'); await cp(path.join(ROOT, 'compatibility', `v${RELEASE_CANDIDATE}`, 'consumer.ts'), typeFixture)

@@ -1,3 +1,4 @@
+export const PLAYGROUND_VERSION = '0.1.0-rc.5'
 export * from './semantic-closure.js'
 export * from './scenario-distribution.js'
 export * from './provider-materializer.js'

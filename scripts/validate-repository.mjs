@@ -38,6 +38,7 @@ const requiredFiles = [
   'docs/release-process.md',
   'docs/release-checklist.md',
   'docs/acceptance/v0.1.0-rc.4.md',
+  'docs/acceptance/v0.1.0-rc.5.md',
   'docs/compatibility.md',
   'compatibility/v0.1.0-rc.1/manifest.json',
   'compatibility/v0.1.0-rc.1/consumer.ts',
@@ -45,8 +46,8 @@ const requiredFiles = [
   'compatibility/v0.1.0-rc.2/consumer.ts',
   'compatibility/v0.1.0-rc.3/manifest.json',
   'compatibility/v0.1.0-rc.3/consumer.ts',
-  'compatibility/v0.1.0-rc.4/manifest.json',
-  'compatibility/v0.1.0-rc.4/consumer.ts',
+  'compatibility/v0.1.0-rc.5/manifest.json',
+  'compatibility/v0.1.0-rc.5/consumer.ts',
   'fixtures/security/m8/corpus.json',
   'fixtures/shared/visual-composition.v1.json',
 ]
@@ -246,6 +247,7 @@ const workspaceManifestFiles = [
   'packages/core/package.json',
   'packages/testkit/package.json',
   'packages/cli/package.json',
+  'playground/package.json',
 ]
 const workspaceManifests = Object.fromEntries(await Promise.all(workspaceManifestFiles.map(async (file) => [
   file,
@@ -259,6 +261,7 @@ for (const [file, dependencies] of [
   ['packages/core/package.json', ['@voce-engine/contracts']],
   ['packages/testkit/package.json', ['@voce-engine/contracts', '@voce-engine/core']],
   ['packages/cli/package.json', ['@voce-engine/contracts', '@voce-engine/core', '@voce-engine/testkit']],
+  ['playground/package.json', ['@voce-engine/contracts', '@voce-engine/core']],
 ]) {
   for (const dependency of dependencies) {
     if (workspaceManifests[file].dependencies?.[dependency] !== releaseVersion) throw new Error(`WORKSPACE_DEPENDENCY_VERSION_MISMATCH:${file}:${dependency}`)

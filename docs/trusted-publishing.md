@@ -1,6 +1,6 @@
 # npm trusted publishing
 
-VOCE uses npm Trusted Publishing with GitHub Actions OIDC. The release workflow is `.github/workflows/publish-npm.yml`; it publishes the four public packages without a stored npm write token and lets npm generate provenance automatically. The first tokenless publication, `v0.1.0-rc.2`, completed successfully for all four packages and produced npm provenance.
+VOCE uses npm Trusted Publishing with GitHub Actions OIDC. The release workflow is `.github/workflows/publish-npm.yml`; for RC.5 it publishes five public packages without a stored npm write token and lets npm generate provenance automatically. The first tokenless publication, `v0.1.0-rc.2`, completed successfully for the original four packages and produced npm provenance.
 
 ## npm package configuration
 
@@ -10,6 +10,7 @@ Each of these packages must have the same GitHub Actions trusted publisher:
 - `@voce-engine/core`
 - `@voce-engine/testkit`
 - `@voce-engine/cli`
+- `@voce-engine/playground`
 
 The npm settings are:
 
@@ -29,12 +30,14 @@ The workflow is manual by design. An owner supplies an existing annotated releas
 
 - the tag is exactly `v<workspace version>`;
 - the checked-out commit is exactly tagged with that value;
-- all four public package versions match the workspace version;
+- all five public package versions match the workspace version;
 - all package repository URLs match this public GitHub repository;
 - Node.js and npm satisfy npm's OIDC minimum versions; and
 - the standard validation, compatibility, security, consumer, clean-room, release-candidate, and checksum gates pass.
 
-The packages publish serially in dependency order: contracts, Core, testkit, then CLI. The publish inputs are the exact release-candidate tarballs that passed the clean-consumer and checksum gates, rather than a second package assembled from the source directories. The job has only `contents: read` and `id-token: write`; it does not use `NODE_AUTH_TOKEN` or an npm write secret.
+The packages publish serially in dependency order: contracts, Core, testkit, CLI, then Playground. The publish inputs are the exact release-candidate tarballs that passed the clean-consumer and checksum gates, rather than a second package assembled from the source directories. The job has only `contents: read` and `id-token: write`; it does not use `NODE_AUTH_TOKEN` or an npm write secret.
+
+`@voce-engine/playground` is a new npm name in RC.5. npm requires a package to exist before its package-level trusted publisher can be configured. Therefore the RC.5 workflow must not be dispatched for all five packages until the owner has completed a one-time, explicitly authorized namespace bootstrap and configured this repository plus `publish-npm.yml` as the package's trusted publisher. The bootstrap is separate from the RC.5 tarball publication; it must use an interactive 2FA-protected npm action, must not store a token in Git or workflow files, and must not create an unreviewed RC.5 version. Once trust is configured, RC.5 itself is published by the same OIDC workflow as the other four packages and receives normal provenance.
 
 ## Provenance and migration state
 

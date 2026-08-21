@@ -23,6 +23,7 @@ English is the normative language for public contracts and architecture decision
 - [Candidate public compatibility surface](compatibility.md)
 - [Release-candidate process](release-process.md)
 - [v0.1.0-rc.4 composition and release acceptance](acceptance/v0.1.0-rc.4.md)
+- [v0.1.0-rc.5 Playground package acceptance](acceptance/v0.1.0-rc.5.md)
 - [v0.1.0-rc.3 public and real-Provider acceptance](acceptance/v0.1.0-rc.3.md)
 - [Historical pre-RC.4 visual-composition main-branch acceptance note](acceptance/visual-composition-main.md)
 
