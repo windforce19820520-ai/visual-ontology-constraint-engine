@@ -14,6 +14,10 @@ import { cloudflareTransportErrorCode, executeCloudflareProviderCallDetailed, ty
 import { PLAYGROUND_HTML } from './web.js'
 import { createValidationExportPackage } from './validation-export.js'
 import { seedreamTransportErrorCode } from './seedream-provider.js'
+import { grokTransportErrorCode } from './grok-provider.js'
+import { sanitizeImageMetadata } from './image-safety.js'
+import { InMemoryRequestQuotaStore, RequestQuotaGate, type RequestQuotaStore } from './quota-store.js'
+import { SessionCookieManager, opaqueHash, trustedClientIdentity, type PlaygroundRuntimeLogger } from './runtime-security.js'
 
 export interface PlaygroundCompilePayload extends PlaygroundScenarioInput {
   providerProfileId?: PlaygroundProviderProfileId
@@ -46,29 +50,35 @@ interface StoredUpload {
 
 class UploadStore {
   private readonly sessions = new Map<string, Map<string, StoredUpload>>()
-  constructor(private readonly onSizeChange?: (size: number) => void) {}
+  private totalBytes = 0
+  constructor(
+    private readonly limits: { sessionCount: number; sessionBytes: number; globalCount: number; globalBytes: number },
+    private readonly onSizeChange?: (size: number) => void,
+  ) {}
   private notify(): void { this.onSizeChange?.(this.size()) }
   size(): number { return [...this.sessions.values()].reduce((sum, session) => sum + session.size, 0) }
   put(sessionId: string, upload: StoredUpload): void {
     const session = this.sessions.get(sessionId) ?? new Map<string, StoredUpload>()
     const replaced = session.get(upload.artifact.id)?.bytes.byteLength ?? 0
     const sessionBytes = [...session.values()].reduce((sum, item) => sum + item.bytes.byteLength, 0) - replaced
-    const globalBytes = [...this.sessions.values()].flatMap((items) => [...items.values()]).reduce((sum, item) => sum + item.bytes.byteLength, 0) - replaced
-    if (!session.has(upload.artifact.id) && session.size >= 12) throw new HttpProblem(413, 'PLAYGROUND_SESSION_UPLOAD_COUNT_EXCEEDED')
-    if (sessionBytes + upload.bytes.byteLength > 32_000_000) throw new HttpProblem(413, 'PLAYGROUND_SESSION_UPLOAD_BYTES_EXCEEDED')
-    if (globalBytes + upload.bytes.byteLength > 128_000_000) throw new HttpProblem(503, 'PLAYGROUND_UPLOAD_CAPACITY_EXCEEDED')
+    if (!session.has(upload.artifact.id) && session.size >= this.limits.sessionCount) throw new HttpProblem(413, 'PLAYGROUND_SESSION_UPLOAD_COUNT_EXCEEDED')
+    if (!session.has(upload.artifact.id) && this.size() >= this.limits.globalCount) throw new HttpProblem(503, 'PLAYGROUND_UPLOAD_COUNT_CAPACITY_EXCEEDED')
+    if (sessionBytes + upload.bytes.byteLength > this.limits.sessionBytes) throw new HttpProblem(413, 'PLAYGROUND_SESSION_UPLOAD_BYTES_EXCEEDED')
+    if (this.totalBytes - replaced + upload.bytes.byteLength > this.limits.globalBytes) throw new HttpProblem(503, 'PLAYGROUND_UPLOAD_CAPACITY_EXCEEDED')
     session.set(upload.artifact.id, upload)
     this.sessions.set(sessionId, session)
+    this.totalBytes = this.totalBytes - replaced + upload.bytes.byteLength
     this.notify()
   }
   get(sessionId: string, assetId: string): StoredUpload | undefined {
     const item = this.sessions.get(sessionId)?.get(assetId)
-    if (!item || item.expiresAt < Date.now()) { this.sessions.get(sessionId)?.delete(assetId); this.notify(); return undefined }
+    if (!item || item.expiresAt < Date.now()) { if (item) this.remove(sessionId, assetId, item); return undefined }
     return item
   }
-  clear(sessionId: string): void { this.sessions.delete(sessionId); this.notify() }
-  clearAll(): void { this.sessions.clear(); this.notify() }
-  sweep(now = Date.now()): void { for (const [sessionId, session] of this.sessions) { for (const [assetId, item] of session) if (item.expiresAt < now) session.delete(assetId); if (!session.size) this.sessions.delete(sessionId) }; this.notify() }
+  private remove(sessionId: string, assetId: string, item: StoredUpload): void { this.sessions.get(sessionId)?.delete(assetId); this.totalBytes = Math.max(0, this.totalBytes - item.bytes.byteLength); if (!this.sessions.get(sessionId)?.size) this.sessions.delete(sessionId); this.notify() }
+  clear(sessionId: string): void { const session = this.sessions.get(sessionId); if (session) for (const item of session.values()) this.totalBytes = Math.max(0, this.totalBytes - item.bytes.byteLength); this.sessions.delete(sessionId); this.notify() }
+  clearAll(): void { this.sessions.clear(); this.totalBytes = 0; this.notify() }
+  sweep(now = Date.now()): void { for (const [sessionId, session] of [...this.sessions]) for (const [assetId, item] of [...session]) if (item.expiresAt < now) this.remove(sessionId, assetId, item) }
 }
 
 interface StoredGeneratedImage {
@@ -77,20 +87,54 @@ interface StoredGeneratedImage {
   expiresAt: number
 }
 
+interface GeneratedCapacityReservation { id: string; sessionId: string; maximumBytes: number }
+
 class GeneratedImageStore {
   private readonly sessions = new Map<string, Map<string, StoredGeneratedImage>>()
-  put(sessionId: string, id: string, image: StoredGeneratedImage): void {
+  private readonly reservations = new Map<string, GeneratedCapacityReservation>()
+  private totalBytes = 0
+  private sequence = 0
+  constructor(private readonly limits: { sessionCount: number; globalCount: number; globalBytes: number }, private readonly onSizeChange?: (size: number) => void) {}
+  size(): number { return [...this.sessions.values()].reduce((sum, session) => sum + session.size, 0) }
+  private notify(): void { this.onSizeChange?.(this.size()) }
+  reserve(sessionId: string, maximumIncomingBytes: number): GeneratedCapacityReservation {
+    const session = this.sessions.get(sessionId)
+    const sessionReserved = [...this.reservations.values()].filter((reservation) => reservation.sessionId === sessionId).length
+    const reservedBytes = [...this.reservations.values()].reduce((sum, reservation) => sum + reservation.maximumBytes, 0)
+    if ((session?.size ?? 0) + sessionReserved >= this.limits.sessionCount) throw new HttpProblem(503, 'PLAYGROUND_RESULT_SESSION_CAPACITY_EXCEEDED')
+    if (this.size() + this.reservations.size >= this.limits.globalCount) throw new HttpProblem(503, 'PLAYGROUND_RESULT_COUNT_CAPACITY_EXCEEDED')
+    if (this.totalBytes + reservedBytes + maximumIncomingBytes > this.limits.globalBytes) throw new HttpProblem(503, 'PLAYGROUND_RESULT_BYTES_CAPACITY_EXCEEDED')
+    const reservation = { id: `generated-capacity-${++this.sequence}`, sessionId, maximumBytes: maximumIncomingBytes }
+    this.reservations.set(reservation.id, reservation)
+    return reservation
+  }
+  commit(reservation: GeneratedCapacityReservation, id: string, image: StoredGeneratedImage): void {
+    const active = this.reservations.get(reservation.id)
+    if (!active || active.sessionId !== reservation.sessionId || image.bytes.byteLength > active.maximumBytes) throw new HttpProblem(503, 'PLAYGROUND_RESULT_RESERVATION_INVALID')
+    this.reservations.delete(reservation.id)
+    this.put(reservation.sessionId, id, image)
+  }
+  release(reservation: GeneratedCapacityReservation): void { this.reservations.delete(reservation.id) }
+  private put(sessionId: string, id: string, image: StoredGeneratedImage): void {
     const session = this.sessions.get(sessionId) ?? new Map<string, StoredGeneratedImage>()
+    const replaced = session.get(id)?.bytes.byteLength ?? 0
+    if (!session.has(id) && session.size >= this.limits.sessionCount) throw new HttpProblem(503, 'PLAYGROUND_RESULT_SESSION_CAPACITY_EXCEEDED')
+    if (!session.has(id) && this.size() >= this.limits.globalCount) throw new HttpProblem(503, 'PLAYGROUND_RESULT_COUNT_CAPACITY_EXCEEDED')
+    if (this.totalBytes - replaced + image.bytes.byteLength > this.limits.globalBytes) throw new HttpProblem(503, 'PLAYGROUND_RESULT_BYTES_CAPACITY_EXCEEDED')
     session.set(id, image)
     this.sessions.set(sessionId, session)
+    this.totalBytes = this.totalBytes - replaced + image.bytes.byteLength
+    this.notify()
   }
   get(sessionId: string, id: string): StoredGeneratedImage | undefined {
     const image = this.sessions.get(sessionId)?.get(id)
-    if (!image || image.expiresAt < Date.now()) { this.sessions.get(sessionId)?.delete(id); return undefined }
+    if (!image || image.expiresAt < Date.now()) { if (image) this.remove(sessionId, id, image); return undefined }
     return image
   }
-  sweep(now = Date.now()): void { for (const [sessionId, session] of this.sessions) { for (const [id, image] of session) if (image.expiresAt < now) session.delete(id); if (!session.size) this.sessions.delete(sessionId) } }
-  clearAll(): void { this.sessions.clear() }
+  private remove(sessionId: string, id: string, image: StoredGeneratedImage): void { this.sessions.get(sessionId)?.delete(id); this.totalBytes = Math.max(0, this.totalBytes - image.bytes.byteLength); if (!this.sessions.get(sessionId)?.size) this.sessions.delete(sessionId); this.notify() }
+  clear(sessionId: string): void { const session = this.sessions.get(sessionId); if (session) for (const item of session.values()) this.totalBytes = Math.max(0, this.totalBytes - item.bytes.byteLength); this.sessions.delete(sessionId); for (const [id, reservation] of this.reservations) if (reservation.sessionId === sessionId) this.reservations.delete(id); this.notify() }
+  sweep(now = Date.now()): void { for (const [sessionId, session] of [...this.sessions]) for (const [id, image] of [...session]) if (image.expiresAt < now) this.remove(sessionId, id, image) }
+  clearAll(): void { this.sessions.clear(); this.reservations.clear(); this.totalBytes = 0; this.notify() }
 }
 
 class HttpProblem extends Error {
@@ -99,12 +143,6 @@ class HttpProblem extends Error {
 
 function hashBytes(bytes: Uint8Array): string {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`
-}
-
-function sessionIdOf(request: IncomingMessage): string {
-  const value = request.headers['x-playground-session']
-  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{8,120}$/.test(value)) throw new HttpProblem(400, 'PLAYGROUND_SESSION_REQUIRED')
-  return value
 }
 
 async function readBody(request: IncomingMessage, maximumBytes = 20_000_000): Promise<unknown> {
@@ -161,8 +199,22 @@ async function respondCompositionPreview(response: ServerResponse, pathname: str
   return true
 }
 
-function errorBody(error: unknown): { error: string } {
-  return { error: error instanceof Error ? error.message : 'PLAYGROUND_REQUEST_FAILED' }
+const safeErrorPrefixes = [
+  'PLAYGROUND_', 'PROVIDER_CAPABILITY_BLOCKED', 'PLAN_BINDING_', 'MATERIALIZER_', 'VALIDATION_EXPORT_',
+  'EPHEMERAL_', 'RENDER_DISABLED', 'SINGLE_CALL_', 'CLOUDFLARE_', 'SEEDREAM_', 'GROK_',
+  'RATE_LIMIT_', 'SESSION_QUOTA_', 'CLIENT_QUOTA_', 'DAILY_', 'PROVIDER_RATE_',
+]
+
+function safeErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : ''
+  if (safeErrorPrefixes.some((prefix) => message.startsWith(prefix)) && /^[A-Za-z0-9_.,:-]{1,500}$/.test(message)) return message
+  return 'PLAYGROUND_INTERNAL_ERROR'
+}
+
+function errorBody(error: unknown, requestId: string): { error: string; requestId: string; limitReason?: string } {
+  const code = safeErrorCode(error)
+  const limited = /(?:LIMIT|QUOTA|BUDGET|CAPACITY|CONCURRENCY)/.test(code)
+  return { error: code, requestId, ...(limited ? { limitReason: code.split(':')[0] } : {}) }
 }
 
 function roleMetadata(scenarioId: 'virtual-tryon' | 'cosplay'): JsonObject {
@@ -177,7 +229,8 @@ function roleMetadata(scenarioId: 'virtual-tryon' | 'cosplay'): JsonObject {
 
 export function playgroundMeta(options: { renderEnabled?: boolean; transports?: Partial<Record<'cloudflare' | 'seedream' | 'grok-imagine', PlaygroundProviderTransport | CloudflareProviderTransport>>; cloudflareCredential?: CloudflareOperatorCredential; developmentMode?: boolean; validationExportEnabled?: boolean } = {}): JsonObject {
   const enabled = options.renderEnabled === true
-  const visibleProfiles = Object.values(PLAYGROUND_PROVIDER_PROFILES).filter((profile) => options.developmentMode === true || profile.provider !== 'mock')
+  const providerOrder: PlaygroundProviderProfileId[] = ['seedream-5.0-pro', 'grok-imagine-image-quality', 'cloudflare-flux-2-klein-4b', 'mock-image']
+  const visibleProfiles = providerOrder.map((id) => PLAYGROUND_PROVIDER_PROFILES[id]).filter((profile) => options.developmentMode === true || profile.provider !== 'mock')
   return {
     schemaVersion: 'voce.playground-meta/v1alpha1',
     renderEnabled: enabled,
@@ -278,29 +331,6 @@ function hasImageSignature(bytes: Uint8Array, mediaType: string): boolean {
   return false
 }
 
-function stripJpegExif(bytes: Uint8Array): Uint8Array {
-  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return bytes
-  const segments: Uint8Array[] = [bytes.slice(0, 2)]
-  const joined = (): Uint8Array => {
-    const result = new Uint8Array(segments.reduce((sum, segment) => sum + segment.byteLength, 0))
-    let cursor = 0
-    for (const segment of segments) { result.set(segment, cursor); cursor += segment.byteLength }
-    return result
-  }
-  let offset = 2
-  while (offset + 3 < bytes.length && bytes[offset] === 0xff) {
-    const marker = bytes[offset + 1]
-    if (marker === 0xda || marker === 0xd9) { segments.push(bytes.slice(offset)); return joined() }
-    const length = (bytes[offset + 2] << 8) | bytes[offset + 3]
-    if (length < 2 || offset + 2 + length > bytes.length) throw new HttpProblem(400, 'PLAYGROUND_JPEG_SEGMENT_INVALID')
-    const isExif = marker === 0xe1 && bytes.length >= offset + 10 && String.fromCharCode(...bytes.slice(offset + 4, offset + 10)) === 'Exif\0\0'
-    if (!isExif) segments.push(bytes.slice(offset, offset + 2 + length))
-    offset += 2 + length
-  }
-  segments.push(bytes.slice(offset))
-  return joined()
-}
-
 function imageDimensions(bytes: Uint8Array, mediaType: string): { width: number; height: number } {
   if (mediaType === 'image/png' && bytes.length >= 24 && String.fromCharCode(...bytes.slice(12, 16)) === 'IHDR') {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
@@ -325,7 +355,7 @@ function imageDimensions(bytes: Uint8Array, mediaType: string): { width: number;
   throw new HttpProblem(400, 'PLAYGROUND_IMAGE_DIMENSIONS_UNREADABLE')
 }
 
-function upload(body: Record<string, unknown>, store: UploadStore, sessionId: string): JsonObject {
+function upload(body: Record<string, unknown>, store: UploadStore, sessionId: string, ttlMs: number): JsonObject {
   const encoded = body.bytesBase64
   const mediaType = body.mediaType
   const role = body.role
@@ -334,12 +364,13 @@ function upload(body: Record<string, unknown>, store: UploadStore, sessionId: st
   try { bytes = Uint8Array.from(Buffer.from(encoded, 'base64')) } catch { throw new HttpProblem(400, 'PLAYGROUND_UPLOAD_BASE64_INVALID') }
   if (!bytes.length || bytes.byteLength > 15_000_000) throw new HttpProblem(413, 'PLAYGROUND_UPLOAD_SIZE_INVALID')
   if (!hasImageSignature(bytes, mediaType)) throw new HttpProblem(400, 'PLAYGROUND_IMAGE_SIGNATURE_INVALID')
-  if (mediaType === 'image/jpeg') bytes = stripJpegExif(bytes)
+  bytes = sanitizeImageMetadata(bytes, mediaType)
   const dimensions = imageDimensions(bytes, mediaType)
   if (!dimensions.width || !dimensions.height || dimensions.width > 16_384 || dimensions.height > 16_384) throw new HttpProblem(400, 'PLAYGROUND_IMAGE_DIMENSIONS_INVALID')
+  if (dimensions.width * dimensions.height > 40_000_000) throw new HttpProblem(413, 'PLAYGROUND_IMAGE_PIXEL_LIMIT_EXCEEDED')
   const id = `upload-${randomUUID()}`
   const artifact: PlaygroundAssetDeclaration = { id, storeId: 'playground-request', contentHash: hashBytes(bytes), mediaType, byteLength: bytes.byteLength, role: 'reference-image', resolverId: 'playground-request', availability: 'available', retentionClass: 'request', redactionPolicy: 'safe-hash-only', ...(role === 'pose' ? { poseSourceKind: body.poseSourceKind === 'skeleton-image' || body.poseSourceKind === 'action-photo' || body.poseSourceKind === 'pose-sketch' ? body.poseSourceKind : 'pose-sketch' } : {}) }
-  store.put(sessionId, { artifact, bytes, ...dimensions, expiresAt: Date.now() + 15 * 60_000 })
+  store.put(sessionId, { artifact, bytes, ...dimensions, expiresAt: Date.now() + ttlMs })
   return { artifact: artifact as unknown as JsonObject, dimensions }
 }
 
@@ -352,26 +383,55 @@ export interface PlaygroundServerOptions {
   developmentMode?: boolean
   validationExportEnabled?: boolean
   onUploadStoreSizeChange?: (size: number) => void
+  onGeneratedStoreSizeChange?: (size: number) => void
+  secureCookies?: boolean
+  trustedProxyCidrs?: readonly string[]
+  logger?: PlaygroundRuntimeLogger
+  requestQuotaStore?: RequestQuotaStore
+  requestQuotaGate?: RequestQuotaGate
+  requestBodyLimitBytes?: number
+  uploadLimits?: Partial<{ sessionCount: number; sessionBytes: number; globalCount: number; globalBytes: number }>
+  generatedLimits?: Partial<{ sessionCount: number; globalCount: number; globalBytes: number }>
+  generatedTtlMs?: number
+  uploadTtlMs?: number
+  ready?: () => boolean
 }
 
 export function createPlaygroundServer(options: PlaygroundServerOptions = {}): Server {
-  const store = new UploadStore(options.onUploadStoreSizeChange)
-  const generatedStore = new GeneratedImageStore()
+  const uploadLimits = { sessionCount: 12, sessionBytes: 32_000_000, globalCount: 64, globalBytes: 128_000_000, ...options.uploadLimits }
+  const generatedLimits = { sessionCount: 4, globalCount: 32, globalBytes: 128_000_000, ...options.generatedLimits }
+  const store = new UploadStore(uploadLimits, options.onUploadStoreSizeChange)
+  const generatedStore = new GeneratedImageStore(generatedLimits, options.onGeneratedStoreSizeChange)
   const mock = new MockProvider()
   const budgetGate = options.budgetGate ?? new InMemoryBudgetGate({ dailyCostByCurrency: { USD: 1, CNY: 2 }, perClientCostByCurrency: { USD: 0.25, CNY: 1 }, maxConcurrent: 1 })
   const cloudflareQuotaGate = options.cloudflareQuotaGate ?? new CloudflareQuotaGate()
+  const requestQuotaGate = options.requestQuotaGate ?? new RequestQuotaGate(options.requestQuotaStore ?? new InMemoryRequestQuotaStore(), {
+    perSessionCalls: 8, perClientCalls: 24, dailyCalls: 100, maxConcurrent: 2,
+    providerCallsPerMinute: { seedream: 10, 'grok-imagine': 10, cloudflare: 30, mock: 60 },
+  })
+  const logger = options.logger ?? { info() {}, error() {} }
+  const sessions = new SessionCookieManager(options.secureCookies === true)
+  const uploadTtlMs = options.uploadTtlMs ?? 15 * 60_000
+  const generatedTtlMs = options.generatedTtlMs ?? 15 * 60_000
+  const requestBodyLimitBytes = options.requestBodyLimitBytes ?? 20_100_000
   const sweepTimer = setInterval(() => { store.sweep(); generatedStore.sweep() }, 60_000)
   sweepTimer.unref()
   const server = createServer(async (request, response) => {
+    const requestId = randomUUID()
+    const startedAt = Date.now()
+    response.setHeader('x-request-id', requestId)
+    const url = new URL(request.url ?? '/', 'http://playground.local')
+    const logFields = { requestId, route: url.pathname.startsWith('/api/generated/') ? '/api/generated/:id' : url.pathname, method: request.method ?? 'UNKNOWN' }
+    response.once('finish', () => logger.info('http.request', { ...logFields, status: response.statusCode, durationMs: Date.now() - startedAt }))
     try {
-      const url = new URL(request.url ?? '/', 'http://playground.local')
+      if (request.method === 'GET' && url.pathname === '/healthz') return respond(response, 200, { status: 'ok' })
+      if (request.method === 'GET' && url.pathname === '/readyz') { const ready = options.ready?.() !== false; return respond(response, ready ? 200 : 503, { status: ready ? 'ready' : 'not-ready' }) }
+      const sessionId = sessions.resolve(request, response)
       if (request.method === 'GET' && url.pathname === '/playground') return respondHtml(response)
       if (request.method === 'GET' && await respondCompositionPreview(response, url.pathname)) return
       if (request.method === 'GET') {
-        const generatedMatch = /^\/api\/generated\/((?:cloudflare|seedream)-[0-9a-f-]{36})$/.exec(url.pathname)
+        const generatedMatch = /^\/api\/generated\/((?:cloudflare|seedream|grok)-[0-9a-f-]{36})$/.exec(url.pathname)
         if (generatedMatch) {
-          const sessionId = url.searchParams.get('session') ?? ''
-          if (!/^[A-Za-z0-9_-]{8,120}$/.test(sessionId)) throw new HttpProblem(400, 'PLAYGROUND_SESSION_REQUIRED')
           const image = generatedStore.get(sessionId, generatedMatch[1])
           if (!image) throw new HttpProblem(404, 'PLAYGROUND_GENERATED_IMAGE_NOT_FOUND')
           return respondImage(response, image)
@@ -379,17 +439,16 @@ export function createPlaygroundServer(options: PlaygroundServerOptions = {}): S
       }
       if (request.method === 'GET' && url.pathname === '/api/meta') return respond(response, 200, playgroundMeta(options))
       if (request.method === 'GET' && url.pathname === '/api/composition-presets') return respond(response, 200, playgroundCompositionPresets())
-      if (request.method === 'POST' && url.pathname === '/api/upload') { const sessionId = sessionIdOf(request); return respond(response, 200, upload(objectBody(await readBody(request, 20_100_000)), store, sessionId)) }
-      if (request.method === 'DELETE' && url.pathname === '/api/uploads') { const sessionId = sessionIdOf(request); store.clear(sessionId); return respond(response, 200, { status: 'cleared' }) }
+      if (request.method === 'POST' && url.pathname === '/api/upload') return respond(response, 200, upload(objectBody(await readBody(request, requestBodyLimitBytes)), store, sessionId, uploadTtlMs))
+      if (request.method === 'DELETE' && url.pathname === '/api/uploads') { store.clear(sessionId); return respond(response, 200, { status: 'cleared' }) }
+      if (request.method === 'DELETE' && url.pathname === '/api/session') { store.clear(sessionId); generatedStore.clear(sessionId); sessions.clear(response); return respond(response, 200, { status: 'cleared' }) }
       if (request.method === 'POST' && url.pathname === '/api/compile') {
-        const sessionId = sessionIdOf(request)
-        const body = objectBody(await readBody(request)) as unknown as PlaygroundCompilePayload
+        const body = objectBody(await readBody(request, requestBodyLimitBytes)) as unknown as PlaygroundCompilePayload
         return respond(response, 200, compilePlayground(normalizeAssets(body, store, sessionId)))
       }
       if (request.method === 'POST' && url.pathname === '/api/validation-export' && options.developmentMode === true && options.validationExportEnabled === true) {
         if (!isLoopbackAddress(request.socket.remoteAddress)) throw new HttpProblem(403, 'VALIDATION_EXPORT_LOOPBACK_REQUIRED')
-        const sessionId = sessionIdOf(request)
-        const body = objectBody(await readBody(request))
+        const body = objectBody(await readBody(request, requestBodyLimitBytes))
         if (body.confirmExport !== true) throw new HttpProblem(409, 'VALIDATION_EXPORT_CONFIRMATION_REQUIRED')
         const compileBody = objectBody(body.compile ?? body.input) as unknown as PlaygroundCompilePayload
         const expected = body.planBinding as unknown as PlaygroundPlanBinding
@@ -412,9 +471,10 @@ export function createPlaygroundServer(options: PlaygroundServerOptions = {}): S
         return respondZip(response, exported.bytes)
       }
       if (request.method === 'POST' && url.pathname === '/api/generate') {
-        const sessionId = sessionIdOf(request)
+        let requestQuotaReservation: ReturnType<RequestQuotaGate['reserve']> | undefined
+        let resultCapacityReservation: GeneratedCapacityReservation | undefined
         try {
-          const body = objectBody(await readBody(request))
+          const body = objectBody(await readBody(request, requestBodyLimitBytes))
           const compileBody = objectBody(body.compile ?? body.input) as unknown as PlaygroundCompilePayload
           const expected = body.planBinding as unknown as PlaygroundPlanBinding
           const normalized = normalizeAssets(compileBody, store, sessionId)
@@ -430,12 +490,14 @@ export function createPlaygroundServer(options: PlaygroundServerOptions = {}): S
           if (!confirmSingleCall) throw new HttpProblem(409, 'SINGLE_CALL_CONFIRMATION_REQUIRED')
           if (compiled.providerCapability.status !== 'ok') throw new HttpProblem(409, `PROVIDER_CAPABILITY_BLOCKED:${compiled.providerCapability.reasons.join(',')}`)
           const summaries = assetSummaries(normalized)
-          const clientHeader = request.headers['x-playground-client']
-          const clientId = typeof clientHeader === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(clientHeader) ? clientHeader : 'anonymous'
+          const { clientId, clientHash } = trustedClientIdentity(request, options.trustedProxyCidrs ?? [])
+          logger.info('provider.preflight', { requestId, profileId: profile.id, provider: profile.provider, clientHash, sessionHash: opaqueHash('session', sessionId) })
           const target = compileSemanticClosure(semanticInput(normalized), profile)
           if (target.providerRenderRequest.requestHash !== compiled.planBinding.generationRequestHash) throw new HttpProblem(409, 'PLAN_BINDING_GENERATION_REQUEST_MISMATCH')
           const targetCapability = preflightProviderCapability({ request: target.providerRenderRequest, profile, assets: summaries, renderEnabled: true, confirmSingleCall: true })
           if (targetCapability.status !== 'ok') throw new HttpProblem(409, `PROVIDER_CAPABILITY_BLOCKED:${targetCapability.reasons.join(',')}`)
+          if (profile.provider !== 'mock') resultCapacityReservation = generatedStore.reserve(sessionId, 50_000_000)
+          requestQuotaReservation = requestQuotaGate.reserve({ sessionId: opaqueHash('session', sessionId), clientId, provider: profile.provider })
           if (profile.provider === 'mock') {
             const materializer = createProviderRequestMaterializer('mock.materializer', PLAYGROUND_MATERIALIZER_VERSION, profile)
             const result = await mock.generate({ request: target.providerRenderRequest, profile, materializer, assets: summaries, clientId, renderEnabled: true, confirmSingleCall, credentialMode: profile.credentialMode, budgetGate })
@@ -475,8 +537,8 @@ export function createPlaygroundServer(options: PlaygroundServerOptions = {}): S
                 providerResult = execution.providerResult
                 const output = execution.outputAssets[0]
                 if (output) {
-                  generatedStore.put(sessionId, output.artifact.id, { bytes: output.bytes, mediaType: output.artifact.mediaType, expiresAt: Date.now() + 15 * 60_000 })
-                  outputUrl = `/api/generated/${output.artifact.id}?session=${encodeURIComponent(sessionId)}`
+                  generatedStore.commit(resultCapacityReservation!, output.artifact.id, { bytes: output.bytes, mediaType: output.artifact.mediaType, expiresAt: Date.now() + generatedTtlMs })
+                  outputUrl = `/api/generated/${output.artifact.id}`
                 }
               } catch (error) {
                 throw new HttpProblem(502, cloudflareTransportErrorCode(error))
@@ -501,11 +563,11 @@ export function createPlaygroundServer(options: PlaygroundServerOptions = {}): S
               providerResult = execution.providerResult
               const output = execution.outputAssets[0]
               if (output) {
-                generatedStore.put(sessionId, output.artifact.id, { bytes: output.bytes, mediaType: output.artifact.mediaType, expiresAt: Date.now() + 15 * 60_000 })
-                outputUrl = `/api/generated/${output.artifact.id}?session=${encodeURIComponent(sessionId)}`
+                generatedStore.commit(resultCapacityReservation!, output.artifact.id, { bytes: output.bytes, mediaType: output.artifact.mediaType, expiresAt: Date.now() + generatedTtlMs })
+                outputUrl = `/api/generated/${output.artifact.id}`
               }
             } catch (error) {
-              throw new HttpProblem(502, profile.provider === 'seedream' ? seedreamTransportErrorCode(error) : 'PROVIDER_CALL_FAILED')
+              throw new HttpProblem(502, profile.provider === 'seedream' ? seedreamTransportErrorCode(error) : grokTransportErrorCode(error))
             }
             apiKey = ''
             const result = { status: 'ok', providerResult, ...(outputUrl ? { outputUrl } : {}), capability: targetCapability, cleanup: { status: 'completed', releasedRequestBuffers: true, releasedCredential: true }, calls: 1, logs: [{ event: 'provider.generate', requestHash: target.providerRenderRequest.requestHash, profileId: profile.id, status: 'succeeded' }] }
@@ -515,22 +577,34 @@ export function createPlaygroundServer(options: PlaygroundServerOptions = {}): S
             if (reservation) budgetGate.release(reservation)
           }
         } finally {
+          if (requestQuotaReservation) requestQuotaGate.release(requestQuotaReservation)
+          if (resultCapacityReservation) generatedStore.release(resultCapacityReservation)
           store.clear(sessionId)
         }
       }
       respond(response, 404, { error: 'PLAYGROUND_ROUTE_NOT_FOUND' })
     } catch (error) {
-      const status = error instanceof HttpProblem ? error.status : error instanceof Error && error.message === 'PLAN_BINDING_MISMATCH' ? 409 : 400
-      respond(response, status, errorBody(error))
+      const code = safeErrorCode(error)
+      const limited = /(?:RATE_LIMIT|QUOTA|BUDGET|CAPACITY|CONCURRENCY)/.test(code)
+      const status = error instanceof HttpProblem ? error.status
+        : error instanceof Error && error.message === 'PLAN_BINDING_MISMATCH' ? 409
+          : limited ? 429
+            : code === 'PLAYGROUND_INTERNAL_ERROR' ? 500 : 400
+      logger.error('http.error', { ...logFields, status, code })
+      respond(response, status, errorBody(error, requestId))
     }
   })
   server.once('close', () => { clearInterval(sweepTimer); store.clearAll(); generatedStore.clearAll() })
   return server
 }
 
-export async function startPlaygroundServer(port = Number(process.env.PLAYGROUND_PORT ?? 4173), options: PlaygroundServerOptions = {}): Promise<Server> {
+export async function startPlaygroundServer(port = Number(process.env.PLAYGROUND_PORT ?? 4173), options: PlaygroundServerOptions = {}, host = '127.0.0.1'): Promise<Server> {
   const server = createPlaygroundServer(options)
-  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve))
+  await new Promise<void>((resolve, reject) => {
+    const onError = (error: Error): void => reject(error)
+    server.once('error', onError)
+    server.listen(port, host, () => { server.off('error', onError); resolve() })
+  })
   return server
 }
 

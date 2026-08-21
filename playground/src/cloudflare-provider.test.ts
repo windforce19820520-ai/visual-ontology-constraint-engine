@@ -12,6 +12,7 @@ import { FetchSeedreamProviderTransport, seedreamTransportErrorCode } from './se
 import type { PlaygroundProviderCall } from './provider-bridges.js'
 import { createPlaygroundServer, playgroundMeta } from './server.js'
 import { PLAYGROUND_HTML } from './web.js'
+import { testBrowserFetch } from './test-browser.js'
 
 const roles = [
   { assetId: 'person', role: 'person-identity' },
@@ -48,7 +49,7 @@ async function withServer<T>(options: Parameters<typeof createPlaygroundServer>[
 }
 
 async function post(baseUrl: string, path: string, session: string, body: unknown): Promise<{ status: number; value: any }> {
-  const response = await fetch(`${baseUrl}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-playground-session': session, 'x-playground-client': 'cloudflare-test' }, body: JSON.stringify(body) })
+  const response = await testBrowserFetch(baseUrl, session, path, { method: 'POST', headers: { 'content-type': 'application/json', 'x-playground-client': 'cloudflare-test' }, body: JSON.stringify(body) })
   return { status: response.status, value: await response.json() }
 }
 
@@ -63,9 +64,9 @@ async function uploadScenario(baseUrl: string, session: string, includePose = fa
   return { scenarioId: 'virtual-tryon', assets, declaredRoles: assets.map((item, index) => ({ assetId: item.id, role: declarations[index].role, ...('typedMetadata' in declarations[index] ? { typedMetadata: declarations[index].typedMetadata } : {}) })), compositionSelections: [] }
 }
 
-test('Cloudflare is first ordinary selector item; Mock is development-only', () => {
+test('Seedream recommended, Grok optional, and Cloudflare experimental preview are ordered before development-only Mock', () => {
   const ordinary = playgroundMeta() as any
-  assert.equal(ordinary.providers[0].id, 'cloudflare-flux-2-klein-4b')
+  assert.deepEqual(ordinary.providers.map((item: any) => item.id), ['seedream-5.0-pro', 'grok-imagine-image-quality', 'cloudflare-flux-2-klein-4b'])
   assert.equal(ordinary.providers.some((item: any) => item.id === 'mock-image'), false)
   const development = playgroundMeta({ developmentMode: true }) as any
   assert.equal(development.providers.some((item: any) => item.id === 'mock-image'), true)
@@ -157,7 +158,8 @@ test('Cloudflare operator credential is not a browser field and is never echoed'
   assert.match(cloudflare.selectorMetadata.qualityNote, /face identity/i)
   assert.match(cloudflare.selectorMetadata.qualityNote, /accessory details/i)
   assert.match(cloudflare.selectorMetadata.qualityNote, /feet\/framing/i)
-  assert.match(PLAYGROUND_HTML, /Cloudflare Free — quick preview \(default\)/)
+  assert.match(PLAYGROUND_HTML, /Cloudflare — Free experimental preview/)
+  assert.match(PLAYGROUND_HTML, /Seedream 5\.0 Pro — recommended \(BYOK\)/)
   assert.equal(cloudflareTransportErrorCode({ status: 429, code: '3036', body: 'Bearer token should not appear' }), 'CLOUDFLARE_ACCOUNT_LIMITED')
   assert.equal(cloudflareCredentialFromEnv({}), undefined)
   assert.match(PLAYGROUND_HTML, /provider-controls/)

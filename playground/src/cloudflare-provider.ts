@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { ArtifactHandle, JsonObject, ProviderRenderRequest, ProviderRenderResult } from '@voce-engine/contracts'
 import { sha256 } from '@voce-engine/core'
 import type { MaterializationResult } from './provider-materializer.js'
+import { sanitizeImageMetadata } from './image-safety.js'
 import type { PlaygroundProviderProfile } from './providers.js'
 
 export const CLOUDFLARE_ACCOUNT_ID_ENV = 'CLOUDFLARE_ACCOUNT_ID'
@@ -151,7 +152,8 @@ export class FetchCloudflareProviderTransport implements CloudflareProviderTrans
     try { envelope = await response.json() as CloudflareEnvelope } catch { throw new CloudflareHttpError(response.status) }
     if (!response.ok || envelope.success === false) throw new CloudflareHttpError(response.status, (envelope.errors ?? []).map(({ code }) => ({ code })))
     if (typeof envelope.result?.image !== 'string') throw new Error('CLOUDFLARE_RESPONSE_IMAGE_MISSING')
-    const output = decodeCloudflareImage(envelope.result.image)
+    const decoded = decodeCloudflareImage(envelope.result.image)
+    const output = { ...decoded, bytes: sanitizeImageMetadata(decoded.bytes, decoded.mediaType) }
     const contentHash = `sha256:${createHash('sha256').update(output.bytes).digest('hex')}`
     const artifact: ArtifactHandle = {
       id: `cloudflare-${randomUUID()}`, storeId: 'playground-generated', contentHash, mediaType: output.mediaType,
