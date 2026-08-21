@@ -5,6 +5,10 @@
 
 An open-source visual ontology, constraint compiler, prompt optimization, and evaluation runtime for controllable, reference-guided image generation.
 
+**[Open the Public Playground preview →](https://voce-playground.43-165-176-201.sslip.io/playground)**
+
+Compile and inspect a reference plan before choosing whether to generate. Virtual Try-On and Cosplay share the same inspectable planning path, with explicit Provider limits and one-call authorization at generation time.
+
 ## Incubation status and v0.1 release candidate
 
 `v0.1.0-rc.5` is the published Playground release candidate for GitHub and five public npm packages under the `next` distribution tag. It packages the local-first Playground separately as `@voce-engine/playground`, while retaining the RC.4 30-preset catalog and the earlier Cosplay fidelity repair. The [RC.5 acceptance report](docs/acceptance/v0.1.0-rc.5.md) records the exact tag, OIDC workflow, public-registry consumer, signatures, and provenance. This candidate is **not production-ready**: APIs, schemas, package contracts, and behavior may change before `v0.1.0`.
@@ -23,16 +27,36 @@ Full guides: [English](docs/visual-composition.md) · [简体中文](docs/zh-CN/
 
 ## Try the Playground
 
-RC.5 packages the standalone local Host as `@voce-engine/playground`. Installing the package gives users the web UI and its 30 bundled Cosplay composition examples; it does not create a shared public deployment or make a production-readiness claim.
+Use the **[Public Playground preview](https://voce-playground.43-165-176-201.sslip.io/playground)** in a browser, or run the same Host locally from `@voce-engine/playground`. Compile/Inspect Plan remains available independently of image generation: references first become an understandable plan, Provider compatibility check, and evaluation contract. Generate One is a separate, explicitly authorized step.
 
 The Playground provides two distinct workflows:
 
 - **Virtual Try-On:** upload one person plus either one full outfit or a Top, a Bottom, or both. Footwear, fit, pose, and typed accessories are optional. Try-On preserves unselected clothing regions and does not expose the 30 composition presets.
 - **Cosplay:** upload the person and character design, optionally add a signature prop, pose, or critical detail, and choose from the complete 30-preset gallery with example artwork.
 
-Cloudflare Workers AI FLUX.2 klein 4B is the default free quick-preview profile. It accepts at most four references and every input must be strictly smaller than 512×512. Exact face identity, small accessory details, complete feet/framing, and complex spatial composition can be less reliable than Seedream or Grok; the UI states these limits before a call. Cloudflare credentials are deployment-managed and never entered in the Browser. Seedream 5.0 Pro and Grok Imagine remain optional BYOK choices, subject to their declared reference limits and availability.
+### Virtual Try-On
 
-Install `@voce-engine/playground@0.1.0-rc.5` (or `@voce-engine/playground@next`), run `voce-playground`, and open `http://127.0.0.1:4173/playground`. Do not omit the version/tag during RC.5: npm's `latest` tag still identifies the non-runnable namespace-bootstrap record, while `next` identifies the reviewed Playground release. Rendering is disabled unless the Host explicitly enables an approved transport. See the [Playground usage and security guide](playground/README.md), [Try-On/Cosplay product amendment](docs/design/playground-tryon-cosplay-input-amendment.md), and [Provider capability report](docs/implementation-notes/playground-provider-capability-report.md).
+The example below combines a person, a full outfit, and a bracelet declared for the left wrist. The final view keeps the reviewed plan beside the generated result.
+
+![Virtual Try-On with person, full outfit, left-wrist bracelet, reviewed plan, and generated result](docs/assets/playground/virtual-try-on.png)
+
+### Cosplay with Mirror composition
+
+The Cosplay workflow keeps the real person's identity, uses the character reference for hairstyle, costume, accessories, and props, and applies the selected Mirror composition without consuming another reference slot.
+
+![Cosplay with person and character references, Mirror composition, reviewed plan, and generated result](docs/assets/playground/cosplay-mirror.png)
+
+### Image Providers
+
+| Provider | Positioning and credentials | Cost and limits |
+| --- | --- | --- |
+| **Seedream 5.0 Pro** | **Recommended high-quality BYOK.** Supply a Volcengine Ark API key for one request; the key is cleared after that request and is not persisted by the Playground. | Paid on the user's Ark account. Supports up to 10 ordered JPEG/PNG references. |
+| **Grok Imagine** | **Optional high-quality BYOK.** Supply an xAI API key for one request; the key is cleared after that request and is not persisted by the Playground. | Paid or quota-backed on the user's xAI account. Supports up to 3 reference images; larger plans can still compile, but Generate is blocked before a Provider call. |
+| **Cloudflare Workers AI** | **Free experimental preview.** The public Host provides free calls within its shared quota through an operator-controlled credential; users do not enter a Cloudflare key. Use it only as an example of the complete model-call workflow, not as the quality representative for VOCE. | Supports at most 4 references, each strictly smaller than 512×512. Person identity consistency, virtual try-on quality, Cosplay character reproduction, and composition control can be unsatisfactory; use Seedream or Grok when output quality matters. |
+
+API keys are accepted only for the selected single request. They are not written to browser persistent storage, logs, validation exports, the repository, or long-term server storage. Uploaded references are sent to a Provider only after the rights declaration and one-call confirmation are accepted. See the [public Playground privacy and data-lifecycle notice](docs/public-playground-privacy.md) and [Provider capability report](docs/implementation-notes/playground-provider-capability-report.md).
+
+For local use, install `@voce-engine/playground@0.1.0-rc.5` (or `@voce-engine/playground@next`), run `voce-playground`, and open `http://127.0.0.1:4173/playground`. Do not omit the version/tag during RC.5: npm's `latest` tag still identifies the non-runnable namespace-bootstrap record, while `next` identifies the reviewed Playground release. Rendering is disabled unless the Host explicitly enables an approved transport. See the [Playground usage and security guide](playground/README.md) and [Try-On/Cosplay product amendment](docs/design/playground-tryon-cosplay-input-amendment.md).
 
 ## What works today
 
