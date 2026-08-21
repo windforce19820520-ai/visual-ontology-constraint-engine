@@ -11,6 +11,8 @@ npm install --global @voce-engine/playground@0.1.0-rc.5
 voce-playground
 ```
 
+`@voce-engine/playground@next` is equivalent for the current candidate. Do not use an unversioned install during RC.5: npm's `latest` tag still identifies the non-runnable namespace-bootstrap record, not the reviewed Playground package.
+
 From the repository root after the workspace dependencies have been installed:
 
 ```text

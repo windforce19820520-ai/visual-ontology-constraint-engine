@@ -32,7 +32,7 @@ The Playground provides two distinct workflows:
 
 Cloudflare Workers AI FLUX.2 klein 4B is the default free quick-preview profile. It accepts at most four references and every input must be strictly smaller than 512×512. Exact face identity, small accessory details, complete feet/framing, and complex spatial composition can be less reliable than Seedream or Grok; the UI states these limits before a call. Cloudflare credentials are deployment-managed and never entered in the Browser. Seedream 5.0 Pro and Grok Imagine remain optional BYOK choices, subject to their declared reference limits and availability.
 
-Install `@voce-engine/playground@0.1.0-rc.5`, run `voce-playground`, and open `http://127.0.0.1:4173/playground`. Rendering is disabled unless the Host explicitly enables an approved transport. See the [Playground usage and security guide](playground/README.md), [Try-On/Cosplay product amendment](docs/design/playground-tryon-cosplay-input-amendment.md), and [Provider capability report](docs/implementation-notes/playground-provider-capability-report.md).
+Install `@voce-engine/playground@0.1.0-rc.5` (or `@voce-engine/playground@next`), run `voce-playground`, and open `http://127.0.0.1:4173/playground`. Do not omit the version/tag during RC.5: npm's `latest` tag still identifies the non-runnable namespace-bootstrap record, while `next` identifies the reviewed Playground release. Rendering is disabled unless the Host explicitly enables an approved transport. See the [Playground usage and security guide](playground/README.md), [Try-On/Cosplay product amendment](docs/design/playground-tryon-cosplay-input-amendment.md), and [Provider capability report](docs/implementation-notes/playground-provider-capability-report.md).
 
 ## What works today
 
