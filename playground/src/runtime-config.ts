@@ -8,6 +8,7 @@ export interface PlaygroundRuntimeConfig {
   secureCookies: boolean
   developmentMode: boolean
   validationExportEnabled: boolean
+  behindReverseProxy: boolean
   trustedProxyCidrs: readonly string[]
   singleInstance: boolean
   providerHardLimitsConfirmed: boolean
@@ -54,6 +55,7 @@ export function playgroundRuntimeConfigFromEnv(env: NodeJS.ProcessEnv = process.
   if (externalScheme !== 'http' && externalScheme !== 'https') throw new Error('PLAYGROUND_CONFIG_EXTERNAL_SCHEME_INVALID')
   const developmentMode = flag(env, 'PLAYGROUND_DEVELOPMENT_MODE')
   const validationExportEnabled = flag(env, 'PLAYGROUND_VALIDATION_EXPORT')
+  const behindReverseProxy = flag(env, 'PLAYGROUND_BEHIND_REVERSE_PROXY')
   const trustedProxyCidrs = flag(env, 'PLAYGROUND_TRUST_PROXY')
     ? (env.PLAYGROUND_TRUSTED_PROXY_CIDRS ?? '').split(',').map((value) => value.trim()).filter(Boolean)
     : []
@@ -74,13 +76,15 @@ export function playgroundRuntimeConfigFromEnv(env: NodeJS.ProcessEnv = process.
 
   if (host.includes('/') || host.includes('\\') || /\s/.test(host)) throw new Error('PLAYGROUND_CONFIG_HOST_INVALID')
   if (publicMode) {
-    if (isLoopback(host)) throw new Error('PLAYGROUND_PUBLIC_HOST_REQUIRED')
+    if (!behindReverseProxy) throw new Error('PLAYGROUND_PUBLIC_REVERSE_PROXY_REQUIRED')
     if (externalScheme !== 'https') throw new Error('PLAYGROUND_PUBLIC_HTTPS_REQUIRED')
     if (developmentMode || validationExportEnabled || flag(env, 'PLAYGROUND_ENABLE_MOCK_RENDER')) throw new Error('PLAYGROUND_PUBLIC_DEVELOPMENT_FEATURE_FORBIDDEN')
     if (!singleInstance || !providerHardLimitsConfirmed) throw new Error('PLAYGROUND_PUBLIC_QUOTA_DURABILITY_UNCONFIRMED')
     if (flag(env, 'PLAYGROUND_TRUST_PROXY') && trustedProxyCidrs.length === 0) throw new Error('PLAYGROUND_TRUSTED_PROXY_LIST_REQUIRED')
     for (const name of ['PLAYGROUND_SESSION_CALLS_PER_DAY', 'PLAYGROUND_CLIENT_CALLS_PER_DAY', 'PLAYGROUND_GLOBAL_CALLS_PER_DAY', 'PLAYGROUND_MAX_CONCURRENT_GENERATIONS', 'PLAYGROUND_SEEDREAM_CALLS_PER_MINUTE', 'PLAYGROUND_GROK_CALLS_PER_MINUTE', 'PLAYGROUND_CLOUDFLARE_CALLS_PER_MINUTE']) if (env[name] === undefined) throw new Error(`PLAYGROUND_PUBLIC_LIMIT_REQUIRED:${name}`)
   }
+  if (flag(env, 'PLAYGROUND_TRUST_PROXY') && !behindReverseProxy) throw new Error('PLAYGROUND_TRUST_PROXY_REQUIRES_REVERSE_PROXY')
+  if (behindReverseProxy && publicMode && !isLoopback(host) && host !== '0.0.0.0' && host !== '::') throw new Error('PLAYGROUND_PUBLIC_PROXY_BIND_INVALID')
 
   return {
     host,
@@ -90,6 +94,7 @@ export function playgroundRuntimeConfigFromEnv(env: NodeJS.ProcessEnv = process.
     secureCookies: publicMode,
     developmentMode,
     validationExportEnabled,
+    behindReverseProxy,
     trustedProxyCidrs,
     singleInstance,
     providerHardLimitsConfirmed,

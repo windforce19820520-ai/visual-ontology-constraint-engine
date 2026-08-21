@@ -6,8 +6,10 @@ PR A completion does not authorize any item below. PR B must record owner author
 
 - [ ] Select and authorize the cloud project, region, single-instance service shape, and operator.
 - [ ] Authorize domain, DNS, HTTPS certificate, and exact reverse proxy configuration.
+- [ ] Render the generic [`deploy/public-playground`](../deploy/public-playground/README.md) templates outside source control; do not commit the operator hostname, IP, or certificate paths.
 - [ ] Configure the proxy and Host body limit at or below 20,100,000 bytes; disable body logging and API caching.
 - [ ] Configure only the final trusted proxy CIDRs, or leave forwarded-IP trust disabled.
+- [ ] Bind Node to loopback and verify port 4173 is closed at both host and cloud firewalls.
 - [ ] Inject Cloudflare credentials through the platform secret manager only if the experimental preview is enabled.
 - [ ] Do not store Seedream or Grok BYOK values as platform or GitHub secrets.
 
@@ -16,6 +18,7 @@ PR A completion does not authorize any item below. PR B must record owner author
 - [ ] Set explicit per-session, per-client, Provider-per-minute, global-concurrency, and daily-call limits.
 - [ ] Confirm the deployment is exactly one process/instance, or implement and review an atomic durable `RequestQuotaStore` before scaling.
 - [ ] Configure independent Cloudflare/Seedream/Grok account or platform hard limits and alerts.
+- [ ] Keep every Provider transport disabled until its independent hard limit and separate real-call authorization are recorded. Compile-only has an effective hard call cap of zero.
 - [ ] Verify that exhausted gates reject before transport with no retry, Provider switch, or paid continuation.
 
 ## Privacy and operations

@@ -1,0 +1,47 @@
+[Unit]
+Description=VOCE Public Playground
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=voce
+Group=voce
+WorkingDirectory=/opt/voce-playground/current
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/voce-playground/voce-playground.env
+ExecStart=/usr/bin/node playground/dist/server-entry.js
+Restart=on-failure
+RestartSec=5s
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+UMask=0077
+
+# The Host keeps request-scoped images in memory and needs no writable app path.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# Compile-only defense in depth: accept Nginx on loopback, deny external calls.
+IPAddressDeny=any
+IPAddressAllow=localhost
+MemoryMax=1536M
+TasksMax=128
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

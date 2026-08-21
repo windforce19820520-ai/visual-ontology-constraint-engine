@@ -52,7 +52,7 @@ async function mockGenerate(baseUrl: string, session: string, headers: Record<st
 
 function publicEnv(): NodeJS.ProcessEnv {
   return {
-    PLAYGROUND_PUBLIC_MODE: '1', PLAYGROUND_HOST: '0.0.0.0', PLAYGROUND_EXTERNAL_SCHEME: 'https',
+    PLAYGROUND_PUBLIC_MODE: '1', PLAYGROUND_HOST: '127.0.0.1', PLAYGROUND_EXTERNAL_SCHEME: 'https', PLAYGROUND_BEHIND_REVERSE_PROXY: '1',
     PLAYGROUND_SINGLE_INSTANCE: '1', PLAYGROUND_PROVIDER_HARD_LIMITS_CONFIRMED: '1',
     PLAYGROUND_SESSION_CALLS_PER_DAY: '4', PLAYGROUND_CLIENT_CALLS_PER_DAY: '10', PLAYGROUND_GLOBAL_CALLS_PER_DAY: '20',
     PLAYGROUND_MAX_CONCURRENT_GENERATIONS: '2', PLAYGROUND_SEEDREAM_CALLS_PER_MINUTE: '5',
@@ -64,12 +64,14 @@ test('public runtime configuration is explicit and fails closed on unsafe produc
   const config = playgroundRuntimeConfigFromEnv(publicEnv())
   assert.equal(config.publicMode, true)
   assert.equal(config.secureCookies, true)
-  assert.equal(config.host, '0.0.0.0')
+  assert.equal(config.host, '127.0.0.1')
+  assert.equal(config.behindReverseProxy, true)
   assert.equal(config.validationExportEnabled, false)
   assert.throws(() => playgroundRuntimeConfigFromEnv({ ...publicEnv(), PLAYGROUND_EXTERNAL_SCHEME: 'http' }), /PLAYGROUND_PUBLIC_HTTPS_REQUIRED/)
   assert.throws(() => playgroundRuntimeConfigFromEnv({ ...publicEnv(), PLAYGROUND_SINGLE_INSTANCE: '0' }), /PLAYGROUND_PUBLIC_QUOTA_DURABILITY_UNCONFIRMED/)
-    assert.throws(() => playgroundRuntimeConfigFromEnv({ ...publicEnv(), PLAYGROUND_VALIDATION_EXPORT: '1' }), /PLAYGROUND_PUBLIC_DEVELOPMENT_FEATURE_FORBIDDEN/)
-    assert.throws(() => playgroundRuntimeConfigFromEnv({ ...publicEnv(), PLAYGROUND_TRUST_PROXY: '1', PLAYGROUND_TRUSTED_PROXY_CIDRS: '0.0.0.0\/0' }), /PLAYGROUND_TRUSTED_PROXY_RULE_INVALID/)
+  assert.throws(() => playgroundRuntimeConfigFromEnv({ ...publicEnv(), PLAYGROUND_BEHIND_REVERSE_PROXY: '0' }), /PLAYGROUND_PUBLIC_REVERSE_PROXY_REQUIRED/)
+  assert.throws(() => playgroundRuntimeConfigFromEnv({ ...publicEnv(), PLAYGROUND_VALIDATION_EXPORT: '1' }), /PLAYGROUND_PUBLIC_DEVELOPMENT_FEATURE_FORBIDDEN/)
+  assert.throws(() => playgroundRuntimeConfigFromEnv({ ...publicEnv(), PLAYGROUND_TRUST_PROXY: '1', PLAYGROUND_TRUSTED_PROXY_CIDRS: '0.0.0.0\/0' }), /PLAYGROUND_TRUSTED_PROXY_RULE_INVALID/)
   const missingLimit = publicEnv(); delete missingLimit.PLAYGROUND_GLOBAL_CALLS_PER_DAY
   assert.throws(() => playgroundRuntimeConfigFromEnv(missingLimit), /PLAYGROUND_PUBLIC_LIMIT_REQUIRED/)
 })

@@ -1,0 +1,28 @@
+map $uri $voce_log_uri {
+    default $uri;
+    ~^/api/generated/ /api/generated/:id;
+}
+
+server_tokens off;
+
+log_format voce_public '$time_iso8601 $request_method $voce_log_uri $status '
+                       '$body_bytes_sent $request_time $sent_http_x_request_id';
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __VOCE_HOSTNAME__;
+
+    client_max_body_size 20100000;
+    access_log /var/log/nginx/voce-playground.access.log voce_public;
+    error_log /dev/null crit;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type text/plain;
+    }
+
+    location / {
+        return 308 https://__VOCE_HOSTNAME__$request_uri;
+    }
+}

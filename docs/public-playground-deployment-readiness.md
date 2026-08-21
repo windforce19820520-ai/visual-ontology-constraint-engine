@@ -8,7 +8,8 @@ Local mode is the default: `PLAYGROUND_PUBLIC_MODE=0`, `PLAYGROUND_HOST=127.0.0.
 
 Public mode must be explicit. The Host refuses to start unless all of the following are true:
 
-- `PLAYGROUND_PUBLIC_MODE=1` and a non-loopback `PLAYGROUND_HOST` are set;
+- `PLAYGROUND_PUBLIC_MODE=1` and `PLAYGROUND_BEHIND_REVERSE_PROXY=1` are set;
+- `PLAYGROUND_HOST` is an intentional bind address; the PR B single-host baseline uses loopback so the Node port is never public;
 - `PLAYGROUND_EXTERNAL_SCHEME=https` confirms TLS termination outside this process;
 - development Mock rendering and validation-package export are disabled;
 - `PLAYGROUND_SINGLE_INSTANCE=1` and `PLAYGROUND_PROVIDER_HARD_LIMITS_CONFIRMED=1` acknowledge the current quota durability boundary; and
@@ -18,9 +19,9 @@ The process reads `PLAYGROUND_HOST` and `PLAYGROUND_PORT`, exposes `GET /healthz
 
 ## Reverse proxy contract
 
-PR A does not configure a proxy or HTTPS. A later deployment must terminate HTTPS, preserve same-origin routing, set a request-body limit no larger than `PLAYGROUND_REQUEST_BODY_LIMIT_BYTES` (default `20,100,000` bytes), disable proxy request/response body logging, and avoid caching `/api/*` responses. The server enforces the same body ceiling independently.
+PR A does not configure a proxy or HTTPS. PR B supplies reviewed generic Nginx and systemd templates in [`deploy/public-playground`](../deploy/public-playground/README.md). An authorized deployment must render the hostname outside source control, terminate HTTPS, preserve same-origin routing, set a request-body limit no larger than `PLAYGROUND_REQUEST_BODY_LIMIT_BYTES` (default `20,100,000` bytes), disable proxy request buffering and request/response body logging, and avoid caching `/api/*` responses. The server enforces the same body ceiling independently.
 
-Forwarded client IP headers are ignored by default. `PLAYGROUND_TRUST_PROXY=1` is valid only with a non-empty `PLAYGROUND_TRUSTED_PROXY_CIDRS` allow-list. The Host uses the first forwarded address only when the immediate socket peer matches that list. PR B must configure the list to the actual final proxy hop, not a broad public network.
+Forwarded client IP headers are ignored by default. `PLAYGROUND_TRUST_PROXY=1` is valid only when reverse-proxy mode is explicit and a non-empty `PLAYGROUND_TRUSTED_PROXY_CIDRS` allow-list is supplied. The Host uses the first forwarded address only when the immediate socket peer matches that list. The single-host template trusts only `127.0.0.1/32`; it must never be broadened to a public network.
 
 Generated images are served from an opaque same-origin path and authorized by the HttpOnly session cookie. Session identifiers never appear in query parameters. Public cookies are `Secure`, `HttpOnly`, `SameSite=Strict`, host-only, and scoped to `/`.
 
@@ -42,6 +43,8 @@ Cloudflare additionally has a fail-closed Host cap no greater than 10,000 Neuron
 
 Compile/Inspect remains available with every transport disabled or every Generate quota exhausted.
 
-## PR B prerequisites
+## PR B baseline and prerequisites
 
-Before deployment, the owner must separately authorize the cloud account/project, exact region, domain/DNS/TLS, secret injection, hard Provider/platform spending caps, proxy CIDRs/body limit, single-instance process policy or a durable quota-store implementation, monitoring destination, and public privacy/contact text. PR B must run online acceptance without changing PR A into a release, merge, or publication operation.
+The checked-in PR B baseline is compile-only. All three real transports and Mock rendering are disabled, so the effective Provider-call and spend ceiling is zero. It binds Node to loopback, uses one systemd process, caps memory, exposes only Nginx, and keeps validation export disabled. This is the only supported configuration until Provider activation receives separate authorization and account-side hard limits are verified.
+
+Before deployment, the owner must separately authorize the cloud account/project, exact region, hostname/DNS/TLS, proxy CIDRs/body limit, single-instance process policy, monitoring destination, and public privacy/contact text. Secret injection and Provider online acceptance require their own authorization. PR B does not change PR A into a release, merge, npm publication, or tag operation.
