@@ -2,10 +2,16 @@ import type {
   JsonObject,
   JsonValue,
   OutputContract,
+  PromptReferenceMapping,
+  PromptSection,
   ProviderCapabilityProfile,
   ProviderRenderRequest,
 } from '@voce-engine/contracts'
 import { computeProviderRenderRequestHash, sha256 } from '@voce-engine/core'
+
+/** Shared outbound prompt ceiling for every Playground provider. */
+export const PLAYGROUND_PROMPT_CHARACTER_BUDGET = 4_000
+export const PLAYGROUND_MATERIALIZER_VERSION = '1.1.0'
 
 /**
  * The request handed to a provider adapter is deliberately a projection of an
@@ -33,6 +39,8 @@ export interface NativeProviderRequest {
     order: number
     required: boolean
     constraintIds: readonly string[]
+    authorizedTargetPaths: readonly string[]
+    typedMetadata?: JsonObject
     prohibitedTargetPaths: readonly string[]
     prohibitedTargetPathImportance: Readonly<Record<string, string>>
   }>
@@ -101,6 +109,168 @@ function materializerDigest(id: string, version: string, profile: ProviderCapabi
   return sha256({ id, version, profileId: profile.id, profileDigest: profile.playgroundProfileDigest ?? profile.profileHash } as unknown as JsonValue)
 }
 
+function compactWhitespace(value: string): string {
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+function distinctText(values: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const value of values) {
+    const text = compactWhitespace(value)
+    const key = text.toLocaleLowerCase('en-US')
+    if (!text || seen.has(key)) continue
+    seen.add(key)
+    result.push(text)
+  }
+  return result
+}
+
+function isGeneratedReplacementSentence(text: string): boolean {
+  return /^(?:Replace|Preserve) (?:wardrobe|character signature props)\b.*\bConstraint derived from\b/i.test(text)
+}
+
+function sectionPromptText(section: PromptSection): string | undefined {
+  if (section.kind === 'reference' || section.kind === 'output' || section.kind === 'suggestion' || section.kind === 'forbidden') return undefined
+  const original = section.content.trim()
+  if (!original || /^Output_contract\b/.test(original) || isGeneratedReplacementSentence(original)) return undefined
+
+  // A composition preset is explicit only when it was contributed by the
+  // selected preset. Generic reference preservation produces one preferred
+  // constraint for every camera path; those constraints are represented once
+  // by referencePromptText() instead of accidentally activating every preset.
+  if (section.kind === 'preferred' && !section.sourceIds.some((sourceId) => sourceId.startsWith('playground-composition:'))) return undefined
+  if (/\b(?:declared|a|the)\s{2,}/i.test(original)) return undefined
+  return compactWhitespace(original)
+}
+
+function metadataString(mapping: PromptReferenceMapping, key: string): string | undefined {
+  const value = mapping.typedMetadata?.[key]
+  return typeof value === 'string' && value ? value.replaceAll('_', ' ') : undefined
+}
+
+function mappingLabel(mapping: PromptReferenceMapping): string {
+  return `ref-${String(mapping.order + 1).padStart(2, '0')}`
+}
+
+function collectiveLabel(mappings: readonly PromptReferenceMapping[]): string {
+  if (mappings.length === 1) return mappingLabel(mappings[0])
+  return `${mappingLabel(mappings[0])} through ${mappingLabel(mappings[mappings.length - 1])}`
+}
+
+function referencePromptText(mapping: PromptReferenceMapping, label = mappingLabel(mapping), plural = false): string {
+  const verb = plural ? 'are' : 'is'
+  const each = plural ? 'For each, ' : ''
+  const category = metadataString(mapping, 'category')
+  const structure = metadataString(mapping, 'structure')
+  const accessoryType = metadataString(mapping, 'accessoryType')
+  const placement = metadataString(mapping, 'placement')
+  const side = metadataString(mapping, 'side')
+  switch (mapping.role) {
+    case 'person-identity':
+      return `${label} ${verb} the person reference${plural ? 's' : ''}. Preserve ${plural ? 'these people\'s' : "this person's"} face, identity, body, original pose, and original framing unless an approved instruction explicitly replaces one of them.`
+    case 'garment-top':
+      return `${label} ${verb} ${category ?? 'upper garment'} reference${plural ? 's' : ''}. ${each}replace only the upper garment and preserve the original lower garment and unrelated regions.`
+    case 'garment-bottom':
+      return `${label} ${verb} ${category ?? 'lower garment'} reference${plural ? 's' : ''}. ${each}replace only the lower garment and preserve the original upper garment and unrelated regions.`
+    case 'garment-full-body':
+      return `${label} ${verb} ${category ?? 'full-body garment'} reference${plural ? 's' : ''}${structure ? ` (${structure})` : ''}. ${each}replace the upper and lower clothing together as one coherent garment or outfit.`
+    case 'footwear-detail':
+      return `${label} ${verb} footwear reference${plural ? 's' : ''}. ${each}replace only the footwear and preserve all unrelated regions.`
+    case 'accessory-detail':
+      return `${label} ${verb} ${accessoryType ?? 'accessory'} reference${plural ? 's' : ''}. ${each}add only its accessory at the ${placement ?? 'declared placement'} on the ${side ?? 'declared'} side without changing unrelated regions.`
+    case 'fit-reference':
+      return `${label} ${verb} fit reference${plural ? 's' : ''}. ${each}apply only its fit, silhouette, drape, length, and waist-position cues to clothing that is being replaced.`
+    case 'pose':
+      return `${label} ${verb} pose reference${plural ? 's' : ''}. ${each}use only its body pose, orientation, hand positions, and action.`
+    case 'character-design':
+      return `${label} ${verb} character-design reference${plural ? 's' : ''}. ${each}reproduce its hairstyle, costume, visible accessories, and signature props as a real photograph, but never take the person's face or identity from it.`
+    case 'signature-prop-detail':
+      return `${label} ${verb} signature-prop detail reference${plural ? 's' : ''}. ${each}reproduce only its prop's defining shape, proportions, colors, material, and details.`
+    case 'critical-detail':
+      return `${label} ${verb} critical-detail reference${plural ? 's' : ''}. ${each}reproduce only its declared costume, pattern, or accessory detail where it belongs.`
+    default:
+      return `${label} ${verb} approved ${mapping.role.replaceAll('-', ' ')} reference${plural ? 's' : ''}. ${each}use it only for its authorized contribution.`
+  }
+}
+
+function groupedReferencePromptTexts(mappings: readonly PromptReferenceMapping[]): string[] {
+  const groups = new Map<string, PromptReferenceMapping[]>()
+  for (const mapping of mappings) {
+    const key = `${mapping.role}\u0000${JSON.stringify(mapping.typedMetadata ?? {})}`
+    const group = groups.get(key)
+    if (group) group.push(mapping)
+    else groups.set(key, [mapping])
+  }
+  return [...groups.values()].map((group) => referencePromptText(group[0], collectiveLabel(group), group.length > 1))
+}
+
+function prohibitedDomain(path: string): string {
+  if (path === 'person.identity' || path.startsWith('person.identity.')) return 'the person\'s face or identity'
+  if (path === 'pose' || path.startsWith('pose.')) return 'pose or action'
+  if (path === 'environment.background' || path.startsWith('environment.')) return 'background or environment'
+  if (path === 'style' || path.startsWith('style.')) return 'visual style'
+  if (path.startsWith('camera.') || path.startsWith('lighting.')) return 'camera, composition, or lighting'
+  if (path === 'wardrobe.upper' || path.startsWith('wardrobe.upper.')) return 'upper clothing'
+  if (path === 'wardrobe.lower' || path.startsWith('wardrobe.lower.')) return 'lower clothing'
+  if (path === 'wardrobe.fullBody' || path.startsWith('wardrobe.fullBody.')) return 'full-body clothing'
+  if (path === 'wardrobe.footwear' || path.startsWith('wardrobe.footwear.')) return 'footwear'
+  if (path.startsWith('wardrobe.fit.')) return 'clothing fit'
+  if (path.startsWith('wardrobe.accessories')) return 'other accessories'
+  if (path.startsWith('character.hair')) return 'character hair'
+  if (path.startsWith('character.costume')) return 'character costume'
+  if (path.startsWith('character.accessories')) return 'character accessories'
+  if (path.startsWith('character.signatureProps')) return 'signature props'
+  if (path.startsWith('character.criticalDetails')) return 'other character details'
+  return path.replaceAll('.', ' ')
+}
+
+function groupedProhibitionPromptTexts(mappings: readonly PromptReferenceMapping[]): string[] {
+  const groups = new Map<string, { mappings: PromptReferenceMapping[]; domains: string[] }>()
+  const hasDeclaredAccessory = mappings.some((mapping) => mapping.role === 'accessory-detail')
+  for (const mapping of mappings) {
+    const domains = distinctText((mapping.prohibitedTargetPaths ?? []).map(prohibitedDomain))
+    if (!domains.length) continue
+    const key = domains.join('\u0000')
+    const group = groups.get(key)
+    if (group) group.mappings.push(mapping)
+    else groups.set(key, { mappings: [mapping], domains })
+  }
+  return [...groups.values()].flatMap(({ mappings: group, domains }) => {
+    const removesOriginalAccessories = hasDeclaredAccessory
+      && group.some((mapping) => mapping.role === 'person-identity' && mapping.prohibitedTargetPaths?.some((path) => path.startsWith('wardrobe.accessories')))
+    const remainingDomains = removesOriginalAccessories ? domains.filter((domain) => domain !== 'other accessories') : domains
+    return [
+      ...(removesOriginalAccessories ? ['Remove all original accessories from the person reference, including the original handbag, shoulder bag, and jewelry. Add only the declared accessory references.'] : []),
+      ...(remainingDomains.length ? [`Do not let ${collectiveLabel(group)} supply or change ${remainingDomains.join(', ')}.`] : []),
+    ]
+  })
+}
+
+function outputPromptText(output: OutputContract): string {
+  const count = output.cardinality?.max ?? 1
+  const background = output.background === 'transparent' ? 'transparent' : 'opaque'
+  return `Return exactly ${count} ${background} image${count === 1 ? '' : 's'}.`
+}
+
+function compactProviderPrompt(request: ProviderRenderRequest): string {
+  const orderedSections = [...request.sections].sort((left, right) => left.order - right.order || compare(left.id, right.id))
+  const orderedMappings = [...request.referenceMappings].sort((left, right) => left.order - right.order || compare(left.id, right.id))
+  const mappedPrefixes = orderedMappings.map((mapping) => `Reference ${mapping.label} `)
+  const nonReferenceProhibitions = (request.forbidden ?? [])
+    .filter((item) => !mappedPrefixes.some((prefix) => item.text.startsWith(prefix)))
+    .map((item) => item.text)
+  const prompt = distinctText([
+    ...orderedSections.map(sectionPromptText).filter((text): text is string => text !== undefined),
+    ...groupedReferencePromptTexts(orderedMappings),
+    ...groupedProhibitionPromptTexts(orderedMappings),
+    ...nonReferenceProhibitions,
+    outputPromptText(request.output),
+  ]).join('\n')
+  if (prompt.length > PLAYGROUND_PROMPT_CHARACTER_BUDGET) throw new Error(`MATERIALIZER_PROMPT_BUDGET_EXCEEDED:${prompt.length}`)
+  return prompt
+}
+
 class AcceptedRequestMaterializer implements ProviderRequestMaterializer {
   readonly digest: string
 
@@ -127,6 +297,8 @@ class AcceptedRequestMaterializer implements ProviderRequestMaterializer {
       order: mapping.order,
       required: mapping.required,
       constraintIds: sorted(mapping.constraintIds),
+      authorizedTargetPaths: sorted(mapping.authorizedTargetPaths ?? []),
+      ...(mapping.typedMetadata === undefined ? {} : { typedMetadata: clone(mapping.typedMetadata) }),
       prohibitedTargetPaths: sorted(mapping.prohibitedTargetPaths ?? []),
       prohibitedTargetPathImportance: Object.fromEntries(Object.entries(mapping.prohibitedTargetPathImportance ?? {}).sort(([left], [right]) => compare(left, right))),
     }))
@@ -143,14 +315,10 @@ class AcceptedRequestMaterializer implements ProviderRequestMaterializer {
       output: clone(request.output),
       protocol: { count: 1, responseFormat: 'normalized' },
     }
-    // Both positive sections and accepted prohibitions are part of the
-    // Guard-approved request. Keep them in one deterministic provider prompt
-    // so a transport cannot accidentally send only the positive half.
-    const promptParts = [
-      ...sections.map((section) => section.content),
-      ...forbidden.map((item) => item.text),
-    ]
-    const native = { ...nativeBase, prompt: promptParts.join('\n') }
+    // Keep the complete accepted structures above for audit. The outbound
+    // provider text is a deterministic, provider-neutral semantic projection:
+    // duplicate path-level instructions are merged without inventing intent.
+    const native = { ...nativeBase, prompt: compactProviderPrompt(request) }
     const nativeRequest = clone(native)
     const traces: MaterializationTrace[] = []
     for (const section of sections) traces.push({ nativeInstructionId: `section:${section.id}`, sourceKind: 'accepted_section', sourceId: section.id, constraintIds: sorted(request.sections.find((item) => item.id === section.id)?.constraintIds ?? []) })

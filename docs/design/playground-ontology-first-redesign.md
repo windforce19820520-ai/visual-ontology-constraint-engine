@@ -2,11 +2,11 @@
 
 - **Project:** Visual Ontology & Constraint Engine (VOCE)
 - **Target baseline:** `main` at `b0b2538d124194af82ab84db8dbaec90ce5588ec`, public package line `0.1.0-rc.4`
-- **Status:** reviewed implementation proposal; documentation only
+- **Status:** implemented on the open PR #32 branch and verified locally on 2026-08-21; not merged, released, or publicly deployed
 - **Scope:** Playground compile and bounded-render architecture
 - **Authorization:** this document does not grant execution authority. A real Provider call, public deployment, paid resource creation, secret injection, tag, release, merge, or modification of the published `v0.1.0-rc.4` tag always requires the user's current explicit authorization.
 
-> **2026-08-20 product amendment:** [Playground Try-On, Cosplay Accessory, and Local Validation Amendment](playground-tryon-cosplay-input-amendment.md) supersedes this document's fixed four-reference Try-On model, Try-On composition selector, explicit `Separate top + bottom` mode, and untyped accessory-detail assumptions. The amendment is normative where the two documents differ.
+> **2026-08-20 product amendment:** [Playground Try-On Accessories, Cosplay Composition, and Local Validation Amendment](playground-tryon-cosplay-input-amendment.md) supersedes this document's fixed four-reference Try-On model, Try-On composition selector, explicit `Separate top + bottom` mode, and untyped accessory-detail assumptions. It places typed accessories in Virtual Try-On and the 30 composition presets in Cosplay. The amendment is normative where the two documents differ.
 
 ## 1. Purpose
 
@@ -384,7 +384,7 @@ The initial public roles are:
 | Role | Authorized target paths | Operation | Default importance |
 |---|---|---|---|
 | `person-identity` | `person.identity`, and any explicitly supported person-preservation descendants | `preserve` | hard/required |
-| `character-design` | `character.hair`, `character.makeup`, `character.costume`, `character.accessories` | `replace` | required |
+| `character-design` | `character.hair`, `character.costume`, `character.accessories` | `replace` | required |
 | `signature-prop-detail` | `character.signatureProps.primary` descendants supported by the vocabulary | `replace` | required/hard |
 | `pose` | `pose` | `adjust` | preferred |
 | `critical-detail` | a finite Server-resolved allow-list of current scenario paths | scenario-declared | required/preferred |
@@ -616,7 +616,7 @@ A mismatch returns `409 PLAN_BINDING_MISMATCH` and performs zero Provider calls.
 The approved initial selector order is:
 
 1. Cloudflare Workers AI `@cf/black-forest-labs/flux-2-klein-4b` — product default, free-quota, operator-managed credential;
-2. Seedream 4.0 — optional user-funded BYOK;
+2. Seedream 5.0 Pro (`doubao-seedream-5-0-pro-260628`) — optional user-funded BYOK and the model used by the RC.3/RC.4 real-provider acceptance;
 3. Grok Imagine image quality — optional user-funded BYOK.
 
 Mock remains a development/test Provider and is hidden from the ordinary product selector. Cloudflare's official profile supports multipart generation/editing with at most four ordered binary inputs, each smaller than 512×512, output width and height from 256–1920, and a fixed four-step distilled model. Workers AI currently provides 10,000 free Neurons per day and resets the allocation at 00:00 UTC. The Host must enforce a disclosed cap at or below the free allocation and fail closed when exhausted; it may never silently continue on paid overage, switch Provider, or ask the user for a Cloudflare key.

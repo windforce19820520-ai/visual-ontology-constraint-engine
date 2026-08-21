@@ -75,7 +75,7 @@ const COMPOSITION_GLOSSES = {
   'centered-symmetry': 'Use a centered, bilaterally balanced composition.',
   'leading-lines': 'Use visible scene geometry such as rails, paths, or architecture as leading lines toward the character.',
   'diagonal-composition': 'Use strong diagonal visual flow through the character, weapon, or scene geometry.',
-  'reflection-composition': 'Include a clearly readable reflection on the declared reflective surface.',
+  'reflection-composition': 'Look across calm foreground water toward the cosplayer on the dry far bank; keep the shoreline below both feet and align the readable water reflection directly below the cosplayer.',
   'telephoto-compression': 'Use a telephoto-compressed perspective with reduced apparent depth spacing.',
   'environmental-portrait': 'Create an environmental portrait in which the character and surrounding location both contribute to the image.',
 }
@@ -234,15 +234,15 @@ function compositionDefinitions() {
     {
       id: 'rc4-water-reflection-telephoto-long-shot',
       title: 'RC.4 water reflection telephoto long shot',
-      sceneDescription: 'Place the cosplayer at a calm lakeside where the subject and costume produce a readable reflection in the water. Use an opaque photorealistic scene with distant shoreline layers suitable for compressed perspective.',
+      sceneDescription: 'Look across calm foreground water toward the cosplayer standing on the dry far bank. Keep the shoreline below both feet and align the readable reflection directly below the cosplayer. Use an opaque photorealistic scene with distant shoreline layers suitable for compressed perspective.',
       selections: [
         { presetId: 'long-shot', importance: 'required' },
-        { presetId: 'reflection-composition', inputs: { surface: 'water' } },
+        { presetId: 'reflection-composition' },
         { presetId: 'telephoto-compression' },
         { presetId: 'centered-symmetry' },
       ],
       expectedExcludedPresetIds: [],
-      acceptanceCriteria: ['long shot with environment visible', 'water reflection readable', 'telephoto-compressed depth', 'centered symmetry', 'character and costume identifiable', 'signature weapon visible'],
+      acceptanceCriteria: ['long shot with environment visible', 'dry far-bank shoreline below both feet', 'water reflection aligned below person', 'telephoto-compressed depth', 'centered symmetry', 'character and costume identifiable', 'signature weapon visible'],
     },
   ]
   return cases.map((definition) => {

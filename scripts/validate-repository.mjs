@@ -109,6 +109,8 @@ const requiredContractSchemas = [
   'packages/contracts/schemas/ExplainResult.schema.json',
   'packages/contracts/schemas/SemanticDiff.schema.json',
   'packages/contracts/schemas/PromptSection.schema.json',
+  'packages/contracts/schemas/DeclarativeInputPolicyContribution.schema.json',
+  'packages/contracts/schemas/DeclarativeInterpretationScopeContribution.schema.json',
   'packages/contracts/schemas/OntologyPathDefinition.schema.json',
   'packages/contracts/schemas/OntologyVocabularyContribution.schema.json',
   'packages/contracts/schemas/ResolvedOntologyVocabularyContribution.schema.json',
@@ -286,7 +288,7 @@ for (const [file, expectedVersion] of [['fixtures/m5-prompt-ir-minimal.json', 'v
 }
 
 const visualComposition = JSON.parse(await readFile(new URL('../fixtures/shared/visual-composition.v1.json', import.meta.url), 'utf8'))
-if (visualComposition.schemaVersion !== 'voce.visual-composition/v1alpha1' || visualComposition.paths?.length !== 29 || visualComposition.presets?.length !== 30 || !/^sha256:[0-9a-f]{64}$/.test(visualComposition.catalogHash ?? '')) throw new Error('VISUAL_COMPOSITION_CATALOG_SHAPE_INVALID')
+if (visualComposition.schemaVersion !== 'voce.visual-composition/v1alpha1' || visualComposition.paths?.length !== 37 || visualComposition.presets?.length !== 30 || !/^sha256:[0-9a-f]{64}$/.test(visualComposition.catalogHash ?? '')) throw new Error('VISUAL_COMPOSITION_CATALOG_SHAPE_INVALID')
 const compositionArtworkDirectory = new URL('../docs/assets/visual-composition/', import.meta.url)
 const compositionArtwork = (await readdir(compositionArtworkDirectory, { withFileTypes: true }))
   .filter((entry) => entry.isFile() && entry.name.endsWith('.jpg'))
@@ -507,6 +509,8 @@ if (
 const sharedScenarioPackIdentifiers = [
   'ScenarioPack',
   'ScenarioPackManifest',
+  'DeclarativeInputPolicyContribution',
+  'DeclarativeInterpretationScopeContribution',
   'DistributionInventoryEntry',
   'ScenarioPackRequest',
   'ScenarioPackDependency',
@@ -546,6 +550,8 @@ const sharedScenarioPackIdentifiers = [
 
 const requiredScenarioPackTypeDeclarations = [
   'AppliedOverrideRef',
+  'DeclarativeInputPolicyContribution',
+  'DeclarativeInterpretationScopeContribution',
   'DistributionInventoryEntry',
   'EffectiveScenario',
   'FixtureSuite',

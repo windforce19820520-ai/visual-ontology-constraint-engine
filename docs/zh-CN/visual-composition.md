@@ -38,6 +38,7 @@ const cards = VISUAL_COMPOSITION_CATALOG.presets.map((preset) => ({
   id: preset.id,
   category: preset.category,
   requiredInputs: preset.requiredInputs ?? [],
+  optionalInputs: preset.optionalInputs ?? [],
   compatibilityHints: preset.compatibilityHints ?? [],
 }))
 
@@ -73,10 +74,17 @@ const compilation = compileConstraints({
 | `dutch-angle` | `direction` | `left`、`right` | `{ direction: 'right' }` |
 | `leading-room` | `direction` | `left`、`right`、`forward`、`up`、`down` | `{ direction: 'right' }` |
 | `negative-space` | `direction` | `left`、`right`、`above`、`below`、`surrounding` | `{ direction: 'right' }` |
-| `reflection-composition` | `surface` | `mirror`、`glass`、`water`、`screen`、`polished_surface` | `{ surface: 'water' }` |
 | `profile-silhouette` | 可选 `silhouette` | `true` 会增加 `lighting.subjectRendering = silhouette` | `{ silhouette: true }` |
 
-其他预设不需要 `inputs`。`compatibilityHints` 是给宿主和审核流程的适配提示，不会自动往场景里塞入额外内容。
+其他预设不需要 `inputs`。`reflection-composition` 是固定的“水面反射”预设：固定选择水面，不再提供反射材质选择。`compatibilityHints` 是给宿主和审核流程的适配提示。
+
+依赖实体场景结构才能成立的预设同时包含首选的 `environment.background` 兜底和 `camera.composition.subjectEnvironmentPlacement` 人物—环境关系。背景兜底仅在没有获批背景参考图或用户明确背景时使用；空间关系始终说明人物、相机、地面、前景、门洞、镜面或透视走廊怎样连接。水面反射要求相机隔着前景水面拍向站在干燥远岸的人物，岸线就在双脚下方，倒影在同一画面纵轴上位于人物正下方；允许只显示部分倒影。镜面构图要求人物站在镜前地面，并由一个合理斜向机位同时看到真人和镜内面孔；框中框要求人物位于一个门洞或拱门之后并完整处于开口内部。远景、鸟瞰、过肩、居中对称、引导线、对角线、S 形、负空间、前景遮挡、侧脸剪影、长焦压缩和环境肖像也分别声明相应的物理空间关系。纯景别、机位角度、三分法、前方留白和人物姿态布局不会强制背景。
+
+## 真正送给模型的构图语义
+
+Constraint IR 仍保留强类型路径和值供审计，但 Prompt IR 会把每条构图约束确定性地渲染成图像模型能理解的英文。`camera.composition.*`、`value=` 这类内部字段不再直接充当模型提示词。30 个预设都有具体、可观察的验收说明，回归测试会逐个独立编译。
+
+容易产生歧义的构图已补强：极特写固定聚焦单眼；过肩镜头由匿名前景肩部框住后方的已声明人物，不能复制人物；三分法按示例固定人物在右侧三分线；三角构图由单个人物姿态形成，不能凭空加人；普通倒影与镜像都要求人物、动作、手部、道具、服饰、发型和配饰在同一时刻保持物理一致。镜像构图还要求镜子是主要构图元素、镜中清楚看到人物正脸，只允许正确的左右反转，不能出现另一个动作或只显示后脑。
 
 ## 如果以后允许用户上传“构图参考图”
 
@@ -96,14 +104,14 @@ const compilation = compileConstraints({
 
 <table>
 <tr><td><img src="../assets/visual-composition/low-angle.jpg" alt="低角度示例" width="420"><br><code>low-angle</code>（低角度）：镜头从下往上看。</td><td><img src="../assets/visual-composition/high-angle.jpg" alt="高角度示例" width="420"><br><code>high-angle</code>（高角度）：镜头从斜上方向下看。</td></tr>
-<tr><td><img src="../assets/visual-composition/birds-eye-view.jpg" alt="鸟瞰示例" width="420"><br><code>birds-eye-view</code>（鸟瞰）：接近垂直的顶视角。</td><td><img src="../assets/visual-composition/over-the-shoulder.jpg" alt="过肩镜头示例" width="420"><br><code>over-the-shoulder</code>（过肩镜头）：前景肩部引导视线看向另一主体。</td></tr>
+<tr><td><img src="../assets/visual-composition/birds-eye-view.jpg" alt="鸟瞰示例" width="420"><br><code>birds-eye-view</code>（鸟瞰）：接近垂直的顶视角。</td><td><img src="../assets/visual-composition/over-the-shoulder.jpg" alt="过肩镜头示例" width="420"><br><code>over-the-shoulder</code>（过肩镜头）：匿名前景肩部框住后方清楚可见的已声明人物。</td></tr>
 <tr><td><img src="../assets/visual-composition/dutch-angle.jpg" alt="荷兰角示例" width="420"><br><code>dutch-angle</code>（荷兰角）：明确向左或向右倾斜画面。</td><td><img src="../assets/visual-composition/profile-silhouette.jpg" alt="侧脸剪影示例" width="420"><br><code>profile-silhouette</code>（侧脸/剪影）：突出侧脸轮廓，可选剪影渲染。</td></tr>
 </table>
 
 ## 画面布局
 
 <table>
-<tr><td><img src="../assets/visual-composition/centered-symmetry.jpg" alt="居中对称示例" width="420"><br><code>centered-symmetry</code>（居中对称）：稳定中轴和左右平衡。</td><td><img src="../assets/visual-composition/rule-of-thirds.jpg" alt="三分法示例" width="420"><br><code>rule-of-thirds</code>（三分法）：人物落在三分线或交点。</td></tr>
+<tr><td><img src="../assets/visual-composition/centered-symmetry.jpg" alt="居中对称示例" width="420"><br><code>centered-symmetry</code>（居中对称）：稳定中轴和左右平衡。</td><td><img src="../assets/visual-composition/rule-of-thirds.jpg" alt="三分法示例" width="420"><br><code>rule-of-thirds</code>（三分法）：人物落在右侧三分线或交点，左侧保留环境。</td></tr>
 <tr><td><img src="../assets/visual-composition/leading-lines.jpg" alt="引导线示例" width="420"><br><code>leading-lines</code>（引导线）：道路、栏杆等线条把视线引向主体。</td><td><img src="../assets/visual-composition/leading-room.jpg" alt="前方留白示例" width="420"><br><code>leading-room</code>（前方留白）：在视线或运动方向保留空间。</td></tr>
 <tr><td><img src="../assets/visual-composition/diagonal-composition.jpg" alt="对角线构图示例" width="420"><br><code>diagonal-composition</code>（对角线构图）：用受控斜线增强方向感。</td><td><img src="../assets/visual-composition/s-curve-composition.jpg" alt="S 形构图示例" width="420"><br><code>s-curve-composition</code>（S 形构图）：弯曲路径形成流动感。</td></tr>
 <tr><td><img src="../assets/visual-composition/triangle-composition.jpg" alt="三角构图示例" width="420"><br><code>triangle-composition</code>（三角构图）：人物或元素形成稳定三角形。</td><td><img src="../assets/visual-composition/negative-space.jpg" alt="负空间示例" width="420"><br><code>negative-space</code>（负空间）：用大片留白包围或偏置主体。</td></tr>
@@ -113,7 +121,7 @@ const compilation = compileConstraints({
 
 <table>
 <tr><td><img src="../assets/visual-composition/frame-within-frame.jpg" alt="框中框示例" width="420"><br><code>frame-within-frame</code>（框中框）：门、窗、栏杆等形成内部画框。</td><td><img src="../assets/visual-composition/foreground-obstruction.jpg" alt="前景遮挡示例" width="420"><br><code>foreground-obstruction</code>（前景遮挡）：柔化前景制造层次和代入感。</td></tr>
-<tr><td><img src="../assets/visual-composition/reflection-composition.jpg" alt="倒影构图示例" width="420"><br><code>reflection-composition</code>（倒影构图）：由指定表面承载人物倒影。</td><td><img src="../assets/visual-composition/mirror-composition.jpg" alt="镜中窥视示例" width="420"><br><code>mirror-composition</code>（镜中窥视）：通过镜面组织主体和观察者视角。</td></tr>
+<tr><td><img src="../assets/visual-composition/reflection-composition.jpg" alt="水面反射示例" width="420"><br><code>reflection-composition</code>（水面反射）：相机隔着前景水面拍向干燥远岸人物，倒影在人物正下方对齐。</td><td><img src="../assets/visual-composition/mirror-composition.jpg" alt="镜中窥视示例" width="420"><br><code>mirror-composition</code>（镜中窥视）：镜外只保留轻微虚化的背部和肩部作为前景，华丽落地镜中的清晰正脸倒影是主要主体，环境采用深色布景和暖金灯光。</td></tr>
 <tr><td><img src="../assets/visual-composition/telephoto-compression.jpg" alt="长焦压缩示例" width="420"><br><code>telephoto-compression</code>（长焦压缩）：远处层次看起来被拉近、堆叠。</td><td><img src="../assets/visual-composition/environmental-portrait.jpg" alt="环境肖像示例" width="420"><br><code>environmental-portrait</code>（环境肖像）：人物和环境共同讲述身份与场景。</td></tr>
 </table>
 

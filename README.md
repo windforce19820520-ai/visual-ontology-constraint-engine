@@ -21,6 +21,19 @@ Each card below pairs the bundled selection artwork with the exact stable `prese
 
 Full guides: [English](docs/visual-composition.md) · [简体中文](docs/zh-CN/visual-composition.md)
 
+## Try the source Playground
+
+The current source branch under review in PR [#32](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/pull/32) includes an experimental standalone Playground Host. It is not part of the published `v0.1.0-rc.4` npm packages and is not a public deployment or production-readiness claim.
+
+The Playground provides two distinct workflows:
+
+- **Virtual Try-On:** upload one person plus either one full outfit or a Top, a Bottom, or both. Footwear, fit, pose, and typed accessories are optional. Try-On preserves unselected clothing regions and does not expose the 30 composition presets.
+- **Cosplay:** upload the person and character design, optionally add a signature prop, pose, or critical detail, and choose from the complete 30-preset gallery with example artwork.
+
+Cloudflare Workers AI FLUX.2 klein 4B is the default free quick-preview profile. It accepts at most four references and every input must be strictly smaller than 512×512. Exact face identity, small accessory details, complete feet/framing, and complex spatial composition can be less reliable than Seedream or Grok; the UI states these limits before a call. Cloudflare credentials are deployment-managed and never entered in the Browser. Seedream 5.0 Pro and Grok Imagine remain optional BYOK choices, subject to their declared reference limits and availability.
+
+After installing and building the workspace, run `node playground/dist/server-entry.js` and open `http://127.0.0.1:4173/playground`. Rendering is disabled unless the Host explicitly enables an approved transport. See the [Playground usage and security guide](playground/README.md), [Try-On/Cosplay product amendment](docs/design/playground-tryon-cosplay-input-amendment.md), and [Provider capability report](docs/implementation-notes/playground-provider-capability-report.md).
+
 ## What works today
 
 [`v0.1.0-rc.4`](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/releases/tag/v0.1.0-rc.4) is the current release candidate. Its public packages expose all 30 visual-composition presets, and a clean packed consumer verifies the catalog through both Core and `voce doctor --json`. Three separately authorized Seedream calls exercised conflict resolution, prompt generation, and representative composition combinations; all three transport calls succeeded, while subjective image quality remains non-blocking evidence. See the [RC.4 acceptance report](docs/acceptance/v0.1.0-rc.4.md).
@@ -109,7 +122,7 @@ Removing an earring from the result is different from ignoring one image as its 
 The repository currently includes data-only ScenarioPack fixtures and vertical cases for three initial domains:
 
 - commercial virtual try-on visualization;
-- cosplay identity, costume, makeup, mask, and prop planning;
+- cosplay identity, face and existing-makeup preservation, character hair, costume, mask, and prop planning;
 - product-only shots used as a regression case to prevent person-only assumptions.
 
 These scenarios remain outside Core and use the same explicit `ScenarioPackRegistry`, resolution, validation, fixture, and activation path intended for first-party and third-party packs. Core never imports a scenario package or branches on a scenario ID. The fixtures are not independently published domain products, and installing a package does not activate it, authorize a remote call, select a provider, or create cost.

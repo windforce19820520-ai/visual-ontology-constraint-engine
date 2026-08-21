@@ -1,7 +1,8 @@
-# Playground 换衣、Cosplay 配饰与本机验收：增量开发任务书
+# Playground 换衣配饰、Cosplay 构图与本机验收：增量开发任务书
 
 - **日期：** 2026-08-20
 - **目标：** 修正当前 Playground PR #32 的产品交互与语义合同
+- **状态：** 已在开放的 PR #32 分支实现，并于 2026-08-21 完成本机产品验收；尚未合并、发布或公网部署
 - **配套设计：** `docs/design/playground-tryon-cosplay-input-amendment.md`
 - **范围：** 只开发本任务书列出的新增和修正内容；不得顺手重构已经审查通过的 Provider、BYOK、Prompt Guard、引用绑定、预算、安全或构图实现
 - **非授权事项：** 本任务不授权真实 Provider/ImageGen 调用、生产部署、凭据注入、PR 合并、tag 或 release
@@ -18,7 +19,7 @@
 
 ### 1.2 删除 `Separate top + bottom` 选择
 
-Try-On UI 固定显示三个衣物入口：
+Try-On 数据合同保留三个衣物入口，页面以两个互斥的视觉路径呈现：
 
 ```text
 Full-body garment
@@ -31,14 +32,14 @@ Bottom
 - `person-identity` 必填且只能一张；
 - Full-body、Top、Bottom 至少上传一个；
 - Top 和 Bottom 可各自上传，两个都有就自动表示同时替换上衣和下装；
-- 不存在 `Separate top + bottom` mode、按钮、枚举或额外角色；
+- 页面可以用 `One full outfit` / `Top / Bottom` 做互斥展示，但它只是 UI 状态，不得新增 `Separate top + bottom` 枚举、角色或编译语义；
 - Full-body 与 Top/Bottom 互斥；
-- Full-body 上传后必须选择 `one_piece` 或 `complete_outfit`；
-- 每个衣物槽都必须从 ScenarioPack 返回的 allow-list 选择服装类别，不能让 Browser 提交任意类别或让模型静默猜测；
+- Browser 不再要求选择服装类别或 full-body structure；上传槽本身已经声明 replacement region；
+- API 调用方仍可选填 ScenarioPack allow-list 内的 category/structure；未填写时不得让模型推断结果变成本体事实；
 - Fit、Footwear、Pose 全部选填；
 - 未上传 Footwear 时保留原鞋；未上传的衣物区域必须从人物图保留。
 
-### 1.3 Cosplay 配饰必须声明类型和佩戴位置
+### 1.3 Virtual Try-On 配饰必须声明类型和佩戴位置
 
 新增可重复的 `accessory-detail`：
 
@@ -152,7 +153,7 @@ fullBody = dress | jumpsuit | robe | complete_outfit | other_full_body
 
 旧 pack/version 可继续使用粗粒度路径；新版不能把 `wardrobe.garment` 和细分路径同时激活。禁止把旧 `garment-detail` 静默迁移到 upper、lower 或 full-body。
 
-### 2.3 Cosplay 配饰本体
+### 2.3 Virtual Try-On 配饰本体
 
 使用可稳定寻址的 accessory item 表达：
 
@@ -174,16 +175,16 @@ Virtual Try-On：
 - person 始终必填；
 - full-body/top/bottom 形成 at-least-one 与互斥组；
 - 根据实际上传组合派生 replace/preserve scopes；
-- 每个衣物槽的 typed category，以及 full-body structure，进入 ChangeIntent/Constraint/Prompt；
-- fit/footwear/pose optional 且 scope 隔离；
+- 调用方明确提供的 typed category/full-body structure 才进入 ChangeIntent/Constraint/Prompt；Browser 未提供时保持未知，不编造类别；
+- fit/footwear/pose/accessory optional 且 scope 隔离；
+- `accessory-detail` repeatable，type/placement/side 条件校验，且无配饰引用时保留人物原图中的配饰；
 - Try-On composition capability 关闭。
 
 Cosplay：
 
 - composition capability 开启并暴露 30 presets；
-- `accessory-detail` repeatable；
-- accessory type/placement/side 条件校验；
-- accessory reference 与 character-design、signature-prop、pose 分离。
+- 不提供独立 `accessory-detail` 上传角色；
+- character-design 仍可整体表达角色原有服装与配饰，signature-prop、pose、critical-detail 保持各自隔离。
 
 主要候选文件：
 
@@ -219,7 +220,7 @@ Footwear、Pose 出现时分别把对应 scope 从 preserve 改为 replace/adjus
 
 - 每个 reference mapping 保留 role、typed metadata、authorized paths、prohibited paths 和稳定 order；
 - accepted prompt 必须明确未替换区域的 preserve 要求；
-- accessory prompt 必须明确 type、placement、side；
+- accessory prompt 必须明确 type、placement、side；只要声明了 replacement accessory，还必须明确删除人物原图中的全部原配饰（包括 handbag、shoulder bag 与 jewelry），并且只添加声明的配饰引用；
 - Provider adapter 只能机械映射已接受语义；
 - Provider 支持 mask 时可以映射上衣/下装/鞋履区域，但不能自行发明目标；
 - 不支持 mask 时 UI 标明 unchanged-region preservation 为 best effort；
@@ -247,11 +248,13 @@ packages/core/src/m5.ts
 
 - 页面保持全英文；
 - Try-On 不出现构图控件和 30 张示例图；
-- Full-body/Top/Bottom 按本任务书规则显示 required/optional 和互斥状态；
-- 不显示 `Separate top + bottom`；
-- Cosplay 显示 30 构图卡和可重复 accessory controls；
+- Full-body 与 Top/Bottom 以两个清晰的互斥视觉路径展示；切换路径会清除冲突输入；
+- `Top / Bottom` 只是 UI 分组，不新增 `Separate top + bottom` 数据模式；
+- 不显示服装 category/structure 下拉框；配饰的 type/placement/side 仍保留，因为这些信息决定身体位置和约束；
+- Try-On 显示可重复 accessory controls，但不显示构图；
+- Cosplay 显示 30 构图卡，但不显示独立 accessory controls；
 - 普通结果显示人话，例如 `Replace the top. Keep the original bottom and shoes.`；
-- ontology path、raw code 和内部错误进入折叠的 `Developer details`；
+- ontology path、raw code、内部错误和原始 JSON 进入单一折叠的 `Developer details`；普通结果使用摘要与验收卡片；
 - Provider 选择旁显示已用/总 reference slots，超过时在 Generate 前阻断。
 
 ### 5.2 Server
@@ -318,11 +321,12 @@ and security behavior except for the smallest changes required by the amendment.
 Virtual Try-On must remove composition controls, infer replacement scope from
 the independent Full-body/Top/Bottom upload slots, require at least one garment,
 and reject Full-body mixed with Top/Bottom. There is no Separate top + bottom
-mode. Fit, Footwear, and Pose are optional.
+mode. Fit, Footwear, Pose, and typed Accessories are optional. Accessory-detail
+references belong only to Virtual Try-On and preserve original accessories when absent.
 
-Cosplay retains all 30 composition presets and adds repeatable accessory-detail
-references with allow-listed type, placement, and side metadata. No Browser
-ontology paths or raw Provider prompts are allowed.
+Cosplay retains all 30 composition presets and does not expose the dedicated
+accessory-detail uploader. No Browser ontology paths or raw Provider prompts are
+allowed.
 
 Add a loopback-only, feature-flagged validation package export containing the
 exact Guard-accepted final prompt and ordered references. Do not add an ImageGen

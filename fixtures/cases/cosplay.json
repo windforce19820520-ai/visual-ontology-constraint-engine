@@ -4,6 +4,6 @@
   "revision": 1,
   "fixtureId": "case-cosplay-001",
   "mode": "manual",
-  "userIntent": "Preserve identity while evaluating costume, wig, makeup, and prop constraints with explicit conflict handling.",
+  "userIntent": "Preserve identity, eye color, and existing makeup while evaluating costume, wig, and prop constraints with explicit conflict handling.",
   "requestedOutput": { "artifactKind": "image", "dataType": "image", "mediaTypes": ["image/png"], "cardinality": { "min": 1, "max": 1 }, "background": "opaque", "allowAlpha": false }
 }

@@ -35,7 +35,7 @@ test('CLI doctor exposes the stable visual-composition catalog summary', () => {
   assert.deepEqual(doctor.json?.visualComposition, {
     catalogId: 'visual-composition.v1',
     catalogHash: computeVisualCompositionCatalogHash(),
-    pathCount: 29,
+    pathCount: 37,
     presetCount: 30,
   })
 })

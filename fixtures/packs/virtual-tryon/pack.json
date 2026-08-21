@@ -4,54 +4,714 @@
   "version": "0.1.0",
   "kind": "root",
   "scenarioLabel": "virtual try-on offline fixture",
-  "declarations": { "mayHandlePersonImages": true, "rightsDisclosureRequired": true },
+  "declarations": {
+    "mayHandlePersonImages": true,
+    "rightsDisclosureRequired": true
+  },
   "contributions": {
-    "ontologyVocabulary": [{ "id": "visual-composition.ontology", "paths": [
-      { "path": "camera.framing.shotScale", "valueKind": "enum", "cardinality": "one", "allowedValues": ["extreme_close_up", "close_up", "head_and_shoulders", "bust_shot", "medium_close_up", "medium_shot", "knee_shot", "full_shot", "long_shot", "extreme_long_shot"], "defaultImportance": "preferred" },
-      { "path": "camera.framing.crop.keepHead", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.framing.crop.keepHands", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.framing.crop.keepBothFeet", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.framing.crop.keepProduct", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.framing.crop.keepSignatureProp", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-      { "path": "camera.view.elevation", "valueKind": "enum", "cardinality": "one", "allowedValues": ["eye_level", "low_angle", "high_angle", "birds_eye"], "defaultImportance": "preferred" }, { "path": "camera.view.relationship", "valueKind": "enum", "cardinality": "one", "allowedValues": ["front", "three_quarter", "profile", "rear", "over_the_shoulder"], "defaultImportance": "preferred" }, { "path": "camera.roll.mode", "valueKind": "enum", "cardinality": "one", "allowedValues": ["level", "dutch_left", "dutch_right"], "defaultImportance": "preferred" }, { "path": "camera.lens.focalLengthClass", "valueKind": "enum", "cardinality": "one", "allowedValues": ["ultra_wide", "wide", "normal", "telephoto", "super_telephoto"], "defaultImportance": "preferred" }, { "path": "camera.lens.perspective", "valueKind": "enum", "cardinality": "one", "allowedValues": ["expanded", "natural", "compressed"], "defaultImportance": "preferred" },
-      { "path": "camera.composition.patterns.centeredSymmetry", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.patterns.ruleOfThirds", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.patterns.leadingLines", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.patterns.diagonal", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.patterns.sCurve", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.patterns.triangle", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" },
-      { "path": "camera.composition.placement", "valueKind": "enum", "cardinality": "one", "allowedValues": ["center", "left_third", "right_third", "upper_third", "lower_third"], "defaultImportance": "preferred" }, { "path": "camera.composition.negativeSpace", "valueKind": "enum", "cardinality": "one", "allowedValues": ["none", "left", "right", "above", "below", "surrounding"], "defaultImportance": "preferred" }, { "path": "camera.composition.leadingRoom.enabled", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.leadingRoom.direction", "valueKind": "enum", "cardinality": "one", "allowedValues": ["left", "right", "forward", "up", "down"], "defaultImportance": "preferred" },
-      { "path": "camera.composition.foregroundTreatment", "valueKind": "enum", "cardinality": "one", "allowedValues": ["clear", "soft_obstruction", "strong_obstruction"], "defaultImportance": "preferred" }, { "path": "camera.composition.framingDevices.frameWithinFrame", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.framingDevices.environmentalPortrait", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.reflection.enabled", "valueKind": "boolean", "cardinality": "one", "defaultImportance": "preferred" }, { "path": "camera.composition.reflection.surface", "valueKind": "enum", "cardinality": "one", "allowedValues": ["mirror", "glass", "water", "screen", "polished_surface"], "defaultImportance": "preferred" }, { "path": "camera.composition.reflection.role", "valueKind": "enum", "cardinality": "one", "allowedValues": ["supporting", "co_primary", "primary"], "defaultImportance": "preferred" }, { "path": "camera.composition.environmentRelationship", "valueKind": "enum", "cardinality": "one", "allowedValues": ["isolated", "contextual", "environment_dominant"], "defaultImportance": "preferred" }, { "path": "lighting.subjectRendering", "valueKind": "enum", "cardinality": "one", "allowedValues": ["natural", "silhouette"], "defaultImportance": "preferred" }
-    ] }],
-    "promptSections": [{ "id": "visual-composition.prompt-policy", "sections": [
-      { "id": "subject-and-product-fidelity", "group": "subject-and-product-fidelity", "order": 1, "pathPrefixes": ["person", "product", "wardrobe"], "templateKey": "composition.subject-and-product-fidelity" }, { "id": "pose-and-object-relations", "group": "pose-and-object-relations", "order": 2, "pathPrefixes": ["pose", "prop", "object"], "templateKey": "composition.pose-and-object-relations" }, { "id": "composition-shot-and-crop", "group": "composition-shot-and-crop", "order": 3, "pathPrefixes": ["camera.framing"], "templateKey": "composition.composition-shot-and-crop" }, { "id": "composition-view-and-roll", "group": "composition-view-and-roll", "order": 4, "pathPrefixes": ["camera.view", "camera.roll"], "templateKey": "composition.composition-view-and-roll" }, { "id": "composition-layout-and-space", "group": "composition-layout-and-space", "order": 5, "pathPrefixes": ["camera.composition.patterns", "camera.composition.placement", "camera.composition.negativeSpace", "camera.composition.leadingRoom"], "templateKey": "composition.composition-layout-and-space" }, { "id": "composition-depth-framing-and-reflection", "group": "composition-depth-framing-and-reflection", "order": 6, "pathPrefixes": ["camera.composition.foregroundTreatment", "camera.composition.framingDevices", "camera.composition.reflection"], "templateKey": "composition.composition-depth-framing-and-reflection" }, { "id": "composition-lens-and-environment", "group": "composition-lens-and-environment", "order": 7, "pathPrefixes": ["camera.lens", "camera.composition.environmentRelationship"], "templateKey": "composition.composition-lens-and-environment" }, { "id": "forbidden-and-output", "group": "forbidden-and-output", "order": 8, "pathPrefixes": ["output"], "templateKey": "composition.forbidden-and-output" }
-    ] }],
+    "ontologyVocabulary": [
+      {
+        "id": "visual-composition.ontology",
+        "paths": [
+          {
+            "path": "camera.framing.shotScale",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "extreme_close_up",
+              "close_up",
+              "head_and_shoulders",
+              "bust_shot",
+              "medium_close_up",
+              "medium_shot",
+              "knee_shot",
+              "full_shot",
+              "long_shot",
+              "extreme_long_shot"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.framing.focusTarget",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "eye",
+              "face_detail",
+              "costume_detail",
+              "prop_detail"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.framing.crop.keepHead",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.framing.crop.keepHands",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.framing.crop.keepBothFeet",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.framing.crop.keepProduct",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.framing.crop.keepSignatureProp",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.view.elevation",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "eye_level",
+              "low_angle",
+              "high_angle",
+              "birds_eye"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.view.relationship",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "front",
+              "three_quarter",
+              "profile",
+              "rear",
+              "over_the_shoulder"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.overShoulder.targetRole",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "declared_subject",
+              "secondary_subject",
+              "environment_or_object"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.roll.mode",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "level",
+              "dutch_left",
+              "dutch_right"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.lens.focalLengthClass",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "ultra_wide",
+              "wide",
+              "normal",
+              "telephoto",
+              "super_telephoto"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.lens.perspective",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "expanded",
+              "natural",
+              "compressed"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.patterns.centeredSymmetry",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.patterns.ruleOfThirds",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.patterns.leadingLines",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.patterns.diagonal",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.patterns.sCurve",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.patterns.triangle",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.patterns.triangleSource",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "subject_pose",
+              "subject_and_prop",
+              "environment"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.placement",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "center",
+              "left_third",
+              "right_third",
+              "upper_third",
+              "lower_third"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.negativeSpace",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "none",
+              "left",
+              "right",
+              "above",
+              "below",
+              "surrounding"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.leadingRoom.enabled",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.leadingRoom.direction",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "left",
+              "right",
+              "forward",
+              "up",
+              "down"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.foregroundTreatment",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "clear",
+              "soft_obstruction",
+              "strong_obstruction"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.framingDevices.frameWithinFrame",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.framingDevices.environmentalPortrait",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.reflection.enabled",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.reflection.surface",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "mirror",
+              "glass",
+              "water",
+              "screen",
+              "polished_surface"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.reflection.role",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "supporting",
+              "co_primary",
+              "primary"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.reflection.physicalConsistency",
+            "valueKind": "boolean",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.reflection.presentation",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "surface_reflection",
+              "face_visible_in_mirror"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.reflection.subjectSurfaceRelationship",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "on_dry_shore_beside_water",
+              "in_water",
+              "above_water",
+              "on_reflective_surface"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.environmentRelationship",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "isolated",
+              "contextual",
+              "environment_dominant"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "camera.composition.subjectEnvironmentPlacement",
+            "valueKind": "string",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "lighting.subjectRendering",
+            "valueKind": "enum",
+            "cardinality": "one",
+            "allowedValues": [
+              "natural",
+              "silhouette"
+            ],
+            "defaultImportance": "preferred"
+          },
+          {
+            "path": "environment.background",
+            "valueKind": "string",
+            "cardinality": "one",
+            "defaultImportance": "preferred"
+          }
+        ]
+      }
+    ],
+    "promptSections": [
+      {
+        "id": "visual-composition.prompt-policy",
+        "sections": [
+          {
+            "id": "subject-and-product-fidelity",
+            "group": "subject-and-product-fidelity",
+            "order": 1,
+            "pathPrefixes": [
+              "person",
+              "product",
+              "wardrobe"
+            ],
+            "templateKey": "composition.subject-and-product-fidelity"
+          },
+          {
+            "id": "pose-and-object-relations",
+            "group": "pose-and-object-relations",
+            "order": 2,
+            "pathPrefixes": [
+              "pose",
+              "prop",
+              "object"
+            ],
+            "templateKey": "composition.pose-and-object-relations"
+          },
+          {
+            "id": "composition-shot-and-crop",
+            "group": "composition-shot-and-crop",
+            "order": 3,
+            "pathPrefixes": [
+              "camera.framing"
+            ],
+            "templateKey": "composition.composition-shot-and-crop"
+          },
+          {
+            "id": "composition-view-and-roll",
+            "group": "composition-view-and-roll",
+            "order": 4,
+            "pathPrefixes": [
+              "camera.view",
+              "camera.roll"
+            ],
+            "templateKey": "composition.composition-view-and-roll"
+          },
+          {
+            "id": "composition-layout-and-space",
+            "group": "composition-layout-and-space",
+            "order": 5,
+            "pathPrefixes": [
+              "camera.composition.patterns",
+              "camera.composition.placement",
+              "camera.composition.negativeSpace",
+              "camera.composition.leadingRoom"
+            ],
+            "templateKey": "composition.composition-layout-and-space"
+          },
+          {
+            "id": "composition-depth-framing-and-reflection",
+            "group": "composition-depth-framing-and-reflection",
+            "order": 6,
+            "pathPrefixes": [
+              "camera.composition.foregroundTreatment",
+              "camera.composition.framingDevices",
+              "camera.composition.reflection"
+            ],
+            "templateKey": "composition.composition-depth-framing-and-reflection"
+          },
+          {
+            "id": "composition-lens-and-environment",
+            "group": "composition-lens-and-environment",
+            "order": 7,
+            "pathPrefixes": [
+              "camera.lens",
+              "camera.composition.environmentRelationship"
+            ],
+            "templateKey": "composition.composition-lens-and-environment"
+          },
+          {
+            "id": "forbidden-and-output",
+            "group": "forbidden-and-output",
+            "order": 8,
+            "pathPrefixes": [
+              "output"
+            ],
+            "templateKey": "composition.forbidden-and-output"
+          }
+        ]
+      }
+    ],
     "rulePacks": [
-      { "id": "virtual-tryon.rules", "namespace": "voce.fixture.virtual-tryon", "rules": [
-      { "id": "visual-composition-leading-room-direction", "kind": "dependency", "operands": [{ "id": "leading-room", "conditions": [{ "path": "camera.composition.leadingRoom.enabled", "operator": "equals", "value": true }] }, { "id": "direction", "conditions": [{ "path": "camera.composition.leadingRoom.direction", "operator": "present" }] }], "resolution": { "strategy": "degrade_operand", "operandId": "leading-room", "reasonCode": "LEADING_ROOM_DIRECTION_REQUIRED" }, "importance": "preferred", "dependencyKind": "requires", "explanation": "Leading room requires an explicit direction." },
-        { "id": "visual-composition-reflection-surface", "kind": "dependency", "operands": [{ "id": "reflection", "conditions": [{ "path": "camera.composition.reflection.enabled", "operator": "equals", "value": true }] }, { "id": "surface", "conditions": [{ "path": "camera.composition.reflection.surface", "operator": "present" }] }], "resolution": { "strategy": "degrade_operand", "operandId": "reflection", "reasonCode": "REFLECTION_SURFACE_REQUIRED" }, "importance": "preferred", "dependencyKind": "requires", "explanation": "Reflection composition requires an explicit reflective surface." },
-      { "id": "preserve-reference-scopes", "kind": "dependency", "operands": [{ "id": "camera", "conditions": [{ "path": "camera", "operator": "present" }] }, { "id": "reference-scope", "conditions": [{ "path": "reference.scope", "operator": "present" }] }], "resolution": { "strategy": "block", "reasonCode": "REFERENCE_SCOPE_REQUIRED" }, "importance": "required", "explanation": "Reference scope declarations remain required before composition compilation." },
-        { "id": "standard-image-output", "kind": "dependency", "operands": [{ "id": "output", "conditions": [{ "path": "output", "operator": "present" }] }, { "id": "image-contract", "conditions": [{ "path": "output.mediaType", "operator": "present" }] }], "resolution": { "strategy": "block", "reasonCode": "STANDARD_IMAGE_OUTPUT_REQUIRED" }, "importance": "required", "explanation": "The fixture keeps a typed image output contract." }
-      ] }
+      {
+        "id": "virtual-tryon.rules",
+        "namespace": "voce.fixture.virtual-tryon",
+        "rules": [
+          {
+            "id": "visual-composition-leading-room-direction",
+            "kind": "dependency",
+            "operands": [
+              {
+                "id": "leading-room",
+                "conditions": [
+                  {
+                    "path": "camera.composition.leadingRoom.enabled",
+                    "operator": "equals",
+                    "value": true
+                  }
+                ]
+              },
+              {
+                "id": "direction",
+                "conditions": [
+                  {
+                    "path": "camera.composition.leadingRoom.direction",
+                    "operator": "present"
+                  }
+                ]
+              }
+            ],
+            "resolution": {
+              "strategy": "degrade_operand",
+              "operandId": "leading-room",
+              "reasonCode": "LEADING_ROOM_DIRECTION_REQUIRED"
+            },
+            "importance": "preferred",
+            "dependencyKind": "requires",
+            "explanation": "Leading room requires an explicit direction."
+          },
+          {
+            "id": "visual-composition-reflection-surface",
+            "kind": "dependency",
+            "operands": [
+              {
+                "id": "reflection",
+                "conditions": [
+                  {
+                    "path": "camera.composition.reflection.enabled",
+                    "operator": "equals",
+                    "value": true
+                  }
+                ]
+              },
+              {
+                "id": "surface",
+                "conditions": [
+                  {
+                    "path": "camera.composition.reflection.surface",
+                    "operator": "present"
+                  }
+                ]
+              }
+            ],
+            "resolution": {
+              "strategy": "degrade_operand",
+              "operandId": "reflection",
+              "reasonCode": "REFLECTION_SURFACE_REQUIRED"
+            },
+            "importance": "preferred",
+            "dependencyKind": "requires",
+            "explanation": "Reflection composition requires an explicit reflective surface."
+          },
+          {
+            "id": "preserve-reference-scopes",
+            "kind": "dependency",
+            "operands": [
+              {
+                "id": "camera",
+                "conditions": [
+                  {
+                    "path": "camera",
+                    "operator": "present"
+                  }
+                ]
+              },
+              {
+                "id": "reference-scope",
+                "conditions": [
+                  {
+                    "path": "reference.scope",
+                    "operator": "present"
+                  }
+                ]
+              }
+            ],
+            "resolution": {
+              "strategy": "block",
+              "reasonCode": "REFERENCE_SCOPE_REQUIRED"
+            },
+            "importance": "required",
+            "explanation": "Reference scope declarations remain required before composition compilation."
+          },
+          {
+            "id": "standard-image-output",
+            "kind": "dependency",
+            "operands": [
+              {
+                "id": "output",
+                "conditions": [
+                  {
+                    "path": "output",
+                    "operator": "present"
+                  }
+                ]
+              },
+              {
+                "id": "image-contract",
+                "conditions": [
+                  {
+                    "path": "output.mediaType",
+                    "operator": "present"
+                  }
+                ]
+              }
+            ],
+            "resolution": {
+              "strategy": "block",
+              "reasonCode": "STANDARD_IMAGE_OUTPUT_REQUIRED"
+            },
+            "importance": "required",
+            "explanation": "The fixture keeps a typed image output contract."
+          }
+        ]
+      }
     ],
     "interpretationScopes": [
-      { "id": "virtual-tryon.scope.identity", "ontologyPath": "person.identity", "assetId": "ref-01" },
-      { "id": "virtual-tryon.scope.hair", "ontologyPath": "person.hair", "assetId": "ref-01" },
-      { "id": "virtual-tryon.scope.expression", "ontologyPath": "expression", "assetId": "ref-01" },
-      { "id": "virtual-tryon.scope.pose", "ontologyPath": "pose", "assetId": "ref-01" },
-      { "id": "virtual-tryon.scope.wardrobe", "ontologyPath": "wardrobe", "assetId": "ref-01" },
-      { "id": "virtual-tryon.scope.background", "ontologyPath": "environment.background", "assetId": "ref-01" },
-      { "id": "virtual-tryon.scope.camera", "ontologyPath": "camera", "assetId": "ref-01" }
+      {
+        "id": "virtual-tryon.scope.identity",
+        "ontologyPath": "person.identity",
+        "assetId": "ref-01"
+      },
+      {
+        "id": "virtual-tryon.scope.hair",
+        "ontologyPath": "person.hair",
+        "assetId": "ref-01"
+      },
+      {
+        "id": "virtual-tryon.scope.expression",
+        "ontologyPath": "expression",
+        "assetId": "ref-01"
+      },
+      {
+        "id": "virtual-tryon.scope.pose",
+        "ontologyPath": "pose",
+        "assetId": "ref-01"
+      },
+      {
+        "id": "virtual-tryon.scope.wardrobe",
+        "ontologyPath": "wardrobe",
+        "assetId": "ref-01"
+      },
+      {
+        "id": "virtual-tryon.scope.background",
+        "ontologyPath": "environment.background",
+        "assetId": "ref-01"
+      },
+      {
+        "id": "virtual-tryon.scope.camera",
+        "ontologyPath": "camera",
+        "assetId": "ref-01"
+      }
     ]
   },
   "fixtures": [
-      { "id": "virtual-tryon.offline", "cases": [
-      { "id": "case-virtual-tryon-001", "profileId": "mock-jpeg", "expectedStatus": "completed", "semanticReview": true, "humanPending": true,
-        "scopePaths": ["person.identity", "person.hair", "expression", "pose", "wardrobe.top", "environment.background", "camera.framing"],
-        "expectedAssertions": [
-          { "id": "vtryon-reference-multi-scope", "phase": "compile", "target": "reference.observationCount", "operator": "gte", "expected": 2 },
-          { "id": "vtryon-reference-single-asset", "phase": "compile", "target": "reference.observationAssetIds", "operator": "includes", "expected": "ref-01" },
-          { "id": "vtryon-prompt-guard", "phase": "compile", "target": "compile.promptGuard", "operator": "equals", "expected": "accepted" },
-          { "id": "vtryon-constraint-hash", "phase": "compile", "target": "compile.constraintHash", "operator": "sha256" },
-          { "id": "vtryon-reference-plan-hash", "phase": "compile", "target": "compile.referencePlanHash", "operator": "sha256" },
-          { "id": "vtryon-jpeg-artifact", "phase": "run", "target": "run.artifactMediaTypes", "operator": "includes", "expected": "image/jpeg" },
-          { "id": "vtryon-normalized-png", "phase": "run", "target": "run.artifactMediaTypes", "operator": "includes", "expected": "image/png" },
-          { "id": "vtryon-structural-evidence", "phase": "run", "target": "run.structuralStatus", "operator": "exists" },
-          { "id": "vtryon-semantic-proposal", "phase": "run", "target": "run.semanticStatus", "operator": "equals", "expected": "proposal" },
-          { "id": "vtryon-human-pending", "phase": "run", "target": "run.humanStatus", "operator": "equals", "expected": "pending" },
-          { "id": "vtryon-static-trace", "phase": "run", "target": "run.traceModelHash", "operator": "sha256" }
-        ] }
-    ] }
+    {
+      "id": "virtual-tryon.offline",
+      "cases": [
+        {
+          "id": "case-virtual-tryon-001",
+          "profileId": "mock-jpeg",
+          "expectedStatus": "completed",
+          "semanticReview": true,
+          "humanPending": true,
+          "scopePaths": [
+            "person.identity",
+            "person.hair",
+            "expression",
+            "pose",
+            "wardrobe.top",
+            "environment.background",
+            "camera.framing"
+          ],
+          "expectedAssertions": [
+            {
+              "id": "vtryon-reference-multi-scope",
+              "phase": "compile",
+              "target": "reference.observationCount",
+              "operator": "gte",
+              "expected": 2
+            },
+            {
+              "id": "vtryon-reference-single-asset",
+              "phase": "compile",
+              "target": "reference.observationAssetIds",
+              "operator": "includes",
+              "expected": "ref-01"
+            },
+            {
+              "id": "vtryon-prompt-guard",
+              "phase": "compile",
+              "target": "compile.promptGuard",
+              "operator": "equals",
+              "expected": "accepted"
+            },
+            {
+              "id": "vtryon-constraint-hash",
+              "phase": "compile",
+              "target": "compile.constraintHash",
+              "operator": "sha256"
+            },
+            {
+              "id": "vtryon-reference-plan-hash",
+              "phase": "compile",
+              "target": "compile.referencePlanHash",
+              "operator": "sha256"
+            },
+            {
+              "id": "vtryon-jpeg-artifact",
+              "phase": "run",
+              "target": "run.artifactMediaTypes",
+              "operator": "includes",
+              "expected": "image/jpeg"
+            },
+            {
+              "id": "vtryon-normalized-png",
+              "phase": "run",
+              "target": "run.artifactMediaTypes",
+              "operator": "includes",
+              "expected": "image/png"
+            },
+            {
+              "id": "vtryon-structural-evidence",
+              "phase": "run",
+              "target": "run.structuralStatus",
+              "operator": "exists"
+            },
+            {
+              "id": "vtryon-semantic-proposal",
+              "phase": "run",
+              "target": "run.semanticStatus",
+              "operator": "equals",
+              "expected": "proposal"
+            },
+            {
+              "id": "vtryon-human-pending",
+              "phase": "run",
+              "target": "run.humanStatus",
+              "operator": "equals",
+              "expected": "pending"
+            },
+            {
+              "id": "vtryon-static-trace",
+              "phase": "run",
+              "target": "run.traceModelHash",
+              "operator": "sha256"
+            }
+          ]
+        }
+      ]
+    }
   ]
 }

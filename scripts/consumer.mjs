@@ -49,7 +49,7 @@ const adapter = new core.MockProviderAdapter()
 if (CLI_VERSION !== '${RELEASE_CANDIDATE}' || contracts.BUNDLE_MANIFEST_SCHEMA_VERSION !== 'voce.bundle-manifest/v1alpha1' || schema.$id !== 'voce.bundle-manifest/v1alpha1' || adapter.offline !== true) process.exit(2)
 if (typeof core.createScenarioPackRegistry !== 'function' || typeof testkit.fixtureM5ExecutionInput !== 'function' || typeof runCli !== 'function') process.exit(3)
 const compositionChanges = core.expandVisualCompositionPreset('environmental-portrait', { sourceHintIds: ['clean-consumer'] })
-if (core.VISUAL_COMPOSITION_CATALOG.paths.length !== 29 || core.VISUAL_COMPOSITION_PRESETS.length !== 30 || compositionChanges.length !== 2 || !compositionChanges.every((item) => item.sourceHintIds.includes('clean-consumer'))) process.exit(4)
+if (core.VISUAL_COMPOSITION_CATALOG.paths.length !== 37 || core.VISUAL_COMPOSITION_PRESETS.length !== 30 || compositionChanges.length !== 3 || !compositionChanges.every((item) => item.sourceHintIds.includes('clean-consumer'))) process.exit(4)
 console.log(JSON.stringify({ status: 'passed', cliVersion: CLI_VERSION, schemaId: schema.$id, schemaReadableFromInstalledPackage: true, mockAdapterOffline: true, visualComposition: { paths: core.VISUAL_COMPOSITION_CATALOG.paths.length, presets: core.VISUAL_COMPOSITION_PRESETS.length, environmentalPortraitChanges: compositionChanges.length } }))
 `, 'utf8')
   const consumerCheck = parseJsonLine(run(process.execPath, [checkScript], app))
@@ -59,7 +59,7 @@ console.log(JSON.stringify({ status: 'passed', cliVersion: CLI_VERSION, schemaId
   const bin = path.join(app, 'node_modules', '.bin', process.platform === 'win32' ? 'voce.cmd' : 'voce')
   const voce = (args) => parseJsonLine(run(bin, [...args, '--json'], room))
   const version = voce(['--version']); const doctor = voce(['doctor'])
-  if (version.version !== RELEASE_CANDIDATE || doctor.status !== 'ok' || doctor.providers?.networkProbe !== false || doctor.visualComposition?.presetCount !== 30 || doctor.visualComposition?.pathCount !== 29) fail('M8_CONSUMER_DOCTOR_OR_VERSION_FAILED')
+  if (version.version !== RELEASE_CANDIDATE || doctor.status !== 'ok' || doctor.providers?.networkProbe !== false || doctor.visualComposition?.presetCount !== 30 || doctor.visualComposition?.pathCount !== 37) fail('M8_CONSUMER_DOCTOR_OR_VERSION_FAILED')
   const packResults = []
   for (const name of ['virtual-tryon', 'cosplay', 'product-shot', 'third-party-minimal', 'renamed-third-party']) {
     const inspected = voce(['pack', 'inspect', '--source', path.join(packs, name)]); const validated = voce(['pack', 'validate', '--source', path.join(packs, name)]); const tested = voce(['pack', 'test', '--source', path.join(packs, name)])

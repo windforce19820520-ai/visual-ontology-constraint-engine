@@ -319,6 +319,47 @@ scope required by accepted user intent
 
 Pack 不能强制穷尽分析、检查被排除的 Scope、选择 Interpreter 或授权远程调用。
 
+v1 alpha 声明式输入合同存放在 `interpretationScopes` Contribution 集合中，因此 Host 展示的角色策略与编译器执行的策略来自同一份 ScenarioPack 数据：
+
+```ts
+interface DeclarativeInputPolicyContribution extends ScenarioPackContribution {
+  inputPolicy: {
+    roleGroups: Array<{
+      id: string
+      operator: 'atLeastOne' | 'mutuallyExclusive'
+      roles: string[]
+      minCount?: number
+      maxCount?: number
+    }>
+    capabilities: Record<string, boolean>
+  }
+}
+
+interface DeclarativeInterpretationScopeContribution extends ScenarioPackContribution {
+  assetRole: string
+  referenceOrder: number
+  minCount: number
+  maxCount: number
+  bindings: Array<{
+    assetRole: string
+    targetPath: string
+    relation: 'preserve' | 'reproduce' | 'inspire' | 'exclude'
+    priority: 'hard' | 'required' | 'preferred'
+    activeWhen?: Array<{ role: string; presence: 'present' | 'absent' }>
+  }>
+  typedMetadata?: {
+    fields: Record<string, {
+      required: boolean
+      values: JsonValue[]
+      defaultValue?: JsonValue
+    }>
+    combinations?: Array<{ values: Record<string, JsonValue> }>
+  }
+}
+```
+
+`roleGroups` 在 Core 不识别场景名称的前提下表达必需、候选和互斥输入组合。`referenceOrder` 是稳定的语义顺序，不得依赖 JSON 或上传顺序。`activeWhen` 可表达条件式保留/替换范围，例如在没有上传某个服装区域时保留原区域。类型化元数据值和跨字段合法组合是 ScenarioPack 拥有的封闭 Allowlist；Host 可以展示，但不能增加值或推断出另一种组合。Capability Flag 只描述场景是否提供某能力，不选择 Provider，不授权执行，也不构成证据。
+
 ### 5.4 Prompt Section
 
 Prompt 贡献是类型化 `PromptIR` Template，具有带 Namespace 的 ID、确定性 Predicate、Source/Constraint Link、Mutability 与显式排序 Anchor。它只能读取已接受的 Ontology、Constraint、Reference Plan、Output Contract 和已声明 Configuration。
@@ -902,7 +943,7 @@ ScenarioPack 版本遵循 Semantic Versioning：
 
 构图 MVP 增加类型化的 `OntologyPathDefinition`、`DeclarativeRuleCondition`、`DeclarativeRuleOperand`、`DeclarativeRuleResolution`、`DeclarativeRule` 与 `PromptSectionDefinition` 记录。这些记录仍是纯数据 ScenarioPack Contribution。`cardinality=one` 路径、规则条件值、降级目标和 Section 顺序在进入 `EffectiveScenario` 前校验；规范化内容相同的重复项可以合并，不相同的重复项会阻断。
 
-共享目录包含 29 个 camera 所有的路径定义和 30 个稳定预设。预设是本体选择器：可以创建原子 Boolean、Enum 或 Scalar Change Intent，但不能包含 URL、图片字节、SourceBinding、Provider Reference 或 Provider 原生参数。`full-shot` 预设包含 `camera.framing.crop.keepBothFeet=true`；无方向的 leading-room 与无 surface 的 reflection 保持不完整，不会被猜测补全。
+当前共享目录包含 37 个 Provider 中立的路径定义和 30 个稳定预设。预设是本体选择器：可以创建原子 Boolean、Enum、String 或 Scalar Change Intent，但不能包含 URL、图片字节、SourceBinding、Provider Reference 或 Provider 原生参数。`full-shot` 预设包含 `camera.framing.crop.keepBothFeet=true`；无方向的 leading-room 仍保持不完整，不会被猜测补全。依赖环境结构的预设同时提供首选 `environment.background` 兜底和 `camera.composition.subjectEnvironmentPlacement`，后者声明人物、相机、地面、前景、开口、反射平面或透视走廊之间的物理关系。`reflection-composition` 固定水面，并让前景水面位于相机与干燥远岸人物之间，岸线位于双脚下方，倒影在人物正下方对齐；允许只显示部分倒影。背景兜底仅在没有获批背景参考图或用户明确背景时生效，空间关系则始终属于所选构图。
 
 Prompt Policy Contribution 由 Core 通过经过 Hash 核验的 `EffectiveScenario` 消费。它只负责 Prompt Section 顺序，不能授权 Provider 调用或改变 Guard 语义。自动失败的偏好会以 `unsatisfied`、一个 Degradation 和一个 `PromptConstraintExclusion` 表示；该排除项必须继续缺席于有效 Prompt IR 及所有 Optimizer Link。
 

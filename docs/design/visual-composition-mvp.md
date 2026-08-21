@@ -133,6 +133,7 @@ Every public path definition declares a value kind and cardinality. Combinable c
 | Path | Kind | Cardinality | Allowed values or meaning |
 | --- | --- | --- | --- |
 | `camera.framing.shotScale` | enum | one | `extreme_close_up`, `close_up`, `head_and_shoulders`, `bust_shot`, `medium_close_up`, `medium_shot`, `knee_shot`, `full_shot`, `long_shot`, `extreme_long_shot` |
+| `camera.framing.focusTarget` | enum | one | `eye`, `face_detail`, `costume_detail`, `prop_detail` |
 | `camera.framing.crop.keepHead` | boolean | one | Head must remain inside the output frame |
 | `camera.framing.crop.keepHands` | boolean | one | Required visible hands must remain inside the frame |
 | `camera.framing.crop.keepBothFeet` | boolean | one | Both feet must remain inside the frame |
@@ -147,6 +148,7 @@ The ten shot-scale labels are retained because they correspond to distinct Host 
 | --- | --- | --- | --- |
 | `camera.view.elevation` | enum | one | `eye_level`, `low_angle`, `high_angle`, `birds_eye` |
 | `camera.view.relationship` | enum | one | `front`, `three_quarter`, `profile`, `rear`, `over_the_shoulder` |
+| `camera.composition.overShoulder.targetRole` | enum | one | `declared_subject`, `secondary_subject`, `environment_or_object` |
 | `camera.roll.mode` | enum | one | `level`, `dutch_left`, `dutch_right` |
 | `camera.lens.focalLengthClass` | enum | one | `ultra_wide`, `wide`, `normal`, `telephoto`, `super_telephoto` |
 | `camera.lens.perspective` | enum | one | `expanded`, `natural`, `compressed` |
@@ -161,6 +163,7 @@ The ten shot-scale labels are retained because they correspond to distinct Host 
 | `camera.composition.patterns.diagonal` | boolean | one | Dominant diagonal organization |
 | `camera.composition.patterns.sCurve` | boolean | one | Dominant S-shaped visual path |
 | `camera.composition.patterns.triangle` | boolean | one | Subjects or landmarks form a stable triangle |
+| `camera.composition.patterns.triangleSource` | enum | one | `subject_pose`, `subject_and_prop`, `environment` |
 | `camera.composition.placement` | enum | one | `center`, `left_third`, `right_third`, `upper_third`, `lower_third` |
 | `camera.composition.negativeSpace` | enum | one | `none`, `left`, `right`, `above`, `below`, `surrounding` |
 | `camera.composition.leadingRoom.enabled` | boolean | one | Reserve space in the gaze or movement direction |
@@ -178,6 +181,10 @@ Patterns are not universally exclusive. A photograph may legitimately combine th
 | `camera.composition.reflection.enabled` | boolean | one | Include a reflected subject or object |
 | `camera.composition.reflection.surface` | enum | one | `mirror`, `glass`, `water`, `screen`, `polished_surface` |
 | `camera.composition.reflection.role` | enum | one | `supporting`, `co_primary`, `primary` |
+| `camera.composition.reflection.physicalConsistency` | boolean | one | Reflection depicts the same subject at the same instant with physically consistent action and appearance |
+| `camera.composition.reflection.presentation` | enum | one | `surface_reflection`, `face_visible_in_mirror` |
+| `camera.composition.reflection.subjectSurfaceRelationship` | enum | one | `on_dry_shore_beside_water`, `in_water`, `above_water`, `on_reflective_surface` |
+| `camera.composition.subjectEnvironmentPlacement` | string | one | Provider-neutral physical placement of subject, camera, ground, foreground, opening, reflective plane, or perspective corridor |
 | `camera.composition.environmentRelationship` | enum | one | `isolated`, `contextual`, `environment_dominant` |
 
 `profile` is represented by `camera.view.relationship`. A silhouette effect belongs to `lighting.subjectRendering`, not to composition. A mirror card expands into reflection paths and must not be stored as a second independent mirror-composition fact.
@@ -201,7 +208,7 @@ The preset ID is retained in change provenance, such as `ChangeIntent.sourceHint
 
 | UI card | Primary expansion | Additional expansion or note |
 | --- | --- | --- |
-| Extreme close-up | `camera.framing.shotScale=extreme_close_up` | Scenario may protect the specific detail being framed |
+| Extreme close-up | `camera.framing.shotScale=extreme_close_up` | `camera.framing.focusTarget=eye` for the canonical example |
 | Close-up | `camera.framing.shotScale=close_up` | — |
 | Head-and-shoulders | `camera.framing.shotScale=head_and_shoulders` | `crop.keepHead=true` |
 | Bust shot | `camera.framing.shotScale=bust_shot` | `crop.keepHead=true` |
@@ -214,21 +221,21 @@ The preset ID is retained in change provenance, such as `ChangeIntent.sourceHint
 | Low angle | `camera.view.elevation=low_angle` | — |
 | High angle | `camera.view.elevation=high_angle` | — |
 | Bird's-eye view | `camera.view.elevation=birds_eye` | — |
-| Over-the-shoulder | `camera.view.relationship=over_the_shoulder` | Requires a foreground shoulder subject or declared equivalent |
+| Over-the-shoulder | `camera.view.relationship=over_the_shoulder` | `overShoulder.targetRole=declared_subject`; anonymous foreground shoulder must not duplicate the person |
 | Dutch angle | `camera.roll.mode=dutch_left` or `dutch_right` | Host must request or choose direction explicitly |
 | Centered symmetry | `patterns.centeredSymmetry=true` | Usually `placement=center` |
-| Rule of thirds | `patterns.ruleOfThirds=true` | Host may separately choose the target third |
+| Rule of thirds | `patterns.ruleOfThirds=true` | Canonical example adds `placement=right_third` |
 | Leading lines | `patterns.leadingLines=true` | Requires suitable scene geometry or a clarification/review path |
 | Leading room | `leadingRoom.enabled=true` | Requires `leadingRoom.direction` |
 | Diagonal composition | `patterns.diagonal=true` | — |
 | S-curve composition | `patterns.sCurve=true` | — |
-| Triangle composition | `patterns.triangle=true` | — |
+| Triangle composition | `patterns.triangle=true` | `triangleSource=subject_pose`; do not invent extra people |
 | Negative space | `negativeSpace` set to an explicit direction | Host must not emit directionless `true` |
 | Frame within frame | `framingDevices.frameWithinFrame=true` | — |
 | Foreground obstruction | `foregroundTreatment=soft_obstruction` | Required identity/product paths may prohibit strong obstruction |
 | Profile / silhouette | `view.relationship=profile` | Optional `lighting.subjectRendering=silhouette`; two independent facts |
-| Reflection composition | `reflection.enabled=true` | Requires explicit `reflection.surface` |
-| Mirror composition | `reflection.enabled=true`, `surface=mirror` | — |
+| Water reflection | `reflection.enabled=true`, `surface=water`, `subjectSurfaceRelationship=on_dry_shore_beside_water`, `subjectEnvironmentPlacement=<camera across water toward dry far bank>` | Shoreline directly below both feet, reflection aligned below the person on the same image axis, `role=co_primary`, physical consistency, and partial-reflection support |
+| Mirror composition | `reflection.enabled=true`, `surface=mirror` | `role=primary`, physical consistency, and `presentation=face_visible_in_mirror` |
 | Telephoto compression | `lens.focalLengthClass=telephoto`, `lens.perspective=compressed` | — |
 | Environmental portrait | `framingDevices.environmentalPortrait=true` | `environmentRelationship=contextual` or `environment_dominant` |
 
@@ -418,7 +425,15 @@ ScenarioPacks may name and word sections differently, but the shared fixture def
 
 Only sections that have effective matching constraints are emitted. Empty decorative sections are not generated.
 
-### 9.4 Prompt Guard requirements
+### 9.4 Model-facing semantic rendering
+
+Typed ontology paths and values remain authoritative in Constraint IR and coverage records. They are not, by themselves, suitable image-model instructions. Prompt compilation deterministically maps each public composition path/value pair to provider-neutral natural English and keeps the resulting section linked to the original constraint ID. Internal strings such as `camera.*`, ScenarioPack `templateKey`, and `value=` are not emitted as the instruction text.
+
+The same renderer gives `character.hair` an explicit replacement instruction: the approved character-design reference replaces the person's original hairstyle and controls color, length, cut, bangs, side locks, parting, volume, texture, gradients, hair ornaments, and silhouette, while `person.identity` continues to protect the real face. This is generic path semantics, not a scenario-ID branch.
+
+Every public composition preset also exposes a concrete observable evaluation expectation. The mirror expectation requires a visible face and same-person, same-instant agreement across action, hands, props, costume, hair, and accessories, allowing only physically correct reflection reversal.
+
+### 9.5 Prompt Guard requirements
 
 Prompt Guard must verify:
 

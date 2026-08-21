@@ -13,7 +13,7 @@ This repair treats the confirmed defect as ScenarioPack and evaluation coverage.
 The Cosplay fixture now declares:
 
 - separate `person.identity` and character-fidelity paths;
-- `character.hair`, `character.makeup`, `character.costume`, and `character.accessories`;
+- `character.hair`, `character.costume`, and `character.accessories`; the real-person reference remains authoritative for existing makeup, eye color, and facial styling;
 - `character.signatureProps.primary` paths for type, silhouette, proportion, color scheme, material, signature details, hand assignment, and visibility;
 - source-isolation policies that exclude the character face from real-person identity and exclude the real person's original costume and props from character fidelity;
 - identity, costume, and signature-prop semantic-review criteria; and

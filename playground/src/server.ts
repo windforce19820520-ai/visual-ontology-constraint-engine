@@ -1,15 +1,19 @@
 import { createHash, randomUUID } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import type { JsonObject } from '@voce-engine/contracts'
+import type { JsonObject, JsonValue } from '@voce-engine/contracts'
 import { VISUAL_COMPOSITION_CATALOG, expandVisualCompositionPreset, sha256 } from '@voce-engine/core'
 import { compileSemanticClosure, type PlaygroundAssetDeclaration, type PlaygroundScenarioInput } from './semantic-closure.js'
 import { scenarioDistribution } from './scenario-distribution.js'
-import { createProviderRequestMaterializer } from './provider-materializer.js'
+import { createProviderRequestMaterializer, PLAYGROUND_MATERIALIZER_VERSION } from './provider-materializer.js'
 import { assertPlaygroundPlanBinding, computeAssetSetHash, createPlaygroundPlanBinding, MockProvider, type PlaygroundPlanBinding } from './mock-provider.js'
-import { InMemoryBudgetGate, PLAYGROUND_INSPECTION_PROFILE, PLAYGROUND_PROVIDER_PROFILES, estimateProviderCost, preflightProviderCapability, providerProfileFor, type PlaygroundProviderProfileId, type UploadedAssetSummary } from './providers.js'
-import { executeProviderCall, type PlaygroundProviderTransport, type ResolvedPlaygroundAsset } from './provider-bridges.js'
+import { CloudflareQuotaGate, InMemoryBudgetGate, MOCK_PLAYGROUND_PROFILE, PLAYGROUND_INSPECTION_PROFILE, PLAYGROUND_PROVIDER_PROFILES, estimateCloudflareNeurons, estimateProviderCost, preflightProviderCapability, providerProfileFor, type PlaygroundProviderProfileId, type UploadedAssetSummary } from './providers.js'
+import { executeProviderCallDetailed, type PlaygroundProviderTransport, type ResolvedPlaygroundAsset } from './provider-bridges.js'
 import { materializationContainsOnlyAcceptedSources } from './provider-materializer.js'
+import { cloudflareTransportErrorCode, executeCloudflareProviderCallDetailed, type CloudflareOperatorCredential, type CloudflareProviderTransport } from './cloudflare-provider.js'
 import { PLAYGROUND_HTML } from './web.js'
+import { createValidationExportPackage } from './validation-export.js'
+import { seedreamTransportErrorCode } from './seedream-provider.js'
 
 export interface PlaygroundCompilePayload extends PlaygroundScenarioInput {
   providerProfileId?: PlaygroundProviderProfileId
@@ -23,6 +27,7 @@ export interface PlaygroundCompileResponse {
   providerProfile: { id: string; model: string; capabilityStatus: string; documentation: readonly { label: string; url: string }[] }
   providerCapability: ReturnType<typeof preflightProviderCapability>
   humanPlan: ReturnType<typeof compileSemanticClosure>['humanPlan']
+  evaluationPlan: ReturnType<typeof compileSemanticClosure>['evaluationPlan']
   constraintIR: ReturnType<typeof compileSemanticClosure>['constraintIR']
   referencePlan: ReturnType<typeof compileSemanticClosure>['referencePlan']
   promptIR: ReturnType<typeof compileSemanticClosure>['promptIR']
@@ -64,6 +69,28 @@ class UploadStore {
   clear(sessionId: string): void { this.sessions.delete(sessionId); this.notify() }
   clearAll(): void { this.sessions.clear(); this.notify() }
   sweep(now = Date.now()): void { for (const [sessionId, session] of this.sessions) { for (const [assetId, item] of session) if (item.expiresAt < now) session.delete(assetId); if (!session.size) this.sessions.delete(sessionId) }; this.notify() }
+}
+
+interface StoredGeneratedImage {
+  bytes: Uint8Array
+  mediaType: string
+  expiresAt: number
+}
+
+class GeneratedImageStore {
+  private readonly sessions = new Map<string, Map<string, StoredGeneratedImage>>()
+  put(sessionId: string, id: string, image: StoredGeneratedImage): void {
+    const session = this.sessions.get(sessionId) ?? new Map<string, StoredGeneratedImage>()
+    session.set(id, image)
+    this.sessions.set(sessionId, session)
+  }
+  get(sessionId: string, id: string): StoredGeneratedImage | undefined {
+    const image = this.sessions.get(sessionId)?.get(id)
+    if (!image || image.expiresAt < Date.now()) { this.sessions.get(sessionId)?.delete(id); return undefined }
+    return image
+  }
+  sweep(now = Date.now()): void { for (const [sessionId, session] of this.sessions) { for (const [id, image] of session) if (image.expiresAt < now) session.delete(id); if (!session.size) this.sessions.delete(sessionId) } }
+  clearAll(): void { this.sessions.clear() }
 }
 
 class HttpProblem extends Error {
@@ -108,27 +135,64 @@ function respondHtml(response: ServerResponse): void {
   response.end(PLAYGROUND_HTML)
 }
 
+function respondZip(response: ServerResponse, bytes: Uint8Array): void {
+  response.writeHead(200, { 'content-type': 'application/zip', 'content-disposition': 'attachment; filename="voce-validation-package.zip"', 'content-length': String(bytes.byteLength), 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })
+  response.end(bytes)
+}
+
+function respondImage(response: ServerResponse, image: StoredGeneratedImage): void {
+  response.writeHead(200, { 'content-type': image.mediaType, 'content-length': String(image.bytes.byteLength), 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' })
+  response.end(image.bytes)
+}
+
+function isLoopbackAddress(address: string | undefined): boolean {
+  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1'
+}
+
+const compositionPreviewIds = new Set(VISUAL_COMPOSITION_CATALOG.presets.map((preset) => preset.id))
+const compositionPreviewRoot = new URL('../../docs/assets/visual-composition/', import.meta.url)
+
+async function respondCompositionPreview(response: ServerResponse, pathname: string): Promise<boolean> {
+  const match = /^\/assets\/visual-composition\/([a-z0-9-]+)\.jpg$/.exec(pathname)
+  if (!match || !compositionPreviewIds.has(match[1])) return false
+  const bytes = await readFile(new URL(`${match[1]}.jpg`, compositionPreviewRoot))
+  response.writeHead(200, { 'content-type': 'image/jpeg', 'cache-control': 'public, max-age=3600', 'x-content-type-options': 'nosniff' })
+  response.end(bytes)
+  return true
+}
+
 function errorBody(error: unknown): { error: string } {
   return { error: error instanceof Error ? error.message : 'PLAYGROUND_REQUEST_FAILED' }
 }
 
 function roleMetadata(scenarioId: 'virtual-tryon' | 'cosplay'): JsonObject {
   const distribution = scenarioDistribution(scenarioId)
-  return { id: scenarioId, roles: distribution.roles.map((role) => ({ id: role.role, minCount: role.minCount, maxCount: role.maxCount })).sort((left, right) => String(left.id).localeCompare(String(right.id))) }
+  return {
+    id: scenarioId,
+    capabilities: { composition: distribution.capabilities.composition },
+    roleGroups: distribution.roleGroups.map((group) => ({ id: group.id, operator: group.operator, roles: [...group.roles], ...(group.minCount === undefined ? {} : { minCount: group.minCount }), ...(group.maxCount === undefined ? {} : { maxCount: group.maxCount }) })),
+    roles: distribution.roles.map((role) => ({ id: role.role, referenceOrder: role.referenceOrder, minCount: role.minCount, maxCount: role.maxCount, ...(role.typedMetadata ? { typedChoices: JSON.parse(JSON.stringify(role.typedMetadata)) as JsonObject } : {}) })).sort((left, right) => Number(left.referenceOrder) - Number(right.referenceOrder)),
+  }
 }
 
-export function playgroundMeta(options: { renderEnabled?: boolean; transports?: Partial<Record<'seedream' | 'grok-imagine', PlaygroundProviderTransport>> } = {}): JsonObject {
+export function playgroundMeta(options: { renderEnabled?: boolean; transports?: Partial<Record<'cloudflare' | 'seedream' | 'grok-imagine', PlaygroundProviderTransport | CloudflareProviderTransport>>; cloudflareCredential?: CloudflareOperatorCredential; developmentMode?: boolean; validationExportEnabled?: boolean } = {}): JsonObject {
   const enabled = options.renderEnabled === true
+  const visibleProfiles = Object.values(PLAYGROUND_PROVIDER_PROFILES).filter((profile) => options.developmentMode === true || profile.provider !== 'mock')
   return {
     schemaVersion: 'voce.playground-meta/v1alpha1',
     renderEnabled: enabled,
+    validationExportEnabled: options.developmentMode === true && options.validationExportEnabled === true,
     scenarios: [roleMetadata('virtual-tryon'), roleMetadata('cosplay')],
-    providers: Object.values(PLAYGROUND_PROVIDER_PROFILES).map((profile) => ({ id: profile.id, label: profile.provider === 'mock' ? 'Offline Mock' : profile.model, model: profile.model, credentialMode: profile.credentialMode, ...(profile.maximumReferenceCount === undefined ? {} : { maximumReferenceCount: profile.maximumReferenceCount }), pricePerImage: profile.pricePerImage, priceModel: profile.priceModel, currency: profile.currency, transportEnabled: enabled && (profile.provider === 'mock' || options.transports?.[profile.provider] !== undefined), capabilityVerifiedAt: profile.capabilityVerifiedAt, documentation: profile.documentation })) as unknown as JsonObject['providers'],
+    providers: visibleProfiles.map((profile) => ({ id: profile.id, label: profile.selectorMetadata?.label ?? (profile.provider === 'mock' ? 'Offline Mock' : profile.model), model: profile.model, credentialMode: profile.credentialMode, ...(profile.maximumReferenceCount === undefined ? {} : { maximumReferenceCount: profile.maximumReferenceCount }), ...(profile.inputDimensionsStrictlyBelow ? { inputDimensionsStrictlyBelow: profile.inputDimensionsStrictlyBelow } : {}), ...(profile.freeQuotaNeuronsPerDay ? { freeQuotaNeuronsPerDay: profile.freeQuotaNeuronsPerDay, freeQuotaResetUtc: profile.freeQuotaResetUtc } : {}), pricePerImage: profile.pricePerImage, priceModel: profile.priceModel, currency: profile.currency, transportEnabled: enabled && (profile.provider === 'mock' ? options.developmentMode === true : options.transports?.[profile.provider] !== undefined && (profile.provider !== 'cloudflare' || options.cloudflareCredential !== undefined)), capabilityVerifiedAt: profile.capabilityVerifiedAt, selectorMetadata: profile.selectorMetadata, documentation: profile.documentation })) as unknown as JsonObject['providers'],
   }
 }
 
 export function playgroundCompositionPresets(): JsonObject {
-  const candidateValues = [...new Set(VISUAL_COMPOSITION_CATALOG.paths.flatMap((path) => path.allowedValues ?? []))]
+  const candidateValues: JsonValue[] = [...new Set(VISUAL_COMPOSITION_CATALOG.paths.flatMap((path) => path.allowedValues ?? [])), false, true]
+  const candidateValuesByInput: Record<string, JsonValue[]> = {
+    direction: ['left', 'right', 'forward', 'up', 'down', 'above', 'below', 'surrounding'],
+    silhouette: [false, true],
+  }
   return {
     schemaVersion: 'voce.playground-composition-presets/v1alpha1',
     catalogHash: VISUAL_COMPOSITION_CATALOG.catalogHash,
@@ -138,9 +202,11 @@ export function playgroundCompositionPresets(): JsonObject {
       labelKey: preset.labelKey,
       descriptionKey: preset.descriptionKey,
       requiredInputs: preset.requiredInputs ?? [],
-      inputs: (preset.requiredInputs ?? []).map((inputId) => ({
+      optionalInputs: preset.optionalInputs ?? [],
+      inputs: [...(preset.requiredInputs ?? []), ...(preset.optionalInputs ?? [])].map((inputId) => ({
         id: inputId,
-        options: candidateValues.filter((value) => {
+        required: (preset.requiredInputs ?? []).includes(inputId),
+        options: (candidateValuesByInput[inputId] ?? candidateValues).filter((value) => {
           try { expandVisualCompositionPreset(preset.id, { inputs: { [inputId]: value } }); return true } catch { return false }
         }),
       })),
@@ -181,7 +247,7 @@ export function compilePlayground(payload: PlaygroundCompilePayload): Playground
   // Compile is provider-neutral so users can always inspect the accepted plan.
   // Provider-specific reference limits are a separate Generate preflight.
   const result = compileSemanticClosure(semanticInput(payload), PLAYGROUND_INSPECTION_PROFILE)
-  const materializer = createProviderRequestMaterializer(`${profile.provider}.materializer`, '1.0.0', profile)
+  const materializer = createProviderRequestMaterializer(`${profile.provider}.materializer`, PLAYGROUND_MATERIALIZER_VERSION, profile)
   const summaries = assetSummaries(payload)
   const providerCapability = preflightProviderCapability({ request: result.providerRenderRequest, profile, assets: summaries, requireProfileBinding: false, requireAuthorization: false })
   const generationRequestHash = providerCapability.status === 'ok'
@@ -195,6 +261,7 @@ export function compilePlayground(payload: PlaygroundCompilePayload): Playground
     providerProfile: { id: profile.id, model: profile.model, capabilityStatus: providerCapability.status, documentation: profile.documentation },
     providerCapability,
     humanPlan: result.humanPlan,
+    evaluationPlan: result.evaluationPlan,
     constraintIR: result.constraintIR,
     referencePlan: result.referencePlan,
     promptIR: result.promptIR,
@@ -279,27 +346,70 @@ function upload(body: Record<string, unknown>, store: UploadStore, sessionId: st
 export interface PlaygroundServerOptions {
   renderEnabled?: boolean
   budgetGate?: InMemoryBudgetGate
-  transports?: Partial<Record<'seedream' | 'grok-imagine', PlaygroundProviderTransport>>
+  transports?: Partial<Record<'cloudflare' | 'seedream' | 'grok-imagine', PlaygroundProviderTransport | CloudflareProviderTransport>>
+  cloudflareCredential?: CloudflareOperatorCredential
+  cloudflareQuotaGate?: CloudflareQuotaGate
+  developmentMode?: boolean
+  validationExportEnabled?: boolean
   onUploadStoreSizeChange?: (size: number) => void
 }
 
 export function createPlaygroundServer(options: PlaygroundServerOptions = {}): Server {
   const store = new UploadStore(options.onUploadStoreSizeChange)
+  const generatedStore = new GeneratedImageStore()
   const mock = new MockProvider()
   const budgetGate = options.budgetGate ?? new InMemoryBudgetGate({ dailyCostByCurrency: { USD: 1, CNY: 2 }, perClientCostByCurrency: { USD: 0.25, CNY: 1 }, maxConcurrent: 1 })
-  const sweepTimer = setInterval(() => store.sweep(), 60_000)
+  const cloudflareQuotaGate = options.cloudflareQuotaGate ?? new CloudflareQuotaGate()
+  const sweepTimer = setInterval(() => { store.sweep(); generatedStore.sweep() }, 60_000)
   sweepTimer.unref()
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? '/', 'http://playground.local')
       if (request.method === 'GET' && url.pathname === '/playground') return respondHtml(response)
+      if (request.method === 'GET' && await respondCompositionPreview(response, url.pathname)) return
+      if (request.method === 'GET') {
+        const generatedMatch = /^\/api\/generated\/((?:cloudflare|seedream)-[0-9a-f-]{36})$/.exec(url.pathname)
+        if (generatedMatch) {
+          const sessionId = url.searchParams.get('session') ?? ''
+          if (!/^[A-Za-z0-9_-]{8,120}$/.test(sessionId)) throw new HttpProblem(400, 'PLAYGROUND_SESSION_REQUIRED')
+          const image = generatedStore.get(sessionId, generatedMatch[1])
+          if (!image) throw new HttpProblem(404, 'PLAYGROUND_GENERATED_IMAGE_NOT_FOUND')
+          return respondImage(response, image)
+        }
+      }
       if (request.method === 'GET' && url.pathname === '/api/meta') return respond(response, 200, playgroundMeta(options))
       if (request.method === 'GET' && url.pathname === '/api/composition-presets') return respond(response, 200, playgroundCompositionPresets())
       if (request.method === 'POST' && url.pathname === '/api/upload') { const sessionId = sessionIdOf(request); return respond(response, 200, upload(objectBody(await readBody(request, 20_100_000)), store, sessionId)) }
+      if (request.method === 'DELETE' && url.pathname === '/api/uploads') { const sessionId = sessionIdOf(request); store.clear(sessionId); return respond(response, 200, { status: 'cleared' }) }
       if (request.method === 'POST' && url.pathname === '/api/compile') {
         const sessionId = sessionIdOf(request)
         const body = objectBody(await readBody(request)) as unknown as PlaygroundCompilePayload
         return respond(response, 200, compilePlayground(normalizeAssets(body, store, sessionId)))
+      }
+      if (request.method === 'POST' && url.pathname === '/api/validation-export' && options.developmentMode === true && options.validationExportEnabled === true) {
+        if (!isLoopbackAddress(request.socket.remoteAddress)) throw new HttpProblem(403, 'VALIDATION_EXPORT_LOOPBACK_REQUIRED')
+        const sessionId = sessionIdOf(request)
+        const body = objectBody(await readBody(request))
+        if (body.confirmExport !== true) throw new HttpProblem(409, 'VALIDATION_EXPORT_CONFIRMATION_REQUIRED')
+        const compileBody = objectBody(body.compile ?? body.input) as unknown as PlaygroundCompilePayload
+        const expected = body.planBinding as unknown as PlaygroundPlanBinding
+        const normalized = normalizeAssets(compileBody, store, sessionId)
+        const compiled = compilePlayground(normalized)
+        assertPlaygroundPlanBinding(expected, compiled.planBinding)
+        // This local handoff is not a call to the selected production Provider. The exact
+        // selected plan is still bound above, then materialized through the bounded offline
+        // profile so a Provider-specific size or transport limit cannot block validation.
+        const target = compileSemanticClosure(semanticInput(normalized), MOCK_PLAYGROUND_PROFILE)
+        const materializer = createProviderRequestMaterializer('mock.materializer', PLAYGROUND_MATERIALIZER_VERSION, MOCK_PLAYGROUND_PROFILE)
+        const materialization = materializer.materialize(target.providerRenderRequest)
+        if (!materializationContainsOnlyAcceptedSources(materialization)) throw new HttpProblem(409, 'MATERIALIZER_UNTRUSTED_SOURCE')
+        const assets = target.providerRenderRequest.referenceMappings.map((mapping) => {
+          const item = store.get(sessionId, mapping.assetId)
+          if (!item) throw new HttpProblem(400, `PLAYGROUND_UPLOAD_NOT_FOUND:${mapping.assetId}`)
+          return { id: mapping.assetId, contentHash: item.artifact.contentHash, mediaType: item.artifact.mediaType, bytes: item.bytes }
+        })
+        const exported = createValidationExportPackage({ scenarioId: normalized.scenarioId, request: target.providerRenderRequest, materialization, assets, compositionSelections: normalized.compositionSelections ?? [], evaluationPlan: target.evaluationPlan })
+        return respondZip(response, exported.bytes)
       }
       if (request.method === 'POST' && url.pathname === '/api/generate') {
         const sessionId = sessionIdOf(request)
@@ -327,14 +437,12 @@ export function createPlaygroundServer(options: PlaygroundServerOptions = {}): S
           const targetCapability = preflightProviderCapability({ request: target.providerRenderRequest, profile, assets: summaries, renderEnabled: true, confirmSingleCall: true })
           if (targetCapability.status !== 'ok') throw new HttpProblem(409, `PROVIDER_CAPABILITY_BLOCKED:${targetCapability.reasons.join(',')}`)
           if (profile.provider === 'mock') {
-            const materializer = createProviderRequestMaterializer('mock.materializer', '1.0.0', profile)
+            const materializer = createProviderRequestMaterializer('mock.materializer', PLAYGROUND_MATERIALIZER_VERSION, profile)
             const result = await mock.generate({ request: target.providerRenderRequest, profile, materializer, assets: summaries, clientId, renderEnabled: true, confirmSingleCall, credentialMode: profile.credentialMode, budgetGate })
             apiKey = ''
             return respond(response, result.status === 'ok' ? 200 : 409, { schemaVersion: 'voce.playground-generate-response/v1alpha1', renderEnabled: true, result })
           }
-          const transport = options.transports?.[profile.provider]
-          if (!transport) throw new HttpProblem(503, 'REAL_PROVIDER_TRANSPORT_DISABLED')
-          const materializer = createProviderRequestMaterializer(`${profile.provider}.materializer`, '1.0.0', profile)
+          const materializer = createProviderRequestMaterializer(`${profile.provider}.materializer`, PLAYGROUND_MATERIALIZER_VERSION, profile)
           const materialization = materializer.materialize(target.providerRenderRequest)
           if (!materializationContainsOnlyAcceptedSources(materialization)) throw new HttpProblem(409, 'MATERIALIZER_UNTRUSTED_SOURCE')
           const resolved: ResolvedPlaygroundAsset[] = normalized.assets.map((asset) => {
@@ -344,17 +452,63 @@ export function createPlaygroundServer(options: PlaygroundServerOptions = {}): S
               role: normalized.declaredRoles.find((declaration) => declaration.assetId === asset.id)?.role,
               width: item.width, height: item.height, bytes: item.bytes }
           })
+          if (profile.provider === 'cloudflare') {
+            apiKey = ''
+            const credential = options.cloudflareCredential
+            if (!credential || !credential.accountId || !credential.apiToken) throw new HttpProblem(503, 'CLOUDFLARE_OPERATOR_CREDENTIAL_UNAVAILABLE')
+            const transport = options.transports?.cloudflare
+            if (!transport || transport.provider !== 'cloudflare') throw new HttpProblem(503, 'REAL_PROVIDER_TRANSPORT_DISABLED')
+            let budgetReservation
+            let quotaReservation
+            try {
+              budgetReservation = budgetGate.reserve(clientId, profile, 0)
+              try {
+                quotaReservation = cloudflareQuotaGate.reserve(estimateCloudflareNeurons(target.providerRenderRequest, profile))
+              } catch (error) {
+                if (error instanceof Error && error.message === 'CLOUDFLARE_QUOTA_EXHAUSTED') throw new HttpProblem(429, 'CLOUDFLARE_QUOTA_EXHAUSTED')
+                throw error
+              }
+              let providerResult
+              let outputUrl: string | undefined
+              try {
+                const execution = await executeCloudflareProviderCallDetailed({ request: target.providerRenderRequest, profile, materialization, assets: resolved, transport, credential })
+                providerResult = execution.providerResult
+                const output = execution.outputAssets[0]
+                if (output) {
+                  generatedStore.put(sessionId, output.artifact.id, { bytes: output.bytes, mediaType: output.artifact.mediaType, expiresAt: Date.now() + 15 * 60_000 })
+                  outputUrl = `/api/generated/${output.artifact.id}?session=${encodeURIComponent(sessionId)}`
+                }
+              } catch (error) {
+                throw new HttpProblem(502, cloudflareTransportErrorCode(error))
+              }
+              const result = { status: 'ok', providerResult, ...(outputUrl ? { outputUrl } : {}), capability: targetCapability, quota: cloudflareQuotaGate.snapshot(), cleanup: { status: 'completed', releasedRequestBuffers: true, releasedCredential: true }, calls: 1, logs: [{ event: 'provider.generate', requestHash: target.providerRenderRequest.requestHash, profileId: profile.id, status: 'succeeded' }] }
+              return respond(response, 200, { schemaVersion: 'voce.playground-generate-response/v1alpha1', renderEnabled: true, result })
+            } finally {
+              apiKey = ''
+              if (budgetReservation) budgetGate.release(budgetReservation)
+              void quotaReservation
+            }
+          }
+          const transport = options.transports?.[profile.provider]
+          if (!transport || transport.provider === 'cloudflare') throw new HttpProblem(503, 'REAL_PROVIDER_TRANSPORT_DISABLED')
           let reservation
           try {
             reservation = budgetGate.reserve(clientId, profile, estimateProviderCost(target.providerRenderRequest, profile))
             let providerResult
+            let outputUrl: string | undefined
             try {
-              providerResult = await executeProviderCall({ request: target.providerRenderRequest, profile, materialization, assets: resolved, transport, ephemeralApiKey: apiKey })
-            } catch {
-              throw new HttpProblem(502, 'PROVIDER_CALL_FAILED')
+              const execution = await executeProviderCallDetailed({ request: target.providerRenderRequest, profile, materialization, assets: resolved, transport, ephemeralApiKey: apiKey })
+              providerResult = execution.providerResult
+              const output = execution.outputAssets[0]
+              if (output) {
+                generatedStore.put(sessionId, output.artifact.id, { bytes: output.bytes, mediaType: output.artifact.mediaType, expiresAt: Date.now() + 15 * 60_000 })
+                outputUrl = `/api/generated/${output.artifact.id}?session=${encodeURIComponent(sessionId)}`
+              }
+            } catch (error) {
+              throw new HttpProblem(502, profile.provider === 'seedream' ? seedreamTransportErrorCode(error) : 'PROVIDER_CALL_FAILED')
             }
             apiKey = ''
-            const result = { status: 'ok', providerResult, capability: targetCapability, cleanup: { status: 'completed', releasedRequestBuffers: true, releasedCredential: true }, calls: 1, logs: [{ event: 'provider.generate', requestHash: target.providerRenderRequest.requestHash, profileId: profile.id, status: 'succeeded' }] }
+            const result = { status: 'ok', providerResult, ...(outputUrl ? { outputUrl } : {}), capability: targetCapability, cleanup: { status: 'completed', releasedRequestBuffers: true, releasedCredential: true }, calls: 1, logs: [{ event: 'provider.generate', requestHash: target.providerRenderRequest.requestHash, profileId: profile.id, status: 'succeeded' }] }
             return respond(response, 200, { schemaVersion: 'voce.playground-generate-response/v1alpha1', renderEnabled: true, result })
           } finally {
             apiKey = ''
@@ -370,7 +524,7 @@ export function createPlaygroundServer(options: PlaygroundServerOptions = {}): S
       respond(response, status, errorBody(error))
     }
   })
-  server.once('close', () => { clearInterval(sweepTimer); store.clearAll() })
+  server.once('close', () => { clearInterval(sweepTimer); store.clearAll(); generatedStore.clearAll() })
   return server
 }
 

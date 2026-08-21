@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Adds the source-only VOCE Playground Host: an English, mobile-friendly Browser UI for request-scoped image upload, ScenarioPack-derived role declaration, readable plan inspection, exact guarded-prompt validation export, and one explicitly confirmed Provider call. This work is under review in PR #32 and is not part of the published `v0.1.0-rc.4` packages or a public deployment.
+- Replaces the earlier fixed Try-On input model with one required person plus either one full-outfit reference or independently optional Top and Bottom references. Full outfit is mutually exclusive with Top/Bottom; omitted garment regions, footwear, pose, framing, and accessories are preserved unless their corresponding optional reference is supplied.
+- Adds typed Virtual Try-On accessory declarations for supported item, placement, and side combinations; replacement accessories remove original bags and jewelry, while the absence of a replacement accessory preserves the originals. The Browser no longer asks users to classify garment categories, while trusted API callers may still provide optional allow-listed metadata.
+- Keeps all 30 visual-composition presets and example artwork in Cosplay only. The compiled prompt preserves the first person reference's face and photographic appearance, replaces character hair/costume/props from their declared references, and adds logical default environments plus subject/environment placement constraints for compositions that require them.
+- Adds allow-listed local transports for Cloudflare Workers AI FLUX.2 klein 4B and Seedream 5.0 Pro, while retaining Grok Imagine as an explicitly injected BYOK boundary. Cloudflare is the default free quick-preview profile, uses operator-managed server credentials, accepts at most four references strictly smaller than 512×512, and is documented as lower fidelity for exact identity, small accessories, complete feet/framing, and complex spatial composition.
+- Caps every model-facing Playground prompt at 4,000 characters and tests all 30 Cosplay compositions for both Cloudflare and Seedream without dropping guarded semantics or changing reference order.
+- Adds declarative input-policy and interpretation-scope contracts, conditional role-group validation, reference-isolation fields, deterministic binding/materialization coverage, upload deletion and cleanup, Provider capability/budget/rate gates, and safe one-call error handling. Standard tests remain offline and never use real credentials or paid calls.
+
 ## 0.1.0-rc.4
 
 This release candidate publishes the visual-composition work that followed RC.3:

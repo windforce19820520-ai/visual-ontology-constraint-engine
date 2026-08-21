@@ -350,6 +350,7 @@ function referenceCandidateProjection(candidate: ReferenceCandidate): JsonObject
     ontologyScopes: sortedStrings(candidate.ontologyScopes),
     ...(candidate.prohibitedTargetPaths === undefined ? {} : { prohibitedTargetPaths: sortedStrings(candidate.prohibitedTargetPaths) }),
     ...(candidate.prohibitedTargetPathImportance === undefined ? {} : { prohibitedTargetPathImportance: sortedImportanceMap(candidate.prohibitedTargetPathImportance) }),
+    ...(candidate.typedMetadata === undefined ? {} : { typedMetadata: clone(candidate.typedMetadata) }),
     importance: candidate.importance,
     constraintIds: sortedStrings(candidate.constraintIds),
     sourceBindingIds: sortedStrings(candidate.sourceBindingIds),
@@ -1358,7 +1359,9 @@ function referenceProfileLimits(profile: ProviderCapabilityProfile): {
     allowedMediaTypes: sortedStrings(profile.allowedReferenceMediaTypes ?? nested.allowedMediaTypes),
     allowedRoles: sortedStrings(profile.allowedReferenceRoles ?? nested.allowedRoles),
     ordering: profile.referenceOrdering ?? nested.ordering ?? 'stable',
-    roleOrder: sortedStrings(profile.referenceRoleOrder ?? nested.roleOrder),
+    // Provider role order is an executable ordering contract, not a set. Preserve
+    // the declared sequence while de-duplicating it deterministically.
+    roleOrder: [...new Set(profile.referenceRoleOrder ?? nested.roleOrder ?? [])],
     supportsMultipleReferences: profile.supportsMultipleReferences ?? nested.supportsMultipleReferences ?? true,
     requiresPublishedReferences: profile.requiresPublishedReferences ?? nested.requiresPublishedReferences ?? false,
   }
@@ -1395,6 +1398,7 @@ function normalizedCandidate(candidate: ReferenceCandidate, constraintIR: Constr
     ontologyScopes: sortedStrings(candidate.ontologyScopes),
     ...(candidate.prohibitedTargetPaths === undefined ? {} : { prohibitedTargetPaths: sortedStrings(candidate.prohibitedTargetPaths) }),
     ...(candidate.prohibitedTargetPathImportance === undefined ? {} : { prohibitedTargetPathImportance: sortedImportanceMap(candidate.prohibitedTargetPathImportance) }),
+    ...(candidate.typedMetadata === undefined ? {} : { typedMetadata: clone(candidate.typedMetadata) }),
     importance: inferredImportance,
     constraintIds: constraints,
     sourceBindingIds: sortedStrings(candidate.sourceBindingIds),
@@ -1482,7 +1486,7 @@ function referencePlanIntegrityReasons(plan: ReferencePlan): string[] {
 function makePlannedReference(candidate: ReferenceCandidate, dependencyIds: string[], order: number): PlannedReference {
   const base: PlannedReference = {
     schemaVersion: PLANNED_REFERENCE_SCHEMA_VERSION,
-    id: hashId('planned-reference', { candidateId: candidate.id, contentHash: candidate.contentHash }),
+    id: hashId('planned-reference', { candidateId: candidate.id, contentHash: candidate.contentHash, typedMetadata: candidate.typedMetadata }),
     candidateId: candidate.id,
     assetId: candidate.assetId,
     contentHash: candidate.contentHash,
@@ -1492,6 +1496,7 @@ function makePlannedReference(candidate: ReferenceCandidate, dependencyIds: stri
     ontologyScopes: sortedStrings(candidate.ontologyScopes),
     ...(candidate.prohibitedTargetPaths === undefined ? {} : { prohibitedTargetPaths: sortedStrings(candidate.prohibitedTargetPaths) }),
     ...(candidate.prohibitedTargetPathImportance === undefined ? {} : { prohibitedTargetPathImportance: sortedImportanceMap(candidate.prohibitedTargetPathImportance) }),
+    ...(candidate.typedMetadata === undefined ? {} : { typedMetadata: clone(candidate.typedMetadata) }),
     constraintIds: sortedStrings(candidate.constraintIds),
     sourceBindingIds: sortedStrings(candidate.sourceBindingIds),
     dependencyIds: sortedStrings(dependencyIds),

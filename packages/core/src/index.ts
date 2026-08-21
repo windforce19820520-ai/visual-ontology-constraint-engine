@@ -138,6 +138,68 @@ function contributionDigest(value: JsonObject): string {
 }
 
 function validateTypedContribution(category: string, value: JsonObject): void {
+  if (category === 'interpretationScopes') {
+    if (value.schemaVersion === 'voce.input-policy/v1alpha1') {
+      if (!value.inputPolicy || typeof value.inputPolicy !== 'object' || Array.isArray(value.inputPolicy)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+      const policy = value.inputPolicy as Record<string, unknown>
+      if (!Array.isArray(policy.roleGroups) || !policy.capabilities || typeof policy.capabilities !== 'object' || Array.isArray(policy.capabilities) || Object.values(policy.capabilities as Record<string, unknown>).some((capability) => typeof capability !== 'boolean')) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+      const groups = policy.roleGroups
+      const ids = new Set<string>()
+      for (const raw of groups) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        const group = raw as Record<string, unknown>
+        if (typeof group.id !== 'string' || !group.id || ids.has(group.id) || (group.operator !== 'atLeastOne' && group.operator !== 'mutuallyExclusive') || !Array.isArray(group.roles) || group.roles.length === 0 || group.roles.some((role) => typeof role !== 'string' || !role) || new Set(group.roles as string[]).size !== group.roles.length) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        if (group.minCount !== undefined && (!Number.isInteger(group.minCount) || Number(group.minCount) < 0)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        if (group.maxCount !== undefined && (!Number.isInteger(group.maxCount) || Number(group.maxCount) < 0)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        if (group.minCount !== undefined && group.maxCount !== undefined && Number(group.maxCount) < Number(group.minCount)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        ids.add(group.id)
+      }
+      return
+    }
+    if (value.schemaVersion === 'voce.interpretation-scope/v1alpha1') {
+      if (typeof value.assetRole !== 'string' || !value.assetRole) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+      if (!Number.isInteger(value.referenceOrder) || Number(value.referenceOrder) < 0 || !Number.isInteger(value.minCount) || !Number.isInteger(value.maxCount) || Number(value.minCount) < 0 || Number(value.maxCount) < Number(value.minCount) || !Array.isArray(value.bindings)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+      for (const raw of value.bindings) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        const binding = raw as Record<string, unknown>
+        if (binding.assetRole !== value.assetRole || typeof binding.targetPath !== 'string' || !['preserve', 'reproduce', 'inspire', 'exclude'].includes(String(binding.relation)) || !['hard', 'required', 'preferred'].includes(String(binding.priority))) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        if (binding.activeWhen !== undefined) {
+          if (!Array.isArray(binding.activeWhen) || binding.activeWhen.some((condition) => !condition || typeof condition !== 'object' || Array.isArray(condition) || typeof (condition as Record<string, unknown>).role !== 'string' || !['present', 'absent'].includes(String((condition as Record<string, unknown>).presence)))) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        }
+      }
+      if (value.typedMetadata !== undefined) {
+        if (!value.typedMetadata || typeof value.typedMetadata !== 'object' || Array.isArray(value.typedMetadata)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        const metadata = value.typedMetadata as Record<string, unknown>
+        if (!metadata.fields || typeof metadata.fields !== 'object' || Array.isArray(metadata.fields) || Object.keys(metadata.fields as Record<string, unknown>).length === 0) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        const fields = metadata.fields as Record<string, unknown>
+        for (const [fieldId, rawField] of Object.entries(fields)) {
+          if (!fieldId || !rawField || typeof rawField !== 'object' || Array.isArray(rawField)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+          const field = rawField as Record<string, unknown>
+          if (typeof field.required !== 'boolean' || !Array.isArray(field.values) || field.values.length === 0 || new Set(field.values.map((item) => canonicalize(item as JsonValue))).size !== field.values.length) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+          if (field.defaultValue !== undefined && !field.values.some((item) => canonicalize(item as JsonValue) === canonicalize(field.defaultValue as JsonValue))) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+        }
+        if (metadata.combinations !== undefined) {
+          if (!Array.isArray(metadata.combinations) || metadata.combinations.length === 0) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+          const seenCombinations = new Set<string>()
+          for (const rawCombination of metadata.combinations) {
+            if (!rawCombination || typeof rawCombination !== 'object' || Array.isArray(rawCombination)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+            const values = (rawCombination as Record<string, unknown>).values
+            if (!values || typeof values !== 'object' || Array.isArray(values) || Object.keys(values as Record<string, unknown>).length === 0) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+            for (const [fieldId, fieldValue] of Object.entries(values as Record<string, unknown>)) {
+              const field = fields[fieldId] as Record<string, unknown> | undefined
+              if (!field || !(field.values as unknown[]).some((item) => canonicalize(item as JsonValue) === canonicalize(fieldValue as JsonValue))) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+            }
+            for (const [fieldId, rawField] of Object.entries(fields)) if ((rawField as Record<string, unknown>).required === true && (values as Record<string, unknown>)[fieldId] === undefined) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+            const signature = canonicalize(values as JsonValue)
+            if (seenCombinations.has(signature)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
+            seenCombinations.add(signature)
+          }
+        }
+      }
+      return
+    }
+    return
+  }
   if (category === 'ontologyVocabulary') {
     if (!Array.isArray(value.paths)) throw new Error('PACK_TYPED_CONTRIBUTION_INVALID')
     const ids = new Set<string>()
@@ -213,7 +275,7 @@ function descriptorFor(definition: ScenarioPack, files: Array<{ path: string; by
       if (typeof contribution.id !== 'string' || typeof contribution.contentDigest !== 'string' || bodyIds.has(id) || !indexed.has(id)) throw new Error('PACK_CONTRIBUTION_INVALID')
       bodyIds.add(id)
       if (indexed.get(id) !== contribution.contentDigest || contributionDigest(contribution) !== contribution.contentDigest) throw new Error('PACK_DIGEST_MISMATCH')
-      if ((category === 'ontologyVocabulary' && Array.isArray(contribution.paths)) || (category === 'rulePacks' && Array.isArray(contribution.rules)) || (category === 'promptSections' && Array.isArray(contribution.sections))) validateTypedContribution(category, contribution)
+      if (category === 'interpretationScopes' || (category === 'ontologyVocabulary' && Array.isArray(contribution.paths)) || (category === 'rulePacks' && Array.isArray(contribution.rules)) || (category === 'promptSections' && Array.isArray(contribution.sections))) validateTypedContribution(category, contribution)
     }
   }
   const manifestHash = sha256(json(definition.manifest))

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { ArtifactHandle, JsonObject, ProviderRenderRequest, ProviderRenderResult } from '@voce-engine/contracts'
 import { sha256 } from '@voce-engine/core'
 import type { MaterializationResult } from './provider-materializer.js'
@@ -27,6 +28,8 @@ export interface PlaygroundProviderCall {
 export interface PlaygroundTransportResult {
   providerRequestId?: string
   outputArtifacts: readonly ArtifactHandle[]
+  /** Trusted-host bytes for request-scoped display. Never included in the public Provider receipt. */
+  outputAssets?: readonly { artifact: ArtifactHandle; bytes: Uint8Array }[]
   metadata?: JsonObject
 }
 
@@ -40,7 +43,7 @@ export function buildProviderCall(input: {
   materialization: MaterializationResult
   assets: readonly ResolvedPlaygroundAsset[]
 }): PlaygroundProviderCall {
-  if (input.profile.provider === 'mock') throw new Error('REAL_PROVIDER_PROFILE_REQUIRED')
+  if (input.profile.provider === 'mock' || input.profile.provider === 'cloudflare') throw new Error('REAL_PROVIDER_PROFILE_REQUIRED')
   const byId = new Map(input.assets.map((asset) => [asset.id, asset]))
   const references = input.materialization.request.references.map((mapping) => {
     const asset = byId.get(mapping.assetId)
@@ -63,14 +66,19 @@ export function buildProviderCall(input: {
   }
 }
 
-export async function executeProviderCall(input: {
+export interface PlaygroundProviderExecutionResult {
+  providerResult: ProviderRenderResult
+  outputAssets: readonly { artifact: ArtifactHandle; bytes: Uint8Array }[]
+}
+
+export async function executeProviderCallDetailed(input: {
   request: ProviderRenderRequest
   profile: PlaygroundProviderProfile
   materialization: MaterializationResult
   assets: readonly ResolvedPlaygroundAsset[]
   transport: PlaygroundProviderTransport
   ephemeralApiKey: string
-}): Promise<ProviderRenderResult> {
+}): Promise<PlaygroundProviderExecutionResult> {
   if (input.transport.provider !== input.profile.provider) throw new Error('PROVIDER_TRANSPORT_PROFILE_MISMATCH')
   const call = buildProviderCall(input)
   const transportResult = await input.transport.send(call, input.ephemeralApiKey)
@@ -79,6 +87,11 @@ export async function executeProviderCall(input: {
   for (const artifact of transportResult.outputArtifacts) {
     if (!/^sha256:[0-9a-f]{64}$/.test(artifact.contentHash) || typeof artifact.byteLength !== 'number' || !Number.isInteger(artifact.byteLength) || artifact.byteLength < 0 || !artifact.mediaType.startsWith('image/') || artifact.availability !== 'available') throw new Error('PROVIDER_OUTPUT_ARTIFACT_INVALID')
   }
+  const outputAssets = [...(transportResult.outputAssets ?? [])]
+  if (outputAssets.length && (outputAssets.length !== transportResult.outputArtifacts.length || outputAssets.some((output, index) => {
+    const artifact = transportResult.outputArtifacts[index]
+    return output.artifact.id !== artifact.id || output.artifact.contentHash !== artifact.contentHash || output.bytes.byteLength !== artifact.byteLength || `sha256:${createHash('sha256').update(output.bytes).digest('hex')}` !== artifact.contentHash
+  }))) throw new Error('PROVIDER_OUTPUT_BYTES_INVALID')
   const base: Omit<ProviderRenderResult, 'resultHash'> = {
     schemaVersion: 'voce.provider-render-result/v1alpha1', status: 'ok', requestHash: input.request.requestHash,
     adapterId: input.profile.adapterId,
@@ -90,5 +103,9 @@ export async function executeProviderCall(input: {
     metadata: { provider: input.profile.provider, outputCount: transportResult.outputArtifacts.length },
   }
   if (base.outputArtifacts.length !== 1) throw new Error('PROVIDER_OUTPUT_CARDINALITY_INVALID')
-  return { ...base, resultHash: safeResultHash(base) }
+  return { providerResult: { ...base, resultHash: safeResultHash(base) }, outputAssets }
+}
+
+export async function executeProviderCall(input: Parameters<typeof executeProviderCallDetailed>[0]): Promise<ProviderRenderResult> {
+  return (await executeProviderCallDetailed(input)).providerResult
 }
