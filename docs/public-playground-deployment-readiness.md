@@ -43,8 +43,10 @@ Cloudflare additionally has a fail-closed Host cap no greater than 10,000 Neuron
 
 Compile/Inspect remains available with every transport disabled or every Generate quota exhausted.
 
-## PR B baseline and prerequisites
+## PR B baseline and Provider-enabled deployment
 
-The checked-in PR B baseline is compile-only. All three real transports and Mock rendering are disabled, so the effective Provider-call and spend ceiling is zero. It binds Node to loopback, uses one systemd process, caps memory, exposes only Nginx, and keeps validation export disabled. This is the only supported configuration until Provider activation receives separate authorization and account-side hard limits are verified.
+The checked-in PR B environment example is compile-only. All three real transports and Mock rendering are disabled, so the effective Provider-call and spend ceiling is zero. It binds Node to loopback, uses one systemd process, caps memory, exposes only Nginx, and keeps validation export disabled.
 
-Before deployment, the owner must separately authorize the cloud account/project, exact region, hostname/DNS/TLS, proxy CIDRs/body limit, single-instance process policy, monitoring destination, and public privacy/contact text. Secret injection and Provider online acceptance require their own authorization. PR B does not change PR A into a release, merge, npm publication, or tag operation.
+After separate authorization, a deployment may enable Seedream and Grok BYOK transports without storing either user key. Cloudflare may be enabled with an operator-managed credential stored only in the root-owned `0600` `/etc/voce-playground/cloudflare.env` file. The compile-only systemd unit denies non-loopback networking; Provider activation therefore also requires the reviewed `voce-playground-provider-egress.conf` drop-in. Application adapters continue to allow-list the exact Cloudflare, Ark, xAI, and Provider-owned output hosts. Deployment acceptance must use Mock tests and capability metadata unless a real call is separately authorized.
+
+Before deployment, the owner must separately authorize the cloud account/project, exact region, hostname/DNS/TLS, proxy CIDRs/body limit, single-instance process policy, monitoring destination, public privacy/contact text, secret injection, and real Provider calls. PR B does not change PR A into a release, merge, npm publication, or tag operation.

@@ -231,6 +231,8 @@ test('browser bootstrap fetches both metadata endpoints and has mobile/accessibi
   assert.match(PLAYGROUND_HTML, /Export validation package/)
   assert.match(PLAYGROUND_HTML, /Choose image/)
   assert.match(PLAYGROUND_HTML, /removeAction\.textContent='Remove'/)
+  assert.match(PLAYGROUND_HTML, /Generate is unavailable because real image generation is not enabled in this environment/)
+  assert.match(PLAYGROUND_HTML, /if\(generationAvailable\)status\.textContent='Compile is complete\. Generate is available/)
   assert.match(PLAYGROUND_HTML, /Fit reference/)
   assert.match(PLAYGROUND_HTML, /method:'DELETE'/)
   assert.doesNotMatch(PLAYGROUND_HTML, /[\u3400-\u9fff]/)

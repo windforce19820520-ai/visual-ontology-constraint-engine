@@ -10,6 +10,8 @@ Group=voce
 WorkingDirectory=/opt/voce-playground/current
 Environment=NODE_ENV=production
 EnvironmentFile=/etc/voce-playground/voce-playground.env
+# Optional operator-managed Cloudflare credential file. Keep it root:root 0600.
+EnvironmentFile=-/etc/voce-playground/cloudflare.env
 ExecStart=/usr/bin/node playground/dist/server-entry.js
 Restart=on-failure
 RestartSec=5s
@@ -37,6 +39,8 @@ CapabilityBoundingSet=
 AmbientCapabilities=
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 # Compile-only defense in depth: accept Nginx on loopback, deny external calls.
+# Install the reviewed provider-egress drop-in only when a real transport is
+# explicitly authorized; the application itself allow-lists Provider endpoints.
 IPAddressDeny=any
 IPAddressAllow=localhost
 MemoryMax=1536M

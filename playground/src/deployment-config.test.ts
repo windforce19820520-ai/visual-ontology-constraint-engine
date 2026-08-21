@@ -33,6 +33,7 @@ test('systemd unit runs unprivileged with bounded resources and a graceful stop'
   assert.match(unit, /^User=voce$/m)
   assert.match(unit, /^Group=voce$/m)
   assert.match(unit, /^EnvironmentFile=\/etc\/voce-playground\/voce-playground\.env$/m)
+  assert.match(unit, /^EnvironmentFile=-\/etc\/voce-playground\/cloudflare\.env$/m)
   assert.match(unit, /^ExecStart=\/usr\/bin\/node playground\/dist\/server-entry\.js$/m)
   assert.match(unit, /^KillSignal=SIGTERM$/m)
   assert.match(unit, /^NoNewPrivileges=true$/m)
@@ -40,6 +41,17 @@ test('systemd unit runs unprivileged with bounded resources and a graceful stop'
   assert.match(unit, /^IPAddressDeny=any$/m)
   assert.match(unit, /^IPAddressAllow=localhost$/m)
   assert.match(unit, /^MemoryMax=1536M$/m)
+})
+
+test('Provider egress requires an explicit systemd drop-in and credentials stay outside the main environment', async () => {
+  const dropIn = await deploymentFile('voce-playground-provider-egress.conf')
+  assert.match(dropIn, /^\[Service\]$/m)
+  assert.match(dropIn, /^IPAddressDeny=$/m)
+  assert.match(dropIn, /^IPAddressAllow=$/m)
+  const secretShape = await deploymentFile('cloudflare.env.example')
+  assert.match(secretShape, /^CLOUDFLARE_ACCOUNT_ID=$/m)
+  assert.match(secretShape, /^CLOUDFLARE_API_TOKEN=$/m)
+  assert.doesNotMatch(secretShape, /Bearer\s+|[A-Za-z0-9_-]{40,}/)
 })
 
 test('Nginx terminates TLS, bounds bodies, trusts only its socket peer, and sanitizes logs', async () => {
