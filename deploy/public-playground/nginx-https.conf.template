@@ -1,0 +1,74 @@
+# This file is included inside Nginx's http context.
+map $uri $voce_log_uri {
+    default $uri;
+    ~^/api/generated/ /api/generated/:id;
+}
+
+server_tokens off;
+
+limit_req_zone $binary_remote_addr zone=voce_requests:10m rate=10r/s;
+limit_conn_zone $binary_remote_addr zone=voce_connections:10m;
+
+# Deliberately excludes client IP, query string, Referer, User-Agent, cookies,
+# request/response bodies, and generated-result identifiers.
+log_format voce_public '$time_iso8601 $request_method $voce_log_uri $status '
+                       '$body_bytes_sent $request_time $upstream_response_time '
+                       '$sent_http_x_request_id';
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __VOCE_HOSTNAME__;
+    access_log /var/log/nginx/voce-playground.access.log voce_public;
+    error_log /dev/null crit;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type text/plain;
+    }
+
+    location / {
+        return 308 https://__VOCE_HOSTNAME__$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name __VOCE_HOSTNAME__;
+
+    ssl_certificate /etc/letsencrypt/live/__VOCE_HOSTNAME__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__VOCE_HOSTNAME__/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_tickets off;
+
+    access_log /var/log/nginx/voce-playground.access.log voce_public;
+    # Nginx error entries can include raw client addresses and request targets.
+    # Application errors remain available as sanitized structured journal logs.
+    error_log /dev/null crit;
+
+    client_max_body_size 20100000;
+    proxy_request_buffering off;
+    proxy_buffering off;
+    proxy_cache off;
+    limit_req zone=voce_requests burst=20 nodelay;
+    limit_conn voce_connections 10;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+    location / {
+        proxy_pass http://127.0.0.1:4173;
+        proxy_http_version 1.1;
+        proxy_set_header Host __VOCE_HOSTNAME__;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header Connection "";
+        proxy_hide_header Server;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 180s;
+    }
+}

@@ -174,7 +174,7 @@ The English UI order is:
 2. `Clothing to replace` — at least one of Full-body garment, Top, or Bottom.
 3. Choose one visual path: `One full outfit`, or `Top / Bottom`. Switching paths clears the conflicting clothing input; this is a Browser interaction, not a new ScenarioPack role or enum.
 4. In `Top / Bottom`, upload either piece or both. No garment-category selector is shown.
-5. `Optional refinements` — Fit, Footwear, Pose, and up to four Accessories, each accessory retaining its meaningful type, placement, and side choices.
+5. `Optional refinements — Fit, Footwear, Pose, Accessories` — open by default so accessories remain discoverable; supports Fit, Footwear, Pose, and up to four Accessories, each accessory retaining its meaningful type, placement, and side choices.
 6. Provider choice, reference-capacity status, rights confirmation, Compile, and Generate.
 
 The page derives the readable plan from the compiled result, for example:
