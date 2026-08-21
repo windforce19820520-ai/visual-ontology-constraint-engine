@@ -16,17 +16,17 @@
 
 ## 结论
 
-Cloudflare Workers AI FLUX.2 klein 4B 现作为普通产品 selector 的默认项：官方模型说明支持最多 4 张有序二进制参考图，字段固定为 `input_image_0`…`input_image_3`，每张图的宽高必须严格小于 512；模型为固定 4 步蒸馏 4B，输出宽高范围为 256–1920。Workers AI 免费额度为共享的 10,000 Neurons/日，00:00 UTC 重置；Playground 在 Host 侧以不超过该上限的 quota gate fail-closed，绝不自动重试、付费续用或切换 Provider。Cloudflare 使用 operator-managed 服务端凭据，不在浏览器展示或接收 Cloudflare Key。Cloudflare 数据使用文档说明 Customer Content 不用于训练或改进 Cloudflare/第三方服务，除非取得明确同意；若部署另行使用 R2/KV/DO 等存储服务，留存边界需重新审查。
+普通产品 selector 现按 Seedream 推荐高质量 BYOK、Grok 可选高质量 BYOK、Cloudflare 免费实验预览排序。Cloudflare 不再作为默认质量代表：官方模型说明支持最多 4 张有序二进制参考图，字段固定为 `input_image_0`…`input_image_3`，每张图的宽高必须严格小于 512；模型为固定 4 步蒸馏 4B，输出宽高范围为 256–1920。Workers AI 免费额度为共享的 10,000 Neurons/日，00:00 UTC 重置；Playground 在 Host 侧以不超过该上限的 quota gate fail-closed，绝不自动重试、付费续用或切换 Provider。Cloudflare 使用 operator-managed 服务端凭据，不在浏览器展示或接收 Cloudflare Key。Cloudflare 数据使用文档说明 Customer Content 不用于训练或改进 Cloudflare/第三方服务，除非取得明确同意；若部署另行使用 R2/KV/DO 等存储服务，留存边界需重新审查。
 
 Seedream 5.0 Pro 是当前 Playground 的多参考 BYOK 选择，固定使用 RC.3/RC.4 已真实验收成功的 `doubao-seedream-5-0-pro-260628`。验收时相同国内 Ark endpoint 完成 3/3 HTTP 200，使用 `n=1`、JPEG、2K、无水印的单图请求；Playground 不发送 4.0 专用的 sequential/stream/response-format 字段。Grok Imagine image quality 的官方 Imagine 说明给出图像编辑最多 3 张参考图，因此不能承载超过 3 张引用的计划；该 profile 会在 capability preflight 阻断，不会静默删图或降级到其他 Provider。
 
 Cloudflare 的 4-reference 上限意味着 Try-On 的可选第五张 pose 参考仍能离线 Compile，但不能在该 profile Generate；Host 在 transport 前阻断，不删除、重排或替换角色。Cosplay 的 prop-plus-pose 四图路径在上限内。Cloudflare 的 operator-managed 账号与 token 只在部署 Host 进程里注入；仓库提供 allow-listed HTTP transport，但不包含任何真实凭据，也不在标准测试中进行真实网络调用。生成图只在 Host 请求级内存中短暂保留并通过不缓存的同源地址展示。
 
-## Cloudflare Workers AI FLUX.2 klein 4B（默认免费 profile）
+## Cloudflare Workers AI FLUX.2 klein 4B（免费实验预览 profile）
 
 | 项目 | 官方核验结果 | Playground 处理 |
 | --- | --- | --- |
-| Provider / model | Cloudflare Workers AI / `@cf/black-forest-labs/flux-2-klein-4b` | allow-listed profile `cloudflare-flux-2-klein-4b`，普通 selector 第一项和默认项 |
+| Provider / model | Cloudflare Workers AI / `@cf/black-forest-labs/flux-2-klein-4b` | allow-listed profile `cloudflare-flux-2-klein-4b`，普通 selector 第三项，仅作为免费实验预览 |
 | 输入与引用 | multipart/form-data；最多 4 张二进制输入；字段必须是 `input_image_0`…`input_image_3`；每张图宽高严格小于 512 | 保留 Guard 接受的 prompt、typed parameters、output contract 与稳定引用顺序；第五张或不满足尺寸的输入在 transport 前阻断，calls=0 |
 | 输出 | `width`/`height` 为 256–1920；一次输出 | profile-driven output preflight；固定 one-output contract |
 | 推理 | 固定 4 steps、distilled 4B，不能调 steps | selector 明示速度和可能较弱的身份、服装、道具细节及复杂构图保真度 |
@@ -71,9 +71,10 @@ Cloudflare 的 4-reference 上限意味着 Try-On 的可选第五张 pose 参考
 | 输入 | Imagine overview 的 image editing 支持最多 3 张参考图；官方模型页列图像输入最大 20 MiB、JPEG/PNG | `maximumReferenceCount=3`、每图 20 MiB、JPEG/PNG；4/5 图路径明确阻断 |
 | 输出/价格 | 当前 quality profile 官方 pricing 页列输入图 0.01 USD/张、1K 输出 0.05 USD、2K 输出 0.07 USD | 当前 profile 逐张计输入费用并按输出尺寸选择 1K/2K 输出价；例如 3 张输入加 1K 输出估算 0.08 USD。固定单图，实际账单以 Provider 为准 |
 | 鉴权 | `Authorization: Bearer $XAI_API_KEY`；官方 quickstart 要求 API key | 只允许 `user_ephemeral`，不得写入磁盘、Cookie、localStorage、sessionStorage、analytics 或日志；不发起额外验证请求 |
-| 引用传输 | 官方编辑 API 使用 `application/json`，支持 public URL 或 Base64；Files API 可用私有 `file_id` | bridge 明确标记 `xai-image-edits-json`，不使用 multipart；Host 不要求公开输入 URL；当前真实 transport 关闭 |
-| 隐私/留存 | xAI 官方 Security FAQ：默认 API 请求和响应加密留存 30 天用于滥用审计；不以这些数据训练；团队级 ZDR 可关闭内容留存但会禁用依赖存储的功能 | 不宣称默认零留存；如果未来启用，部署前必须确认团队 ZDR/条款及文件能力 |
-| 限流/失败 | 官方模型页给出 5 requests/second；生成失败、内容策略和服务错误语义仍由 API 返回 | Host 侧 5 rps/单调用/无自动重试；失败只返回安全错误映射 |
+| 引用传输 | 官方编辑 API 使用 `application/json`，支持 public URL 或 Base64；Files API 可用私有 `file_id` | allow-listed transport 明确使用 `xai-image-edits-json`，不使用 multipart；Host 发送请求级 Base64 data URI，不要求公开输入 URL；仅完成 Mock HTTP 回归 |
+| 隐私/留存 | xAI 官方 Security FAQ：默认 API 请求和响应加密留存 30 天用于滥用审计；不以这些数据训练；团队级 ZDR 可关闭内容留存但会禁用依赖存储的功能 | 不宣称默认零留存；启用前必须确认部署账户的 ZDR/条款及文件能力 |
+| 限流/失败 | 官方模型页给出 5 requests/second；生成失败、内容策略和服务错误语义仍由 API 返回 | Host 侧会话、可信客户端、Provider 每分钟、全局并发和每日门禁；单调用、无自动重试；失败只返回安全错误映射 |
+| HTTP 适配状态 | 官方 `/v1/images/edits` 使用 `application/json`；单图为 `image`，多图为 `images`，输入可为 Base64 data URI；输出为单项 `data` | PR A 已实现 allow-listed BYOK HTTP 传输和安全输出下载，成功/失败只使用 Mock HTTP 验证；未执行真实 Grok 调用，profile 的 Core `verificationStatus` 保持 `declared` |
 
 官方链接：
 
@@ -86,6 +87,6 @@ Cloudflare 的 4-reference 上限意味着 Try-On 的可选第五张 pose 参考
 
 ## 代码边界
 
-本阶段实现 allow-listed capability profiles、完整 profile digest、机械 materializer、Seedream/Grok provider-call bridge、BYOK 请求级边界、Mock transport、能力/尺寸/媒体 preflight，以及按币种、自然日、客户端和 Provider 速率限制的预算门。Provider call 只投影 Guard 已接受的正向段落、禁止项、typed parameters、output contract 与稳定引用顺序；transport 失败统一映射为安全错误码，不能把原始错误或 BYOK 回显给浏览器。Compile 使用不可生成、不会出现在 allow-list 的 inspection profile 保留完整声明计划，再对所选 Provider 单独做 capability preflight；Generate 会用所选 profile 重编译并核对绑定 hash。
+当前实现包括 allow-listed capability profiles、完整 profile digest、机械 materializer、Cloudflare/Seedream/Grok 正式请求转换、BYOK 请求级边界、Mock HTTP transport tests、能力/尺寸/媒体 preflight，以及按会话、可信客户端、Provider 频率、全局并发、自然日和币种预算的门禁。Provider call 只投影 Guard 已接受的正向段落、禁止项、typed parameters、output contract 与稳定引用顺序；transport 失败统一映射为安全错误码，不能把原始错误或 BYOK 回显给浏览器。Compile 使用不可生成、不会出现在 allow-list 的 inspection profile 保留完整声明计划，再对所选 Provider 单独做 capability preflight；Generate 会用所选 profile 重编译并核对绑定 hash。
 
-Seedream 的 allow-listed BYOK HTTP transport 已可由部署 Host 通过 `PLAYGROUND_ENABLE_SEEDREAM_TRANSPORT=1` 显式启用；API Key 只从 Browser 进入一次 Generate 请求的临时调用栈，随后清空，不写盘、不回显、失败不重试。Grok 的网络 transport 仍默认不存在，必须由部署 Host 显式注入。代码与标准测试没有注入真实 secret、没有自动执行真实或付费 Provider 调用、也没有公网部署；每次真实 Seedream 调用仍需用户在页面输入自己的 Key 并确认单次调用。
+Seedream 与 Grok 的 allow-listed BYOK HTTP transport 分别通过 `PLAYGROUND_ENABLE_SEEDREAM_TRANSPORT=1` 和 `PLAYGROUND_ENABLE_GROK_TRANSPORT=1` 显式启用；API Key 只从 Browser 进入一次 Generate 请求的临时调用栈，随后清空，不写盘、不回显、失败不重试。Grok 适配器只完成 Mock HTTP 成功/失败回归，没有执行真实 xAI 调用。代码与标准测试没有注入真实 secret、没有自动执行真实或付费 Provider 调用、也没有公网部署；每次真实调用仍需用户在页面输入自己的 Key 并确认单次调用。

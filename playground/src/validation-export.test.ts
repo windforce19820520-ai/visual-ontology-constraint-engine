@@ -7,6 +7,7 @@ import { MOCK_PLAYGROUND_PROFILE } from './providers.js'
 import { compileSemanticClosure, type PlaygroundScenarioInput } from './semantic-closure.js'
 import { createPlaygroundServer } from './server.js'
 import { createValidationExportPackage } from './validation-export.js'
+import { testBrowserFetch } from './test-browser.js'
 
 function minimalPng(width = 64, height = 96): Uint8Array {
   const bytes = new Uint8Array(24)
@@ -51,7 +52,7 @@ async function withServer<T>(options: Parameters<typeof createPlaygroundServer>[
 }
 
 async function upload(baseUrl: string, session: string, role: string, bytes: Uint8Array): Promise<any> {
-  const response = await fetch(`${baseUrl}/api/upload`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-playground-session': session }, body: JSON.stringify({ role, mediaType: 'image/png', bytesBase64: Buffer.from(bytes).toString('base64') }) })
+  const response = await testBrowserFetch(baseUrl, session, '/api/upload', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role, mediaType: 'image/png', bytesBase64: Buffer.from(bytes).toString('base64') }) })
   assert.equal(response.status, 200)
   return response.json()
 }
@@ -77,7 +78,7 @@ test('validation package contains the exact guarded prompt, ordered references, 
 test('validation export route is absent unless both development flags are enabled', async () => {
   for (const options of [{}, { developmentMode: true }, { validationExportEnabled: true }]) {
     await withServer(options, async (baseUrl) => {
-      const response = await fetch(`${baseUrl}/api/validation-export`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-playground-session': 'disabled-export-session' }, body: '{}' })
+      const response = await testBrowserFetch(baseUrl, 'disabled-export-session', '/api/validation-export', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
       assert.equal(response.status, 404)
     })
   }
@@ -89,10 +90,10 @@ test('loopback development export uses the exact compiled binding and performs z
     const person = await upload(baseUrl, session, 'person-identity', minimalPng())
     const top = await upload(baseUrl, session, 'garment-top', minimalPng(65, 96))
     const compileInput = { scenarioId: 'virtual-tryon', assets: [person.artifact, top.artifact], declaredRoles: [{ assetId: person.artifact.id, role: 'person-identity' }, { assetId: top.artifact.id, role: 'garment-top', typedMetadata: { category: 'shirt' } }], compositionSelections: [], rightsConfirmed: true, providerProfileId: 'mock-image' }
-    const compiledResponse = await fetch(`${baseUrl}/api/compile`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-playground-session': session }, body: JSON.stringify(compileInput) })
+    const compiledResponse = await testBrowserFetch(baseUrl, session, '/api/compile', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(compileInput) })
     assert.equal(compiledResponse.status, 200)
     const compiled = await compiledResponse.json() as any
-    const exportResponse = await fetch(`${baseUrl}/api/validation-export`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-playground-session': session }, body: JSON.stringify({ compile: compileInput, planBinding: compiled.planBinding, confirmExport: true }) })
+    const exportResponse = await testBrowserFetch(baseUrl, session, '/api/validation-export', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ compile: compileInput, planBinding: compiled.planBinding, confirmExport: true }) })
     assert.equal(exportResponse.status, 200)
     assert.equal(exportResponse.headers.get('content-type'), 'application/zip')
     const files = unzipStored(new Uint8Array(await exportResponse.arrayBuffer()))
@@ -108,14 +109,14 @@ test('local validation export remains available when the selected Provider block
     const person = await upload(baseUrl, session, 'person-identity', minimalPng(640, 960))
     const top = await upload(baseUrl, session, 'garment-top', minimalPng(641, 960))
     const compileInput = { scenarioId: 'virtual-tryon', assets: [person.artifact, top.artifact], declaredRoles: [{ assetId: person.artifact.id, role: 'person-identity' }, { assetId: top.artifact.id, role: 'garment-top', typedMetadata: { category: 'shirt' } }], compositionSelections: [], rightsConfirmed: true, providerProfileId: 'cloudflare-flux-2-klein-4b' }
-    const compiledResponse = await fetch(`${baseUrl}/api/compile`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-playground-session': session }, body: JSON.stringify(compileInput) })
+    const compiledResponse = await testBrowserFetch(baseUrl, session, '/api/compile', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(compileInput) })
     const compiledText = await compiledResponse.text()
     assert.equal(compiledResponse.status, 200, compiledText)
     const compiled = JSON.parse(compiledText) as any
     assert.equal(compiled.providerCapability.status, 'blocked')
     assert.ok(compiled.providerCapability.reasons.some((reason: string) => reason.startsWith('REFERENCE_WIDTH_')))
 
-    const exportResponse = await fetch(`${baseUrl}/api/validation-export`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-playground-session': session }, body: JSON.stringify({ compile: compileInput, planBinding: compiled.planBinding, confirmExport: true }) })
+    const exportResponse = await testBrowserFetch(baseUrl, session, '/api/validation-export', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ compile: compileInput, planBinding: compiled.planBinding, confirmExport: true }) })
     const exportBytes = new Uint8Array(await exportResponse.arrayBuffer())
     assert.equal(exportResponse.status, 200, Buffer.from(exportBytes).toString('utf8'))
     assert.equal(exportResponse.headers.get('content-type'), 'application/zip')

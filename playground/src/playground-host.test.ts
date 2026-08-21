@@ -11,6 +11,7 @@ import { GROK_IMAGINE_PROFILE, MOCK_PLAYGROUND_PROFILE, PLAYGROUND_PROVIDER_PROF
 import { buildProviderCall, type PlaygroundProviderCall, type PlaygroundProviderTransport } from './provider-bridges.js'
 import { compileSemanticClosure, type PlaygroundAssetDeclaration, type PlaygroundScenarioInput } from './semantic-closure.js'
 import { PLAYGROUND_HTML } from './web.js'
+import { testBrowserFetch } from './test-browser.js'
 
 function asset(id: string): PlaygroundAssetDeclaration {
   return { id, storeId: 'test', contentHash: sha256({ id }), mediaType: 'image/png', byteLength: 1000, role: 'reference-image', resolverId: 'test', availability: 'available', retentionClass: 'request', redactionPolicy: 'safe-hash-only', ...(id === 'pose' ? { poseSourceKind: 'pose-sketch' as const } : {}) }
@@ -191,7 +192,7 @@ async function withServer<T>(options: Parameters<typeof createPlaygroundServer>[
 }
 
 async function post(baseUrl: string, path: string, session: string, body: unknown): Promise<{ status: number; value: any }> {
-  const response = await fetch(`${baseUrl}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-playground-session': session, 'x-playground-client': 'test-client' }, body: JSON.stringify(body) })
+  const response = await testBrowserFetch(baseUrl, session, path, { method: 'POST', headers: { 'content-type': 'application/json', 'x-playground-client': 'test-client' }, body: JSON.stringify(body) })
   return { status: response.status, value: await response.json() }
 }
 
@@ -261,7 +262,7 @@ test('Browser session can delete temporary uploads and stale artifacts cannot be
     const session = 'remove-upload-session'
     const compileInput = { ...(await uploadTryOn(baseUrl, session)), rightsConfirmed: true, providerProfileId: 'mock-image' as const }
     assert.equal(sizes.at(-1), 4)
-    const removed = await fetch(`${baseUrl}/api/uploads`, { method: 'DELETE', headers: { 'x-playground-session': session } })
+    const removed = await testBrowserFetch(baseUrl, session, '/api/uploads', { method: 'DELETE' })
     assert.equal(removed.status, 200)
     assert.deepEqual(await removed.json(), { status: 'cleared' })
     assert.equal(sizes.at(-1), 0)
@@ -385,7 +386,8 @@ test('injected Seedream transport receives one ephemeral key and public output n
     assert.equal(generated.status, 200)
     assert.equal(generated.value.result.calls, 1)
     assert.match(generated.value.result.outputUrl, /^\/api\/generated\/seedream-/)
-    const displayed = await fetch(`${baseUrl}${generated.value.result.outputUrl}`)
+    assert.equal(generated.value.result.outputUrl.includes('?'), false)
+    const displayed = await testBrowserFetch(baseUrl, session, generated.value.result.outputUrl)
     assert.equal(displayed.status, 200)
     assert.deepEqual(new Uint8Array(await displayed.arrayBuffer()), outputBytes)
     assert.equal(JSON.stringify(generated.value).includes('secret-test-key'), false)

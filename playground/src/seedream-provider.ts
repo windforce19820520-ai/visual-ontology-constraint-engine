@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { ArtifactHandle } from '@voce-engine/contracts'
+import { sanitizeImageMetadata } from './image-safety.js'
 import type { PlaygroundProviderCall, PlaygroundProviderTransport, PlaygroundTransportResult } from './provider-bridges.js'
 
 interface SeedreamResponseItem { url?: string; b64_json?: string; base64?: string }
@@ -129,9 +130,10 @@ export class FetchSeedreamProviderTransport implements PlaygroundProviderTranspo
     }
     const items = Array.isArray(envelope.data) ? envelope.data : Array.isArray(envelope.output) ? envelope.output : []
     if (items.length !== 1) throw new SeedreamTransportError('SEEDREAM_OUTPUT_FAILED')
-    const bytes = await readOutput(items[0], this.fetchImpl, call.timeoutMs)
+    let bytes = await readOutput(items[0], this.fetchImpl, call.timeoutMs)
     const mediaType = imageMediaType(bytes)
     if (!mediaType) throw new Error('SEEDREAM_RESPONSE_IMAGE_INVALID')
+    bytes = sanitizeImageMetadata(bytes, mediaType)
     const artifact = outputArtifact(bytes, mediaType)
     const requestId = response.headers.get('x-request-id') ?? response.headers.get('x-tt-logid') ?? undefined
     return {
