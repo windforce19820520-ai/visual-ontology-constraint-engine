@@ -4,7 +4,7 @@ These files define the PR B baseline for a small Linux host behind Nginx. They d
 
 ## Safety boundary
 
-The checked-in environment remains compile-only by default: Seedream, Grok, Cloudflare, and Mock transports are disabled. Compile/Inspect remains available, while Generate reports that no transport is enabled. Because the current `RequestQuotaStore` is in process memory, run exactly one Node process and one server instance. Do not configure a process cluster, multiple replicas, or automatic horizontal scaling.
+The checked-in environment remains compile-only as a safe source default: Seedream, Grok, Cloudflare, and Mock transports are disabled so copying the example cannot accidentally make a real call. This is not the Public Playground product contract. A normal public user-facing deployment enables all three reviewed transports after explicit authorization; compile-only operation is for development, regression, or a communicated maintenance window. Compile/Inspect remains available in every state. Because the current `RequestQuotaStore` is in process memory, run exactly one Node process and one server instance. Do not configure a process cluster, multiple replicas, or automatic horizontal scaling.
 
 The service listens only on `127.0.0.1:4173`. Nginx is the sole public listener and the only trusted proxy. Port 4173 must remain closed in both the host firewall and cloud firewall. The compile-only systemd unit also denies every non-loopback network connection from Node. After explicit Provider authorization, install `voce-playground-provider-egress.conf` as a systemd drop-in; this clears only the unit's compile-only IP filter. Provider adapters still reject endpoints and output-download hosts outside their fixed allow-lists.
 

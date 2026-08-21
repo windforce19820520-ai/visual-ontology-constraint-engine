@@ -18,7 +18,8 @@ PR A completion does not authorize any item below. PR B must record owner author
 - [ ] Set explicit per-session, per-client, Provider-per-minute, global-concurrency, and daily-call limits.
 - [ ] Confirm the deployment is exactly one process/instance, or implement and review an atomic durable `RequestQuotaStore` before scaling.
 - [ ] Configure independent Cloudflare/Seedream/Grok account or platform hard limits and alerts.
-- [ ] Keep every Provider transport disabled until its independent hard limit and separate real-call authorization are recorded. Compile-only has an effective hard call cap of zero.
+- [ ] Keep every Provider transport disabled only until its independent hard limit and separate activation authorization are recorded. For the public product, enable all three reviewed transports after those prerequisites; do not ship the normal user experience as compile-only. Compile-only remains the development, regression, and maintenance fallback.
+- [ ] Treat Seedream/Grok BYOK availability as a deployed-transport property. Absence of a server-stored user key is expected and must not mark either Provider unavailable; reject only the individual Generate request when its ephemeral key is missing.
 - [ ] Verify that exhausted gates reject before transport with no retry, Provider switch, or paid continuation.
 
 ## Privacy and operations

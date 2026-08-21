@@ -37,15 +37,19 @@ Cloudflare additionally has a fail-closed Host cap no greater than 10,000 Neuron
 
 ## Provider activation
 
+The Public Playground product contract is Provider-enabled. The source/CI default of disabled transports is only a safe development baseline and must not be presented as the intended public user experience. A normal public deployment enables all three reviewed transports; compile-only operation is reserved for development, regression, or an explicitly communicated maintenance state.
+
 - Seedream is the recommended high-quality option. `PLAYGROUND_ENABLE_SEEDREAM_TRANSPORT=1` enables the allow-listed Ark BYOK transport. The user supplies the key for one request.
 - Grok is optional high quality. `PLAYGROUND_ENABLE_GROK_TRANSPORT=1` enables the allow-listed xAI `/v1/images/edits` JSON BYOK transport. Its Mock-HTTP success/failure paths are tested; PR A makes no real Grok call or quality claim.
 - Cloudflare is a free experimental preview, not the quality default. It requires `PLAYGROUND_ENABLE_CLOUDFLARE_TRANSPORT=1` plus server-side `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
+
+Seedream and Grok availability does not depend on a server-stored user key. When their transport is deployed, the UI keeps them available and asks for BYOK only for the one Generate request. A missing key blocks that request without changing Compile or the Provider's deployment status. Cloudflare is available when its operator credential and transport are configured. Capability mismatch, consent, limits, or maintenance may still block Generate with a safe reason.
 
 Compile/Inspect remains available with every transport disabled or every Generate quota exhausted.
 
 ## PR B baseline and Provider-enabled deployment
 
-The checked-in PR B environment example is compile-only. All three real transports and Mock rendering are disabled, so the effective Provider-call and spend ceiling is zero. It binds Node to loopback, uses one systemd process, caps memory, exposes only Nginx, and keeps validation export disabled.
+The checked-in PR B environment example is a safe source default, not the intended public product state. All three real transports and Mock rendering are disabled in that example, so copying it cannot accidentally produce calls. The authorized deployed environment enables the three reviewed transports while continuing to bind Node to loopback, use one systemd process, cap memory, expose only Nginx, and keep validation export disabled.
 
 After separate authorization, a deployment may enable Seedream and Grok BYOK transports without storing either user key. Cloudflare may be enabled with an operator-managed credential stored only in the root-owned `0600` `/etc/voce-playground/cloudflare.env` file. The compile-only systemd unit denies non-loopback networking; Provider activation therefore also requires the reviewed `voce-playground-provider-egress.conf` drop-in. Application adapters continue to allow-list the exact Cloudflare, Ark, xAI, and Provider-owned output hosts. Deployment acceptance must use Mock tests and capability metadata unless a real call is separately authorized.
 
