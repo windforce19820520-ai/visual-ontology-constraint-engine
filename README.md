@@ -204,7 +204,7 @@ The RC is published under the npm `next` dist-tag. Pin the exact version when re
 | **@voce-engine/cli** | [npmjs.com/package/@voce-engine/cli](https://www.npmjs.com/package/@voce-engine/cli) | `npm install --global @voce-engine/cli@0.1.0-rc.5` |
 | **@voce-engine/playground** | [npmjs.com/package/@voce-engine/playground](https://www.npmjs.com/package/@voce-engine/playground) | `npm install --global @voce-engine/playground@0.1.0-rc.5` |
 
-All five packages are published under the npm `next` dist-tag. The `latest` tag does not point at `0.1.0-rc.5` (for `@voce-engine/playground` it identifies a non-runnable namespace-bootstrap record; for the other packages it points at an earlier candidate), so omit the version only when you explicitly install `@next`.
+Each package's `next` tag points to `0.1.0-rc.5`. Do not use an unversioned install during RC.5: `latest` points to `0.1.0-rc.1` for Contracts, Core, testkit, and CLI, and to the non-runnable `0.0.0-bootstrap.0` namespace record for Playground. Use the exact versions above or explicitly request `@next`.
 
 The RC.5 release process uses an annotated `v0.1.0-rc.5` tag and publishes five exact, gate-verified tarballs through npm Trusted Publishing under `next`. The repository's release-candidate gate verifies its local checksum manifest; no separate package tarballs are attached to the GitHub Release.
 
