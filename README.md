@@ -196,13 +196,15 @@ No API key or network model access is required.
 
 The RC is published under the npm `next` dist-tag. Pin the exact version when reproducibility matters:
 
-```bash
-npm install @voce-engine/contracts@0.1.0-rc.5
-npm install @voce-engine/core@0.1.0-rc.5
-npm install --save-dev @voce-engine/testkit@0.1.0-rc.5
-npm install --global @voce-engine/cli@0.1.0-rc.5
-npm install --global @voce-engine/playground@0.1.0-rc.5
-```
+| Package | npm page | Install |
+| --- | --- | --- |
+| **@voce-engine/contracts** | [npmjs.com/package/@voce-engine/contracts](https://www.npmjs.com/package/@voce-engine/contracts) | `npm install @voce-engine/contracts@0.1.0-rc.5` |
+| **@voce-engine/core** | [npmjs.com/package/@voce-engine/core](https://www.npmjs.com/package/@voce-engine/core) | `npm install @voce-engine/core@0.1.0-rc.5` |
+| **@voce-engine/testkit** | [npmjs.com/package/@voce-engine/testkit](https://www.npmjs.com/package/@voce-engine/testkit) | `npm install --save-dev @voce-engine/testkit@0.1.0-rc.5` |
+| **@voce-engine/cli** | [npmjs.com/package/@voce-engine/cli](https://www.npmjs.com/package/@voce-engine/cli) | `npm install --global @voce-engine/cli@0.1.0-rc.5` |
+| **@voce-engine/playground** | [npmjs.com/package/@voce-engine/playground](https://www.npmjs.com/package/@voce-engine/playground) | `npm install --global @voce-engine/playground@0.1.0-rc.5` |
+
+All five packages are published under the npm `next` dist-tag. The `latest` tag does not point at `0.1.0-rc.5` (for `@voce-engine/playground` it identifies a non-runnable namespace-bootstrap record; for the other packages it points at an earlier candidate), so omit the version only when you explicitly install `@next`.
 
 The RC.5 release process uses an annotated `v0.1.0-rc.5` tag and publishes five exact, gate-verified tarballs through npm Trusted Publishing under `next`. The repository's release-candidate gate verifies its local checksum manifest; no separate package tarballs are attached to the GitHub Release.
 
