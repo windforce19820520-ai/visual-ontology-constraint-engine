@@ -9,6 +9,12 @@ Thank you for helping improve Visual Ontology & Constraint Engine.
 3. Keep provider-specific behavior behind an adapter.
 4. Add deterministic tests and offline fixtures.
 
+## Reporting a bug
+
+Use the repository's [bug report form](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/issues/new?template=bug_report.yml). Include the affected package and exact version, environment, minimal reproduction, expected and actual behavior, and any sanitized safe error code or request ID.
+
+Do not attach API keys, cookies, personal images, Base64 payloads, complete prompts, temporary Provider URLs, validation packages, or exploit details. Report security issues through [GitHub private vulnerability reporting](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/security/advisories/new) instead of a public issue.
+
 ## Extension contributions
 
 - First-party and third-party `ScenarioPack` packages use the same manifest, explicit local registry, resolver, testkit, and activation path.
@@ -25,6 +31,7 @@ Thank you for helping improve Visual Ontology & Constraint Engine.
 - Run `npm run validate` before submitting a pull request.
 - Standard tests and CI must not call real model providers.
 - Never commit credentials, user images, temporary provider URLs, or private product artifacts.
+- Local reference images, generated outputs, validation packages, and capture caches are test inputs, not contribution artifacts. Public documentation may include only reviewed final page screenshots.
 - Observations from a model must be immutable candidates with provenance and confidence; acceptance belongs in an authorized decision record.
 - Hard constraints must not depend on unverified low-confidence observations.
 - Major architecture decisions require a document under `docs/`.

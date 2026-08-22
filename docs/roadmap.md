@@ -2,6 +2,14 @@
 
 This roadmap is directional. A milestone is complete only when its contracts, tests, documentation, and offline examples are complete.
 
+## Current status
+
+- Published candidate: `v0.1.0-rc.5`, with five npm packages under `next`.
+- Current `main`: post-RC.5 stabilization and Public Playground operational hardening.
+- Public preview: a single-instance deployment on a temporary hostname.
+- Provider positioning: Seedream recommended BYOK, Grok optional BYOK, and Cloudflare free experimental preview.
+- Current focus: feedback, operational observation, compatibility, and the first stable v0.1 release.
+
 ## Phase 0 — Public foundation
 
 - establish scope, terminology, license, contribution rules, and safety defaults;
@@ -85,6 +93,6 @@ The first declarative visual-composition vertical shipped in `v0.1.0-rc.4`: 29 c
 
 RC.4 does not add a Playground/UI, composition-reference assets, or provider-native composition controls. Example artwork remains host selection guidance rather than model input. Those product and adapter units remain separately scoped follow-up work.
 
-The follow-up Playground Host shipped in `v0.1.0-rc.5` as the separate `@voce-engine/playground` package. It implements an English Browser UI, ontology-first Compile/Inspect, guarded prompt materialization, Mock generation, Cloudflare Free as the default quick-preview profile, Seedream BYOK, the Grok BYOK boundary, Virtual Try-On conditional garment/accessory semantics, Cosplay-only access to the 30-preset gallery, and a development-only validation-package export. Local manual acceptance on 2026-08-21 exercised multiple Try-On, Cosplay, and composition scenarios with Cloudflare Free and Seedream BYOK.
+The follow-up Playground Host shipped in `v0.1.0-rc.5` as the separate `@voce-engine/playground` package. It implements an English Browser UI, ontology-first Compile/Inspect, guarded prompt materialization, Mock generation, Seedream recommended BYOK, Grok optional BYOK, Cloudflare Free as an experimental preview rather than the quality representative, Virtual Try-On conditional garment/accessory semantics, Cosplay-only access to the 30-preset gallery, and a development-only validation-package export. Local manual acceptance on 2026-08-21 exercised multiple Try-On, Cosplay, and composition scenarios with Cloudflare Free and Seedream BYOK.
 
 The current source subsequently added public-mode validation, server-issued sessions, bounded temporary storage, structured redacted logs, quota interfaces and gates, reviewed Cloudflare/Seedream/Grok transports, and a single-instance Nginx/systemd deployment baseline. A separately authorized temporary-host deployment passed Mock-only online acceptance on 2026-08-21. This is not a multi-instance or durable-global-quota claim: an owned domain, durable atomic quota storage, long-term monitoring/incident operations, feedback operations, and any further real-Provider quality acceptance remain follow-up work.
