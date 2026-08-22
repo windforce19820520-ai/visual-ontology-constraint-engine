@@ -16,7 +16,7 @@ Unacceptable behavior includes sexualized language or imagery, trolling or insul
 
 Project maintainers are responsible for clarifying and enforcing acceptable behavior and may remove, edit, or reject contributions, comments, commits, code, issues, and other contributions that are not aligned with this Code of Conduct.
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported through the repository's private maintainer contact or GitHub reporting tools. Reports will be reviewed promptly and fairly, and the privacy and security of reporters will be respected.
+Use GitHub's report-content tools for abusive, harassing, or otherwise unacceptable behavior in repository interactions. Do not place private report details in a public issue. Project maintainers will review repository actions they can access promptly and fairly, while GitHub handles reports submitted through its platform reporting flow.
 
 ## Attribution
 

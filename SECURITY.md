@@ -2,7 +2,9 @@
 
 ## Reporting a vulnerability
 
-Please use GitHub private vulnerability reporting when it is available for this repository. Do not open a public issue containing credentials, personal images, signed URLs, or exploit details.
+Use [GitHub private vulnerability reporting](https://github.com/windforce19820520-ai/visual-ontology-constraint-engine/security/advisories/new). It is enabled for this repository. Do not open a public issue containing credentials, personal images, signed URLs, private request data, or exploit details.
+
+The security scope includes the Public Playground's server-issued sessions, upload and generated-result access controls, BYOK handling, operator-managed credentials, quota or trusted-proxy bypasses, Provider error redaction, and sensitive runtime logging. Include only the minimum sanitized evidence needed to reproduce the issue.
 
 ## Sensitive data
 

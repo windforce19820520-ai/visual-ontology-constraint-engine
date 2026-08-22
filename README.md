@@ -13,6 +13,8 @@ Compile and inspect a reference plan before choosing whether to generate. Virtua
 
 `v0.1.0-rc.5` is the published Playground release candidate for GitHub and five public npm packages under the `next` distribution tag. It packages the local-first Playground separately as `@voce-engine/playground`, while retaining the RC.4 30-preset catalog and the earlier Cosplay fidelity repair. The [RC.5 acceptance report](docs/acceptance/v0.1.0-rc.5.md) records the exact tag, OIDC workflow, public-registry consumer, signatures, and provenance. This candidate is **not production-ready**: APIs, schemas, package contracts, and behavior may change before `v0.1.0`.
 
+The published npm candidate remains `v0.1.0-rc.5` under `next`. `main` contains post-RC.5 Public Playground stabilization and deployment hardening, so the public preview may include reviewed operational changes that are newer than the published RC.5 package line. The preview remains single-instance, uses process-local quota state, and runs on a temporary hostname.
+
 The repository contains deterministic runtime packages, data-only ScenarioPack fixtures, three offline vertical cases, bundle manifests, a Mock execution path, the local Playground Host, credentialed Seedream multi-reference smoke tooling, and clean-room/release-candidate checks. All five public packages are validated from their packed tarballs; the clean consumer also starts the installed Playground, reads its metadata, and loads a bundled composition example. Package contents, checksums, and reproducibility are verified on the release path. See the [release-readiness checklist](docs/release-checklist.md), [candidate compatibility surface](docs/compatibility.md), and [changelog](CHANGELOG.md).
 
 The runtime also includes 30 declarative visual-composition presets. A host displays the bundled example artwork, submits a stable preset ID plus any required typed inputs, and expands that selection into ordinary `ChangeIntent` records before constraint and prompt compilation. The artwork is UI/documentation guidance, not a model reference image and does not consume reference budget. See [visual composition presets and integration](docs/visual-composition.md) or the [简体中文指南](docs/zh-CN/visual-composition.md).
@@ -33,6 +35,8 @@ The Playground provides two distinct workflows:
 
 - **Virtual Try-On:** upload one person plus either one full outfit or a Top, a Bottom, or both. Footwear, fit, pose, and typed accessories are optional. Try-On preserves unselected clothing regions and does not expose the 30 composition presets.
 - **Cosplay:** upload the person and character design, optionally add a signature prop, pose, or critical detail, and choose from the complete 30-preset gallery with example artwork.
+
+The person shown in the documentation screenshots is a virtual adult generated with ChatGPT Image 2 and does not depict a real individual. Other raw reference images were local Playground test inputs and are not included as repository, npm-package, or release files.
 
 ### Virtual Try-On
 

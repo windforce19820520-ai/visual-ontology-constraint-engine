@@ -1,0 +1,71 @@
+name: Bug report
+description: Report a reproducible VOCE package, CLI, or Playground defect.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a focused defect. Do not attach API keys, cookies, personal images, Base64 payloads, complete prompts, temporary Provider URLs, validation packages, or exploit details. Use private vulnerability reporting for security issues.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - contracts
+        - core
+        - testkit
+        - CLI
+        - Playground Compile/Inspect
+        - Playground Generate
+        - documentation or release tooling
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Exact version or commit
+      placeholder: "For example: @voce-engine/core@0.1.0-rc.5 or a commit SHA"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include relevant Node.js, pnpm, browser, and operating-system versions.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide the smallest deterministic steps or public fixture that reproduce the defect.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: safe_error
+    attributes:
+      label: Sanitized error code or request ID
+      description: Optional. Do not include Provider response bodies, credentials, images, prompts, cookies, or temporary URLs.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I removed credentials, personal images, Base64, complete prompts, cookies, temporary URLs, validation packages, and private product data.
+          required: true
+        - label: This report does not require a real or paid Provider call to reproduce.
+          required: true
