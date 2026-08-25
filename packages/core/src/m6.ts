@@ -613,14 +613,13 @@ function imageBytes(value: SeedreamImageInput, references: StructuralValidationA
   return reference?.bytes
 }
 
-function mediaTypeOf(value: SeedreamImageInput, references: StructuralValidationArtifactInput[]): string | undefined {
+function mediaTypeOf(value: SeedreamImageInput): string | undefined {
   if (value instanceof Uint8Array) {
     const header = parseImageHeader(value)
     return header.format === 'png' ? 'image/png' : header.format === 'jpeg' ? 'image/jpeg' : header.format === 'webp' ? 'image/webp' : undefined
   }
   if (typeof value === 'object' && !(value instanceof Uint8Array)) return value.mediaType
   if (typeof value === 'string') return value.match(/^data:([^;,]+)/i)?.[1]
-  return references.find((item) => item.bytes === value)?.artifact.mediaType
 }
 
 function toProviderImage(value: SeedreamImageInput, references: StructuralValidationArtifactInput[] = []): string {
@@ -630,7 +629,7 @@ function toProviderImage(value: SeedreamImageInput, references: StructuralValida
     throw new ProviderTransportError('SEEDREAM_IMAGE_REFERENCE_INVALID', 'Seedream image string must be an http(s) URL or image data URI.')
   }
   if (value instanceof Uint8Array) {
-    const mediaType = mediaTypeOf(value, [])
+    const mediaType = mediaTypeOf(value)
     if (!mediaType || !['image/png', 'image/jpeg'].includes(mediaType)) throw new ProviderTransportError('SEEDREAM_IMAGE_MEDIA_TYPE_UNKNOWN', 'Seedream image bytes do not have a supported PNG or JPEG signature.')
     return `data:${mediaType};base64,${Buffer.from(value).toString('base64')}`
   }
@@ -638,7 +637,7 @@ function toProviderImage(value: SeedreamImageInput, references: StructuralValida
   if (!bytes) throw new ProviderTransportError('SEEDREAM_ARTIFACT_UNRESOLVED', 'Seedream ArtifactHandle must be resolved before request construction.')
   assertHash(value.contentHash, 'SEEDREAM_ARTIFACT_HASH_INVALID')
   if (binarySha256(bytes) !== value.contentHash) throw new ProviderTransportError('ARTIFACT_HASH_MISMATCH', 'Seedream reference bytes do not match the ArtifactHandle content hash.')
-  const mediaType = mediaTypeOf(bytes, [])
+  const mediaType = mediaTypeOf(bytes)
   if (!mediaType || mediaType !== value.mediaType || !['image/png', 'image/jpeg'].includes(mediaType)) throw new ProviderTransportError('SEEDREAM_ARTIFACT_MEDIA_TYPE_MISMATCH', 'Seedream ArtifactHandle bytes do not have a supported matching media type.')
   return `data:${mediaType};base64,${Buffer.from(bytes).toString('base64')}`
 }
@@ -676,7 +675,7 @@ function validateSeedreamInput(input: SeedreamGenerateInput): SeedreamImageInput
   if (images.length > 10) throw new ProviderTransportError('SEEDREAM_REFERENCE_LIMIT_EXCEEDED', 'Seedream accepts at most ten reference images.')
   for (const image of images) {
     if (typeof image === 'string' && !SAFE_URL_PATTERN.test(image) && !DATA_URI_DETECTION_PATTERN.test(image)) throw new ProviderTransportError('SEEDREAM_IMAGE_REFERENCE_INVALID', 'Seedream image string must be an http(s) URL or image data URI.')
-    if (image instanceof Uint8Array && !mediaTypeOf(image, [])) throw new ProviderTransportError('SEEDREAM_IMAGE_MEDIA_TYPE_UNKNOWN', 'Seedream image bytes do not have a recognized media signature.')
+    if (image instanceof Uint8Array && !mediaTypeOf(image)) throw new ProviderTransportError('SEEDREAM_IMAGE_MEDIA_TYPE_UNKNOWN', 'Seedream image bytes do not have a recognized media signature.')
   }
   return images
 }
@@ -693,7 +692,7 @@ async function resolveSeedreamInput(input: SeedreamGenerateInput, config: Seedre
     if (!bytes) throw new ProviderTransportError('ARTIFACT_UNAVAILABLE', 'Seedream reference artifact could not be resolved.')
     assertHash(image.contentHash, 'SEEDREAM_ARTIFACT_HASH_INVALID')
     if (binarySha256(bytes) !== image.contentHash) throw new ProviderTransportError('ARTIFACT_HASH_MISMATCH', 'Seedream reference bytes do not match the ArtifactHandle content hash.')
-    const actualMediaType = mediaTypeOf(bytes, [])
+    const actualMediaType = mediaTypeOf(bytes)
     if (!actualMediaType || actualMediaType !== image.mediaType) throw new ProviderTransportError('SEEDREAM_ARTIFACT_MEDIA_TYPE_MISMATCH', 'Seedream reference bytes do not match the ArtifactHandle media type.')
     const existing = references.find((item) => item.artifact.id === image.id)
     if (existing) existing.bytes = new Uint8Array(bytes)
@@ -770,7 +769,7 @@ async function persistProviderItem(item: { url?: string; b64_json?: string; base
   let bytes: Uint8Array
   try { bytes = Uint8Array.from(Buffer.from(encoded, 'base64')) } catch { throw new ProviderTransportError('PROVIDER_OUTPUT_INVALID', 'Provider image payload could not be decoded.') }
   if (!bytes.length) throw new ProviderTransportError('PROVIDER_OUTPUT_INVALID', 'Provider image payload is empty.')
-  const detected = mediaTypeOf(bytes, [])
+  const detected = mediaTypeOf(bytes)
   if (!detected) throw new ProviderTransportError('PROVIDER_OUTPUT_INVALID', 'Provider image payload has an unsupported media signature.')
   if (item.mediaType !== undefined && item.mediaType !== detected) throw new ProviderTransportError('PROVIDER_OUTPUT_MEDIA_TYPE_MISMATCH', 'Provider image media type does not match its bytes.')
   const mediaType = item.mediaType ?? detected

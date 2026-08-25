@@ -1046,9 +1046,8 @@ export class ConstraintGraphCompiler {
   compile(input: ConstraintCompilationInput): ConstraintIR {
     try {
       return this.compileSafe(clone(input))
-    } catch (error) {
-      const code = error instanceof Error && error.message === 'JSON_VALUE_INVALID' ? 'INPUT_INVALID' : 'INPUT_INVALID'
-      return blockedConstraintIR(input ?? {}, [code])
+    } catch {
+      return blockedConstraintIR(input ?? {}, ['INPUT_INVALID'])
     }
   }
 

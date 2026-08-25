@@ -64,7 +64,11 @@ const adapterPin = { id: 'voce.seedream', version: '0.1.0-rc.5', digest: sha256(
 const profilePin = { id: 'voce.seedream.domestic.pro', version: '2026-06-28', digest: sha256({ endpoint: ENDPOINT, model: MODEL, referenceLimit: 10, outputCount: 1 }) }
 
 const jsonReady = (value) => JSON.parse(JSON.stringify(value))
-const safeText = (value) => String(value || '').replace(/ark-[A-Za-z0-9-]+/g, '[REDACTED]').replace(/Bearer\s+\S+/gi, 'Bearer [REDACTED]').slice(0, 500)
+const safeText = (value) => String(value || '')
+  .replace(/ark-[A-Za-z0-9-]+/g, '[REDACTED]')
+  .replace(/Bearer\s+\S+/gi, 'Bearer [REDACTED]')
+  .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '[REDACTED]')
+  .slice(0, 500)
 
 const COMPOSITION_GLOSSES = {
   'medium-shot': 'Use an intentional half-body medium shot, approximately waist-up, with the face, upper costume, hands, and visible signature weapon readable.',
