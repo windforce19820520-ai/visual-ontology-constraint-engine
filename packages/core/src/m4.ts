@@ -88,6 +88,7 @@ import {
   computeSourceBindingContentHash,
 } from './evidence.js'
 import { canonicalize, sha256 } from './canonical.js'
+import { clone, compareCodeUnits, hashId, jsonReady, sortedBy, sortedStrings } from './util.js'
 
 export const CONSTRAINT_COMPILER_VERSION = 'voce.constraint-compiler/v1alpha1'
 export const REFERENCE_OPTIMIZER_VERSION = 'voce.reference-budget-optimizer/v1alpha1'
@@ -98,43 +99,9 @@ export const FIXED_M4_TIME = '2026-01-01T00:00:00.000Z'
 const HASH_PATTERN = /^sha256:[0-9a-f]{64}$/
 const IMPORTANCE_RANK: Record<Importance, number> = { preferred: 1, required: 2, hard: 3 }
 
-function compareCodeUnits(left: string, right: string): number {
-  const length = Math.min(left.length, right.length)
-  for (let index = 0; index < length; index += 1) {
-    const difference = left.charCodeAt(index) - right.charCodeAt(index)
-    if (difference !== 0) return difference
-  }
-  return left.length - right.length
-}
-
-function jsonReady(value: unknown): JsonValue {
-  if (value === null || typeof value === 'boolean' || typeof value === 'string') return value
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error('JSON_VALUE_INVALID')
-    return value
-  }
-  if (Array.isArray(value)) return value.map((item) => jsonReady(item === undefined ? null : item))
-  if (value && typeof value === 'object') {
-    const object: JsonObject = {}
-    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-      if (item !== undefined) object[key] = jsonReady(item)
-    }
-    return object
-  }
-  throw new Error('JSON_VALUE_INVALID')
-}
-
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(jsonReady(value))) as T
-}
-
 function objectOf(value: unknown): JsonObject {
   const ready = jsonReady(value)
   return ready !== null && typeof ready === 'object' && !Array.isArray(ready) ? ready as JsonObject : {}
-}
-
-function sortedStrings(values: string[] | undefined): string[] {
-  return [...new Set(values ?? [])].sort(compareCodeUnits)
 }
 
 function sortedImportanceMap(value: Record<string, Importance> | undefined): Record<string, Importance> | undefined {
@@ -151,18 +118,10 @@ function mergeImportanceMaps(left: Record<string, Importance> | undefined, right
   return merged
 }
 
-function sortedBy<T>(values: T[], key: (value: T) => string): T[] {
-  return values.map((value) => clone(value)).sort((left, right) => compareCodeUnits(key(left), key(right)) || compareCodeUnits(canonicalize(jsonReady(left)), canonicalize(jsonReady(right))))
-}
-
 function cleanWithout(value: unknown, field: string): JsonObject {
   const object = objectOf(value)
   delete object[field]
   return object
-}
-
-function hashId(prefix: string, value: unknown): string {
-  return `${prefix}-${sha256(jsonReady(value)).slice('sha256:'.length, 'sha256:'.length + 24)}`
 }
 
 function stableImportance(left: Importance | undefined, right: Importance | undefined): Importance {

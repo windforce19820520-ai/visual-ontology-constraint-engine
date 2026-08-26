@@ -102,6 +102,7 @@ import {
   dispatchPreflight,
 } from './m4.js'
 import { canonicalize, sha256 } from './canonical.js'
+import { clone, compareCodeUnits, hashId, jsonReady, sortedBy, sortedStrings } from './util.js'
 
 export const PROMPT_COMPILER_VERSION = 'voce.prompt-compiler/v1alpha1'
 export const PROMPT_OPTIMIZER_VERSION = 'voce.deterministic-prompt-optimizer/v1alpha1'
@@ -112,55 +113,13 @@ export const FIXED_M5_TIME = '2026-01-01T00:00:00.000Z'
 
 const HASH_PATTERN = /^sha256:[0-9a-f]{64}$/
 
-function compareCodeUnits(left: string, right: string): number {
-  const length = Math.min(left.length, right.length)
-  for (let index = 0; index < length; index += 1) {
-    const difference = left.charCodeAt(index) - right.charCodeAt(index)
-    if (difference !== 0) return difference
-  }
-  return left.length - right.length
-}
-
-function jsonReady(value: unknown): JsonValue {
-  if (value === null || typeof value === 'boolean' || typeof value === 'string') return value
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error('JSON_VALUE_INVALID')
-    return value
-  }
-  if (Array.isArray(value)) return value.map((item) => jsonReady(item === undefined ? null : item))
-  if (value && typeof value === 'object') {
-    const object: JsonObject = {}
-    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-      if (item !== undefined) object[key] = jsonReady(item)
-    }
-    return object
-  }
-  throw new Error('JSON_VALUE_INVALID')
-}
-
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(jsonReady(value))) as T
-}
-
-function sortedStrings(values: string[] | undefined): string[] {
-  return [...new Set(values ?? [])].sort(compareCodeUnits)
-}
-
 function sortedImportanceMap(value: Record<string, PromptProhibition['importance']> | undefined): Record<string, PromptProhibition['importance']> | undefined {
   if (value === undefined) return undefined
   return Object.fromEntries(Object.entries(value).sort(([left], [right]) => compareCodeUnits(left, right)))
 }
 
-function sortedBy<T>(values: T[], key: (value: T) => string): T[] {
-  return values.map((value) => clone(value)).sort((left, right) => compareCodeUnits(key(left), key(right)) || compareCodeUnits(canonicalize(jsonReady(left)), canonicalize(jsonReady(right))))
-}
-
 function isHash(value: unknown): value is string {
   return typeof value === 'string' && HASH_PATTERN.test(value)
-}
-
-function hashId(prefix: string, value: unknown): string {
-  return `${prefix}-${sha256(jsonReady(value)).slice('sha256:'.length, 'sha256:'.length + 24)}`
 }
 
 function objectOf(value: unknown): JsonObject {

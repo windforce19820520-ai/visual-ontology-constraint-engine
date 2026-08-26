@@ -42,6 +42,7 @@ import {
   UNRESOLVED_ITEM_SCHEMA_VERSION,
 } from '@voce-engine/contracts'
 import { canonicalize, sha256 } from './canonical.js'
+import { compareCodeUnits } from './util.js'
 
 export const EVIDENCE_RESOLVER_VERSION = 'voce.evidence-source-resolver/v1alpha1'
 export const MANUAL_REFERENCE_INTERPRETER_VERSION = 'voce.manual-reference-interpreter/v1alpha1'
@@ -70,15 +71,6 @@ function jsonReady(value: unknown): JsonValue | undefined {
 function clone<T>(value: T): T {
   const ready = jsonReady(value)
   return (ready === undefined ? undefined : ready) as T
-}
-
-function compareCodeUnits(left: string, right: string): number {
-  const length = Math.min(left.length, right.length)
-  for (let index = 0; index < length; index += 1) {
-    const difference = left.charCodeAt(index) - right.charCodeAt(index)
-    if (difference !== 0) return difference
-  }
-  return left.length - right.length
 }
 
 function canonicalValue(value: unknown): string {

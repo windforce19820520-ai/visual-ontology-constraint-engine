@@ -8,6 +8,7 @@ import type {
 } from '@voce-engine/contracts'
 import { valid as semverValid, validRange as semverValidRange, satisfies as semverSatisfies } from 'semver'
 import { canonicalize, hashWithoutSelf, sha256 } from './canonical.js'
+import { compareCodeUnits } from './util.js'
 
 export type { JsonValue } from '@voce-engine/contracts'
 export { canonicalize, hashWithoutSelf, sha256 } from './canonical.js'
@@ -17,15 +18,6 @@ const CONTRACT_VERSION = 'voce.scenario-pack/v1alpha1'
 const DIGEST = /^sha256:[0-9a-f]{64}$/
 const NORMAL_SEMVER = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/
 const keyOf = (packId: string, version: string): string => `${packId}@${version}`
-
-function compareCodeUnits(a: string, b: string): number {
-  const length = Math.min(a.length, b.length)
-  for (let index = 0; index < length; index += 1) {
-    const difference = a.charCodeAt(index) - b.charCodeAt(index)
-    if (difference !== 0) return difference
-  }
-  return a.length - b.length
-}
 
 function bytesHash(bytes: Uint8Array): string {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`
