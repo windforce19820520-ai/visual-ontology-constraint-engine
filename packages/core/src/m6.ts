@@ -68,6 +68,7 @@ import {
   STRUCTURAL_VALIDATION_REPORT_SCHEMA_VERSION,
 } from '@voce-engine/contracts'
 import { canonicalize, sha256 } from './canonical.js'
+import { compareCodeUnits } from './util.js'
 import { computeRemoteCallAuthorizationHash, dispatchPreflight } from './m4.js'
 
 export const M6_RUNTIME_VERSION = 'voce.adapters-evaluation-runtime/v1alpha1'
@@ -114,15 +115,6 @@ export class ProviderTransportError extends Error {
     this.code = code
     this.safeDetails = safeDetails
   }
-}
-
-function compareCodeUnits(left: string, right: string): number {
-  const length = Math.min(left.length, right.length)
-  for (let index = 0; index < length; index += 1) {
-    const difference = left.charCodeAt(index) - right.charCodeAt(index)
-    if (difference !== 0) return difference
-  }
-  return left.length - right.length
 }
 
 function jsonReady(value: unknown): JsonValue {

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { JsonValue } from '@voce-engine/contracts'
 
-function compareCodeUnits(a: string, b: string): number {
+export function compareCodeUnits(a: string, b: string): number {
   const length = Math.min(a.length, b.length)
   for (let index = 0; index < length; index += 1) {
     const difference = a.charCodeAt(index) - b.charCodeAt(index)

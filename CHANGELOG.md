@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Deduplicates internal Core helpers into a single `packages/core/src/util.ts`: `compareCodeUnits`, `jsonReady`, `clone`, `sortedStrings`, `sortedBy`, and `hashId` are now defined once and imported by the M1–M6 modules instead of being copy-pasted per file. `compareCodeUnits` is exported from `canonical.ts` and re-exported through `util.ts`. Module-specific variants with different behavior (the `undefined`-tolerant and non-deduplicating helpers in `evidence.ts`, and the `Uint8Array`-aware `jsonReady` in `m6.ts`) are intentionally left in place. `@voce-engine/core`'s published-file allowlist now includes `dist/util.js`/`dist/util.d.ts`. No behavior or public API changes; all deterministic-hash tests pass unchanged.
+
 ## 0.1.0-rc.5
 
 - Publishes the VOCE Playground Host as a separate fifth package, `@voce-engine/playground`: an English, mobile-friendly local web UI for request-scoped image upload, ScenarioPack-derived role declaration, readable plan inspection, exact guarded-prompt validation export, and one explicitly confirmed Provider call. The npm package includes all 30 Cosplay composition examples and remains separate from public deployment.
