@@ -73,7 +73,6 @@ function assertNoUnsafe(value: unknown, location = 'document'): void {
     }
   }
 }
-function omit<T extends Record<string, unknown>>(value: T, field: string): JsonObject { const copy = clone(value) as Record<string, unknown>; delete copy[field]; return copy as JsonObject }
 
 interface SourceContribution { id: string; schemaVersion?: string; namespace?: string; rules?: JsonValue[]; value?: JsonValue; [key: string]: unknown }
 interface SourceDeclarations { mayHandlePersonImages: boolean; rightsDisclosureRequired: boolean }

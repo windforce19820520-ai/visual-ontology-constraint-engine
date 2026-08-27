@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Removes dead code: the no-op `catch (error) { throw error }` rethrow in the prompt compiler, an identical-branch ternary in the constraint compiler, an unused `omit` helper in the CLI, and the unreachable `references` fallback in the Seedream media-type helper.
+- Hardens M9 Seedream smoke-report credential handling: diagnostic logs redact the exact request-scoped credential before truncation, and every serialized report and summary path runs a second exact redaction over the complete report. The injected API key cannot appear in logs or written output regardless of which value carried it. The previous generic UUID-pattern masking is replaced by this exact match so unrelated diagnostic request IDs remain visible. Diagnostic redaction is intentionally a behavior change.
 - Deduplicates internal Core helpers into a single `packages/core/src/util.ts`: `compareCodeUnits`, `jsonReady`, `clone`, `sortedStrings`, `sortedBy`, and `hashId` are now defined once and imported by the M1–M6 modules instead of being copy-pasted per file. `compareCodeUnits` is exported from `canonical.ts` and re-exported through `util.ts`. Module-specific variants with different behavior (the `undefined`-tolerant and non-deduplicating helpers in `evidence.ts`, and the `Uint8Array`-aware `jsonReady` in `m6.ts`) are intentionally left in place. `@voce-engine/core`'s published-file allowlist now includes `dist/util.js`/`dist/util.d.ts`. No behavior or public API changes; all deterministic-hash tests pass unchanged.
 
 ## 0.1.0-rc.5

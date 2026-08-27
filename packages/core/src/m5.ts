@@ -772,99 +772,95 @@ function promptBaseWithoutSignature(prompt: PromptIR): PromptIR {
 
 export class PromptCompiler {
   compile(input: PromptCompilationInput): PromptIR {
-    try {
-      const safeInput = clone(input)
-      const reasons = promptCompilationInputReasons(safeInput)
-      if (reasons.length) throw new Error(reasons.join('|'))
-      const decisionIds = sortedStrings(safeInput.context.decisionHashes)
-      const excludedConstraints = promptExclusions(safeInput.constraintIR)
-      const constraints = sortedBy(safeInput.constraintIR.constraints.filter((constraint) => constraint.status === 'active' || constraint.status === 'satisfied'), (item) => item.id)
-      const definitions = promptSectionDefinitions(safeInput.effectiveScenario!)
-      const sections: PromptSection[] = []
-      const objective = safeInput.objective ?? 'Produce the requested visual result using only the approved constraints and references.'
-      const positiveDescription = safeInput.positiveDescription ?? 'Express the approved target properties clearly and preserve all locked requirements.'
-      sections.push({
-        schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
-        id: hashId('prompt-section', { kind: 'objective', objective }),
-        kind: 'objective', priority: 120, order: 0, content: objective, text: objective,
-        constraintIds: [], sourceIds: [], decisionIds, assetIds: [], importance: 'required', mutability: 'rephraseable', locked: false,
-      })
-      sections.push({
-        schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
-        id: hashId('prompt-section', { kind: 'positive', positiveDescription }),
-        kind: 'positive', priority: 110, order: 1, content: positiveDescription, text: positiveDescription,
-        constraintIds: [], sourceIds: [], decisionIds, assetIds: [], importance: 'required', mutability: 'rephraseable', locked: false,
-      })
-      constraints.forEach((constraint, index) => {
-        const definition = sectionDefinitionForConstraint(constraint, definitions)
-        const policyOrder = definition?.order ?? 500
-        sections.push(sectionForConstraint(constraint, 10 + policyOrder * 10 + index, decisionIds, definition))
-      })
-      const mappings = [...safeInput.referencePlan.ordered].sort((left, right) => left.order - right.order || compareCodeUnits(left.id, right.id)).map((reference) => referenceMapping(reference, constraints, decisionIds))
-      mappings.forEach((mapping, index) => sections.push({
-        schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
-        id: hashId('prompt-section', { kind: 'reference', mappingId: mapping.id }),
-        kind: 'reference', priority: mapping.required ? 90 : 30, order: 100 + index, content: `${mapping.label}: use approved ${mapping.role} reference ${mapping.assetId}.`,
-        text: `${mapping.label}: use approved ${mapping.role} reference ${mapping.assetId}.`, constraintIds: mapping.constraintIds,
-        sourceIds: mapping.sourceBindingIds, decisionIds: mapping.decisionIds, assetIds: [mapping.assetId], importance: mapping.required ? 'required' : 'preferred', mutability: 'locked', locked: true,
-      }))
-      const outputConstraints = constraints.filter((constraint) => constraint.kind === 'output')
-      const parameters = promptParameterValues(safeInput.outputContract, outputConstraints)
-      sections.push({
-        schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
-        id: hashId('prompt-section', { kind: 'output', outputContractHash: computeOutputContractHash(safeInput.outputContract) }),
-        kind: 'output', priority: 100, order: 1000, content: `Render exactly ${safeInput.outputContract.cardinality.min}-${safeInput.outputContract.cardinality.max} output artifact(s) under the typed output contract.`,
-        text: `Render exactly ${safeInput.outputContract.cardinality.min}-${safeInput.outputContract.cardinality.max} output artifact(s) under the typed output contract.`, constraintIds: outputConstraints.map((constraint) => constraint.id), sourceIds: [], decisionIds, assetIds: [], importance: 'hard', mutability: 'locked', locked: true,
-      })
-      sections.push({
-        schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
-        id: 'prompt-suggestion-slot-default', kind: 'suggestion', priority: 10, order: 2000, content: '', text: '', constraintIds: [], sourceIds: [], decisionIds: [], assetIds: [], importance: 'preferred', mutability: 'suggestion_slot', locked: false, slotId: 'suggestion.default',
-      })
-      const forbidden: PromptProhibition[] = [
-        ...constraints.filter((constraint) => constraint.predicate === 'absent').map((constraint) => ({
-          id: hashId('prompt-prohibition', { constraintId: constraint.id }), text: `Do not include ${constraint.targetPath ?? constraint.targetPaths.join(',')}.`, constraintIds: [constraint.id], sourceIds: sortedStrings(constraint.sourceIds), importance: constraint.importance,
-        })),
-        ...safeInput.referencePlan.ordered.flatMap((reference) => (reference.prohibitedTargetPaths ?? []).map((targetPath) => ({
-          id: hashId('reference-prohibition', { referenceId: reference.id, targetPath }),
-          text: referenceProhibitionText(reference.label, targetPath),
-          constraintIds: sortedStrings(reference.constraintIds),
-          sourceIds: sortedStrings([reference.assetId, ...reference.sourceBindingIds]),
-          importance: reference.prohibitedTargetPathImportance?.[targetPath] ?? 'required',
-        }))),
-      ]
-      const coverage = constraints.map((constraint) => coverageForConstraint(constraint, sections, parameters, mappings))
-      const prompt: PromptIR = {
-        schemaVersion: PROMPT_IR_SCHEMA_VERSION,
-        id: hashId('prompt-ir', { caseId: safeInput.caseId, caseRevision: safeInput.caseRevision, compilationSignature: safeInput.constraintIR.deterministicSignature, referencePlanHash: safeInput.referencePlan.planHash, pipelinePlanHash: safeInput.pipelinePlan.planHash, targetAdapter: safeInput.targetAdapter, targetCapabilityProfile: safeInput.targetCapabilityProfile }),
-        caseId: safeInput.caseId,
-        caseRevision: safeInput.caseRevision,
-        contextHash: safeInput.contextHash,
-        compilationSignature: safeInput.constraintIR.deterministicSignature,
-        constraintIRHash: safeInput.constraintIR.deterministicSignature,
-        referencePlanHash: safeInput.referencePlan.planHash,
-        pipelinePlanHash: safeInput.pipelinePlan.planHash,
-        outputContractHash: computeOutputContractHash(safeInput.outputContract),
-        targetAdapter: clone(safeInput.targetAdapter),
-        targetCapabilityProfile: clone(safeInput.targetCapabilityProfile),
-        objective, positiveDescription,
-        sections: [...sections].sort((left, right) => left.order - right.order || compareCodeUnits(left.id, right.id)),
-        parameters: sortedBy(parameters, (item) => item.id),
-        referenceMappings: mappings,
-        forbidden: sortedBy(forbidden, (item) => item.id),
-        output: clone(safeInput.outputContract),
-        constraintCoverage: sortedBy(coverage, (item) => item.constraintId),
-        excludedConstraints,
-        sourceIds: sortedStrings([...constraints.flatMap((constraint) => constraint.sourceIds), ...mappings.flatMap((mapping) => mapping.sourceBindingIds)]),
-        constraintIds: sortedStrings(constraints.map((constraint) => constraint.id)),
-        decisionIds,
-        assetIds: sortedStrings(mappings.map((mapping) => mapping.assetId)),
-        deterministicSignature: '',
-      }
-      prompt.deterministicSignature = computePromptIRHash(prompt)
-      return clone(prompt)
-    } catch (error) {
-      throw error
+    const safeInput = clone(input)
+    const reasons = promptCompilationInputReasons(safeInput)
+    if (reasons.length) throw new Error(reasons.join('|'))
+    const decisionIds = sortedStrings(safeInput.context.decisionHashes)
+    const excludedConstraints = promptExclusions(safeInput.constraintIR)
+    const constraints = sortedBy(safeInput.constraintIR.constraints.filter((constraint) => constraint.status === 'active' || constraint.status === 'satisfied'), (item) => item.id)
+    const definitions = promptSectionDefinitions(safeInput.effectiveScenario!)
+    const sections: PromptSection[] = []
+    const objective = safeInput.objective ?? 'Produce the requested visual result using only the approved constraints and references.'
+    const positiveDescription = safeInput.positiveDescription ?? 'Express the approved target properties clearly and preserve all locked requirements.'
+    sections.push({
+      schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
+      id: hashId('prompt-section', { kind: 'objective', objective }),
+      kind: 'objective', priority: 120, order: 0, content: objective, text: objective,
+      constraintIds: [], sourceIds: [], decisionIds, assetIds: [], importance: 'required', mutability: 'rephraseable', locked: false,
+    })
+    sections.push({
+      schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
+      id: hashId('prompt-section', { kind: 'positive', positiveDescription }),
+      kind: 'positive', priority: 110, order: 1, content: positiveDescription, text: positiveDescription,
+      constraintIds: [], sourceIds: [], decisionIds, assetIds: [], importance: 'required', mutability: 'rephraseable', locked: false,
+    })
+    constraints.forEach((constraint, index) => {
+      const definition = sectionDefinitionForConstraint(constraint, definitions)
+      const policyOrder = definition?.order ?? 500
+      sections.push(sectionForConstraint(constraint, 10 + policyOrder * 10 + index, decisionIds, definition))
+    })
+    const mappings = [...safeInput.referencePlan.ordered].sort((left, right) => left.order - right.order || compareCodeUnits(left.id, right.id)).map((reference) => referenceMapping(reference, constraints, decisionIds))
+    mappings.forEach((mapping, index) => sections.push({
+      schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
+      id: hashId('prompt-section', { kind: 'reference', mappingId: mapping.id }),
+      kind: 'reference', priority: mapping.required ? 90 : 30, order: 100 + index, content: `${mapping.label}: use approved ${mapping.role} reference ${mapping.assetId}.`,
+      text: `${mapping.label}: use approved ${mapping.role} reference ${mapping.assetId}.`, constraintIds: mapping.constraintIds,
+      sourceIds: mapping.sourceBindingIds, decisionIds: mapping.decisionIds, assetIds: [mapping.assetId], importance: mapping.required ? 'required' : 'preferred', mutability: 'locked', locked: true,
+    }))
+    const outputConstraints = constraints.filter((constraint) => constraint.kind === 'output')
+    const parameters = promptParameterValues(safeInput.outputContract, outputConstraints)
+    sections.push({
+      schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
+      id: hashId('prompt-section', { kind: 'output', outputContractHash: computeOutputContractHash(safeInput.outputContract) }),
+      kind: 'output', priority: 100, order: 1000, content: `Render exactly ${safeInput.outputContract.cardinality.min}-${safeInput.outputContract.cardinality.max} output artifact(s) under the typed output contract.`,
+      text: `Render exactly ${safeInput.outputContract.cardinality.min}-${safeInput.outputContract.cardinality.max} output artifact(s) under the typed output contract.`, constraintIds: outputConstraints.map((constraint) => constraint.id), sourceIds: [], decisionIds, assetIds: [], importance: 'hard', mutability: 'locked', locked: true,
+    })
+    sections.push({
+      schemaVersion: PROMPT_SECTION_SCHEMA_VERSION,
+      id: 'prompt-suggestion-slot-default', kind: 'suggestion', priority: 10, order: 2000, content: '', text: '', constraintIds: [], sourceIds: [], decisionIds: [], assetIds: [], importance: 'preferred', mutability: 'suggestion_slot', locked: false, slotId: 'suggestion.default',
+    })
+    const forbidden: PromptProhibition[] = [
+      ...constraints.filter((constraint) => constraint.predicate === 'absent').map((constraint) => ({
+        id: hashId('prompt-prohibition', { constraintId: constraint.id }), text: `Do not include ${constraint.targetPath ?? constraint.targetPaths.join(',')}.`, constraintIds: [constraint.id], sourceIds: sortedStrings(constraint.sourceIds), importance: constraint.importance,
+      })),
+      ...safeInput.referencePlan.ordered.flatMap((reference) => (reference.prohibitedTargetPaths ?? []).map((targetPath) => ({
+        id: hashId('reference-prohibition', { referenceId: reference.id, targetPath }),
+        text: referenceProhibitionText(reference.label, targetPath),
+        constraintIds: sortedStrings(reference.constraintIds),
+        sourceIds: sortedStrings([reference.assetId, ...reference.sourceBindingIds]),
+        importance: reference.prohibitedTargetPathImportance?.[targetPath] ?? 'required',
+      }))),
+    ]
+    const coverage = constraints.map((constraint) => coverageForConstraint(constraint, sections, parameters, mappings))
+    const prompt: PromptIR = {
+      schemaVersion: PROMPT_IR_SCHEMA_VERSION,
+      id: hashId('prompt-ir', { caseId: safeInput.caseId, caseRevision: safeInput.caseRevision, compilationSignature: safeInput.constraintIR.deterministicSignature, referencePlanHash: safeInput.referencePlan.planHash, pipelinePlanHash: safeInput.pipelinePlan.planHash, targetAdapter: safeInput.targetAdapter, targetCapabilityProfile: safeInput.targetCapabilityProfile }),
+      caseId: safeInput.caseId,
+      caseRevision: safeInput.caseRevision,
+      contextHash: safeInput.contextHash,
+      compilationSignature: safeInput.constraintIR.deterministicSignature,
+      constraintIRHash: safeInput.constraintIR.deterministicSignature,
+      referencePlanHash: safeInput.referencePlan.planHash,
+      pipelinePlanHash: safeInput.pipelinePlan.planHash,
+      outputContractHash: computeOutputContractHash(safeInput.outputContract),
+      targetAdapter: clone(safeInput.targetAdapter),
+      targetCapabilityProfile: clone(safeInput.targetCapabilityProfile),
+      objective, positiveDescription,
+      sections: [...sections].sort((left, right) => left.order - right.order || compareCodeUnits(left.id, right.id)),
+      parameters: sortedBy(parameters, (item) => item.id),
+      referenceMappings: mappings,
+      forbidden: sortedBy(forbidden, (item) => item.id),
+      output: clone(safeInput.outputContract),
+      constraintCoverage: sortedBy(coverage, (item) => item.constraintId),
+      excludedConstraints,
+      sourceIds: sortedStrings([...constraints.flatMap((constraint) => constraint.sourceIds), ...mappings.flatMap((mapping) => mapping.sourceBindingIds)]),
+      constraintIds: sortedStrings(constraints.map((constraint) => constraint.id)),
+      decisionIds,
+      assetIds: sortedStrings(mappings.map((mapping) => mapping.assetId)),
+      deterministicSignature: '',
     }
+    prompt.deterministicSignature = computePromptIRHash(prompt)
+    return clone(prompt)
   }
 }
 

@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { extname, join, relative, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
+import { redactCredentialDeep, redactCredentialDiagnosticText } from './m9-redaction.mjs'
 import {
   RecordingMockTransport,
   SeedreamAdapter,
@@ -64,7 +65,7 @@ const adapterPin = { id: 'voce.seedream', version: '0.1.0-rc.5', digest: sha256(
 const profilePin = { id: 'voce.seedream.domestic.pro', version: '2026-06-28', digest: sha256({ endpoint: ENDPOINT, model: MODEL, referenceLimit: 10, outputCount: 1 }) }
 
 const jsonReady = (value) => JSON.parse(JSON.stringify(value))
-const safeText = (value) => String(value || '').replace(/ark-[A-Za-z0-9-]+/g, '[REDACTED]').replace(/Bearer\s+\S+/gi, 'Bearer [REDACTED]').slice(0, 500)
+const safeText = (value) => redactCredentialDiagnosticText(value, API_KEY)
 
 const COMPOSITION_GLOSSES = {
   'medium-shot': 'Use an intentional half-body medium shot, approximately waist-up, with the face, upper costume, hands, and visible signature weapon readable.',
@@ -467,19 +468,20 @@ async function runCase(definition, sources, adapter, transport, sink) {
 
 async function writeReport(report) {
   const reportPath = join(RUN_DIR, 'm9-report.json')
-  await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8')
+  const redactedReport = API_KEY ? redactCredentialDeep(report, API_KEY) : report
+  await writeFile(reportPath, `${JSON.stringify(redactedReport, null, 2)}\n`, 'utf8')
   const lines = [
     COMPOSITION_ACCEPTANCE ? '# RC.4 Seedream composition acceptance report' : '# M9 Seedream real-smoke report',
     '',
-    `- Run: ${report.runId}`,
+    `- Run: ${redactedReport.runId}`,
     `- Endpoint profile: domestic`,
-    `- Model: ${report.model}`,
-    `- Preflight: ${report.preflight.passed ? 'PASS' : 'FAIL'} (${report.preflight.networkCalls} network calls)`,
-    `- Real calls: ${report.realCallCount}`,
+    `- Model: ${redactedReport.model}`,
+    `- Preflight: ${redactedReport.preflight.passed ? 'PASS' : 'FAIL'} (${redactedReport.preflight.networkCalls} network calls)`,
+    `- Real calls: ${redactedReport.realCallCount}`,
     '',
     '## Cases',
     '',
-    ...report.cases.flatMap((item) => [
+    ...redactedReport.cases.flatMap((item) => [
       `### ${item.title}`,
       '',
       `- Status: ${item.status}`,
@@ -490,7 +492,7 @@ async function writeReport(report) {
     ]),
   ]
   await writeFile(join(RUN_DIR, 'summary.md'), `${lines.join('\n')}\n`, 'utf8')
-  await writeFile(join(ROOT, COMPOSITION_ACCEPTANCE ? 'latest-composition.json' : 'latest.json'), `${JSON.stringify({ runId: RUN_ID, reportPath: relative(process.cwd(), reportPath).replace(/\\/g, '/'), completedAt: report.completedAt }, null, 2)}\n`, 'utf8')
+  await writeFile(join(ROOT, COMPOSITION_ACCEPTANCE ? 'latest-composition.json' : 'latest.json'), `${JSON.stringify({ runId: RUN_ID, reportPath: relative(process.cwd(), reportPath).replace(/\\/g, '/'), completedAt: redactedReport.completedAt }, null, 2)}\n`, 'utf8')
   return reportPath
 }
 
