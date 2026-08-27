@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { extname, join, relative, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
-import { redactCredentialDeep } from './m9-redaction.mjs'
+import { redactCredentialDeep, redactCredentialDiagnosticText } from './m9-redaction.mjs'
 import {
   RecordingMockTransport,
   SeedreamAdapter,
@@ -65,7 +65,7 @@ const adapterPin = { id: 'voce.seedream', version: '0.1.0-rc.5', digest: sha256(
 const profilePin = { id: 'voce.seedream.domestic.pro', version: '2026-06-28', digest: sha256({ endpoint: ENDPOINT, model: MODEL, referenceLimit: 10, outputCount: 1 }) }
 
 const jsonReady = (value) => JSON.parse(JSON.stringify(value))
-const safeText = (value) => String(value || '').replace(/ark-[A-Za-z0-9-]+/g, '[REDACTED]').replace(/Bearer\s+\S+/gi, 'Bearer [REDACTED]').slice(0, 500)
+const safeText = (value) => redactCredentialDiagnosticText(value, API_KEY)
 
 const COMPOSITION_GLOSSES = {
   'medium-shot': 'Use an intentional half-body medium shot, approximately waist-up, with the face, upper costume, hands, and visible signature weapon readable.',

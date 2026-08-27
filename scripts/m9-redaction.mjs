@@ -5,6 +5,13 @@ export function redactCredentialText(text, credentialValue) {
   return text.split(credentialValue).join(CREDENTIAL_PLACEHOLDER)
 }
 
+export function redactCredentialDiagnosticText(value, credentialValue) {
+  return redactCredentialText(String(value || ''), credentialValue)
+    .replace(/ark-[A-Za-z0-9-]+/g, CREDENTIAL_PLACEHOLDER)
+    .replace(/Bearer\s+\S+/gi, `Bearer ${CREDENTIAL_PLACEHOLDER}`)
+    .slice(0, 500)
+}
+
 export function redactCredentialDeep(value, credentialValue) {
   if (!credentialValue || typeof credentialValue !== 'string') return value
   if (typeof value === 'string') return redactCredentialText(value, credentialValue)

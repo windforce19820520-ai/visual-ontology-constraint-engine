@@ -12,6 +12,7 @@ const UNRELATED_REQUEST_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
 interface RedactionModule {
   CREDENTIAL_PLACEHOLDER: string
   redactCredentialText: (text: unknown, credentialValue: unknown) => string
+  redactCredentialDiagnosticText: (text: unknown, credentialValue: unknown) => string
   redactCredentialDeep: (value: unknown, credentialValue: unknown) => unknown
 }
 
@@ -57,6 +58,22 @@ test('M9 redaction keeps unrelated UUID request identifiers visible', async () =
   assert.equal((redacted.cases[0].receipts[0].providerRequestId), UNRELATED_REQUEST_ID)
 })
 
+test('M9 diagnostic redaction removes the exact credential before truncation', async () => {
+  const { redactCredentialDiagnosticText } = await loadRedaction()
+  const direct = redactCredentialDiagnosticText(`provider echoed ${INJECTED_KEY}`, INJECTED_KEY)
+  const boundary = redactCredentialDiagnosticText(`${'x'.repeat(490)}${INJECTED_KEY}`, INJECTED_KEY)
+  assert.equal(direct, 'provider echoed [REDACTED]')
+  assert.equal(boundary.includes(INJECTED_KEY), false)
+  assert.equal(boundary.includes(INJECTED_KEY.slice(0, 12)), false)
+  assert.equal(redactCredentialDiagnosticText(`request ${UNRELATED_REQUEST_ID}`, INJECTED_KEY), `request ${UNRELATED_REQUEST_ID}`)
+})
+
+test('M9 diagnostic redaction retains generic credential defenses', async () => {
+  const { redactCredentialDiagnosticText } = await loadRedaction()
+  assert.equal(redactCredentialDiagnosticText('Authorization: Bearer another-secret', INJECTED_KEY), 'Authorization: Bearer [REDACTED]')
+  assert.equal(redactCredentialDiagnosticText('provider rejected ark-example-secret', INJECTED_KEY), 'provider rejected [REDACTED]')
+})
+
 test('M9 redaction preserves non-string values and is inert without a credential', async () => {
   const { redactCredentialDeep, CREDENTIAL_PLACEHOLDER } = await loadRedaction()
   assert.equal(CREDENTIAL_PLACEHOLDER, '[REDACTED]')
@@ -71,5 +88,6 @@ test('M9 redaction preserves non-string values and is inert without a credential
 
 test('M9 smoke runner uses exact request-scoped redaction and no generic UUID masking', () => {
   assert.match(smokeSource, /redactCredentialDeep/)
+  assert.match(smokeSource, /redactCredentialDiagnosticText\(value, API_KEY\)/)
   assert.doesNotMatch(smokeSource, /\[0-9a-f\]\{8\}-\[0-9a-f\]\{4\}/)
 })
